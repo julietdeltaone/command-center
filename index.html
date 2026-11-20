@@ -205,7 +205,40 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 
 var DATA = null;
 var TAB = "Wall";
-var UNLOCK = false;
+var KEY2 = null;       /* second key, kept in memory only, never stored */
+var idleTimer = null, hideTimer = null, LOCK_AFTER_MIN = 5;
+function isUnlocked(){ return !!(DATA && (DATA.tier2 || DATA.sample)); }
+function lockNow(){ KEY2 = null; clearTimeout(idleTimer); clearTimeout(hideTimer); if (getCfg()) load(); }
+function armIdle(){
+  clearTimeout(idleTimer);
+  if (KEY2) idleTimer = setTimeout(lockNow, LOCK_AFTER_MIN * 60000);
+}
+function unlockPrompt(note){
+  var app = document.getElementById("app");
+  var key = h("input", {class: "field", type: "password", placeholder: "Second key", autocomplete: "off"});
+  var msg = h("div", {class: "empty"}, note || "");
+  function submit(){
+    var v = key.value.trim();
+    if (!v) { msg.textContent = "Enter the second key."; return; }
+    KEY2 = v; load(true);
+  }
+  key.addEventListener("keydown", function(e){ if (e.key === "Enter") submit(); });
+  app.textContent = "";
+  app.appendChild(h("section", {class: "card mod"},
+    h("h3", null, "Unlock Private and Work"),
+    h("div", {class: "empty"}, "These sections need a second key. It is kept in this tab only and locks again after " + LOCK_AFTER_MIN + " idle minutes or when you leave the page."),
+    key, msg,
+    h("div", {class: "acts"},
+      h("button", {class: "btn link", type: "button", onclick: submit}, "Unlock"),
+      h("button", {class: "btn", type: "button", onclick: function(){ render(); }}, "Cancel"))));
+  key.focus();
+}
+function lockScreen(name){
+  return h("section", {class: "card mod"},
+    h("div", {class: "mhead"}, h("h3", null, name + " is locked")),
+    lockBox(),
+    h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Private and Work")));
+}
 var TABS = ["Wall", "Today", "Business", "Local", "Private", "System"];
 var EMBEDS = {Business: {name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}};
 
@@ -626,12 +659,12 @@ function wall(){
     h("button", {class: "wopen", type: "button", onclick: function(){ go("System"); }}, "VIEW IN SYSTEM")));
   box.appendChild(h("div", {class: "wbar"},
     h("div", {class: "tabhead", style: "margin:0"}, h("h2", null, "Wall"), h("span", {class: "mono", style: "margin-left:14px"}, new Date(nowMs()).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"}))),
-    h("button", {class: "btn", type: "button", onclick: function(){ UNLOCK = !UNLOCK; render(); }}, UNLOCK ? "Hide Private and Work" : "Show Private and Work")));
+    h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work")));
   var em = EMBEDS.Business;
   box.appendChild(h("div", {class: "wall"},
     todayTile(), systemTile(), businessTile(), localTile(),
-    wtile("ws4", "Private", "Private", (UNLOCK || !tier2("Private")) ? h("div", {style: "display:flex;flex-direction:column;gap:12px"}, moduleRows("Private"), summaryNote("Private")) : lockBox(), (UNLOCK || !tier2("Private")) ? summaryStatus("Private") : null),
-    wtile("ws4", "Work", null, (UNLOCK || !tier2("Work")) ? (summaryNote("Work") || h("div", {class: "wnote"}, "No Work feed is connected yet.")) : lockBox(), (UNLOCK || !tier2("Work")) ? summaryStatus("Work") : null),
+    wtile("ws4", "Private", "Private", (isUnlocked() || !tier2("Private")) ? h("div", {style: "display:flex;flex-direction:column;gap:12px"}, moduleRows("Private"), summaryNote("Private")) : lockBox(), (isUnlocked() || !tier2("Private")) ? summaryStatus("Private") : null),
+    wtile("ws4", "Work", null, (isUnlocked() || !tier2("Work")) ? (summaryNote("Work") || h("div", {class: "wnote"}, "No Work feed is connected yet.")) : lockBox(), (isUnlocked() || !tier2("Work")) ? summaryStatus("Work") : null),
     wtile("ws4", em.name, "Business", h("div", {class: "pv"},
       h("iframe", {src: em.url, title: em.name + " preview", loading: "lazy", tabindex: "-1"}),
       h("a", {href: em.url, target: "_blank", rel: "noopener"}, "OPEN FULL SCREEN"))),
@@ -652,6 +685,7 @@ function render(){
   app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB),
     h("span", {class: "mono"}, new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"}))));
 
+  if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
   (DATA.modules[TAB] || []).forEach(function(m){
     app.appendChild(
       m.kind === "usage" ? usageModule(m) :
@@ -740,15 +774,17 @@ function skeleton(){
   var app = document.getElementById("app");
   if (app && !app.firstChild) app.appendChild(h("div", {class: "sk"}, h("div"), h("div"), h("div"), h("div"), h("div"), h("div")));
 }
-function load(){
+function load(fromUnlock){
   var cfg = getCfg();
   if (!cfg) { if (!DATA) connectScreen(); return; }
   if (!DATA) skeleton();
-  fetch(cfg.url + (cfg.url.indexOf("?") > -1 ? "&" : "?") + "key=" + encodeURIComponent(cfg.key))
+  fetch(cfg.url + (cfg.url.indexOf("?") > -1 ? "&" : "?") + "key=" + encodeURIComponent(cfg.key) + (KEY2 ? "&key2=" + encodeURIComponent(KEY2) : ""))
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j.ok) throw new Error(j.error);
-      DATA = fixData(j.data); render();
+      DATA = fixData(j.data);
+      if (KEY2 && !DATA.tier2) { KEY2 = null; render(); unlockPrompt("That key was not accepted."); return; }
+      render(); armIdle();
     })
     .catch(showError);
 }
@@ -842,6 +878,11 @@ document.getElementById("refresh").addEventListener("click", load);
 document.getElementById("disconnect").addEventListener("click", function(){ clearCfg(); document.getElementById("tabs").textContent = ""; connectScreen(); });
 load();
 setInterval(function(){ if (getCfg()) load(); }, 5 * 60000);
+["pointerdown", "keydown", "scroll"].forEach(function(ev){ window.addEventListener(ev, armIdle, {passive: true}); });
+document.addEventListener("visibilitychange", function(){
+  clearTimeout(hideTimer);
+  if (document.hidden && KEY2) hideTimer = setTimeout(lockNow, 60000);
+});
 })();
 </script>
 <script src="cc-motion.js"></script>
