@@ -1467,7 +1467,7 @@ function aiMap(){
 }
 
 /* ---------- System: structure visual + nested sections ---------- */
-var SYS_OPEN = {aimap: true, structure: false};
+var SYS_OPEN = {depts: true, aimap: true, structure: false};
 var PROB_OPEN = {};
 function sysSection(id, title, note, body, openDefault){
   var open = SYS_OPEN[id] != null ? SYS_OPEN[id] : !!openDefault;
@@ -1539,10 +1539,55 @@ function problemsDiag(){
   });
   return box;
 }
+/* ---------- System: Departments ---------- */
+var DEPTS = [
+  ["Calendar", "Owns the calendar. Everything visible and up to date."],
+  ["Equipment", "Inventory current, every new piece of gear accounted for."],
+  ["Business and vocational", "JD Meyers Productions and work."],
+  ["Health", "Sleep and fitness looked after."],
+  ["AI and systems", "Usage posted and current for everyone. System health, problems surfaced, nothing stale hiding."]
+];
+function newestItem(tab, mod){
+  var t = 0;
+  DATA.items.forEach(function(i){ if (i.tab === tab && (!mod || i.module === mod)) { var x = new Date(i.time).getTime(); if (x > t) t = x; } });
+  return t ? new Date(t).toISOString() : null;
+}
+function deptSignal(name){
+  var f = function(iso, hrs){ return !iso ? "none" : (nowMs() - new Date(iso).getTime()) / 3600000 > hrs ? "late" : "ok"; };
+  if (name === "Calendar") {
+    var n = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Calendar and deadlines"; }).length, t = newestItem("Today", "Calendar and deadlines");
+    return {st: f(t, 30), text: n + (n === 1 ? " item" : " items") + " today · last pull " + (t ? ago(t) : "never")};
+  }
+  if (name === "Equipment") {
+    var te = newestItem("Private", "Inventory");
+    return te ? {st: f(te, 24 * 14), text: "Inventory last updated " + ago(te)} : {st: "none", text: "Inventory not connected yet"};
+  }
+  if (name === "Business and vocational") {
+    var tb = newestItem("Business"), nb = DATA.items.filter(function(i){ return i.tab === "Business"; }).length;
+    return {st: f(tb, 30), text: nb + (nb === 1 ? " item" : " items") + " · last pull " + (tb ? ago(tb) : "never")};
+  }
+  if (name === "Health") {
+    var th = newestItem("Private", "Health");
+    return {st: th ? f(th, 30) : "none", text: th ? "Last health data " + ago(th) : "No health data yet"};
+  }
+  var u = computeUsage(), np = (DATA.problems || []).length;
+  return {st: u && !u.stale ? (np ? "late" : "ok") : "late", text: (u ? "Usage read " + ago(u.read) : "No usage reading") + " · " + np + (np === 1 ? " open problem" : " open problems")};
+}
+function deptsPanel(){
+  var rows = DEPTS.map(function(d){
+    var own = cfgVal("dept." + d[0]), nm = "";
+    for (var c = 0; c < CREW.length; c++) if (CREW[c][0] === own) nm = cfgName(own, CREW[c][1]);
+    if (!nm && own) nm = own;
+    var sg = deptSignal(d[0]);
+    return h("div", {class: "dprow"}, h("span", {class: "dot " + sg.st}), h("div", {class: "dpn"}, h("b", null, d[0]), h("small", null, d[1])), h("span", {class: "dpo" + (nm ? "" : " dim")}, nm || "Unassigned"), h("span", {class: "dps"}, sg.text));
+  });
+  return h("div", {class: "depts"}, h("div", {class: "dphead"}, h("span", null, ""), h("span", null, "Department"), h("span", null, "Owner"), h("span", null, "Right now")), rows);
+}
 function systemView(){
   var box = h("div", null);
   var nMods = 0, keys = Object.keys(DATA.modules || {});
   keys.forEach(function(t){ nMods += (DATA.modules[t] || []).length; });
+  box.appendChild(sysSection("depts", "Departments", DEPTS.length + " departments · who owns what", deptsPanel(), true));
   box.appendChild(sysSection("aimap", "AI map", CREW.length + " AIs · who feeds what", aiMap(), true));
   box.appendChild(sysSection("structure", "Structure",
     nMods + " modules · " + DATA.routines.length + " routines", structureTree(), true));
