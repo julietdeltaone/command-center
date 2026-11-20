@@ -121,6 +121,7 @@ nav.tabs{
 .btn.link{border-color:rgba(122,167,255,.6);color:var(--accent)}
 .field{width:100%;min-height:48px;margin-top:10px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:16px}
 
+.embed{display:block;width:100%;height:80vh;min-height:520px;margin-top:12px;border:1px solid var(--line);border-radius:12px;background:#0b0c14}
 .grades{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .sys{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:14px}
 .sysc{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--panel)}
@@ -160,6 +161,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 var DATA = null;
 var TAB = "Today";
 var TABS = ["Today", "Business", "Local", "Private", "System"];
+var EMBEDS = {Business: {name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}};
 
 function h(tag, props){
   var e = document.createElement(tag);
@@ -411,6 +413,14 @@ function render(){
       m.kind === "problems" ? problemsModule(m) :
       itemsModule(m, TAB));
   });
+
+  var em = EMBEDS[TAB];
+  if (em) {
+    app.appendChild(h("section", {class: "card mod"},
+      h("div", {class: "mhead"}, h("h3", null, em.name),
+        h("a", {class: "btn link", href: em.url, target: "_blank", rel: "noopener"}, "Open full screen")),
+      h("iframe", {class: "embed", src: em.url, title: em.name, loading: "lazy"})));
+  }
 
   var nav = document.getElementById("tabs");
   nav.textContent = "";
