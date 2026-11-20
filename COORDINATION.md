@@ -37,6 +37,13 @@ Never edit a file you do not own. To change one, post a request row in the Comma
 - The hub gets counts and short status lines only. Message text stays in the email and never goes into the Sheet or this repo.
 - Calendar safety check: Google Calendar is the main source. If the Orion report lists an upcoming event that Google Calendar does not have, post a 🔴 alert row naming the event title and time. No match problem means no row.
 
+## Orion 2 report (iPhone device log)
+
+- Sent at 9 AM, 3:30 PM, 8 PM and 12 AM from the iPhone. Subject starts "Orion 2 report".
+- Phone values only: battery percent, charging yes or no, brightness, volume, locked yes or no. No messages, photos or calendar.
+- Use it for the hub's battery line. Counts and short status only. Never put message text or raw email into the Sheet or this repo.
+- If no Orion 2 report has arrived within 90 minutes of a scheduled time, post a 🟡 row. Battery under 20 percent and not charging: post a 🔴 row.
+
 ## Status colors
 
 Start every Messages row, Problems row and report line with one color so JD can scan at a glance:
