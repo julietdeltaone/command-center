@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>if (new URLSearchParams(location.search).get("theme") === "light") document.documentElement.setAttribute("data-theme","light")</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hub guide · Command Center</title>
+<style>
+body{margin:0;background:var(--bg);color:var(--text);font-family:Manrope,system-ui,sans-serif}
+main{width:min(100% - 36px,960px);margin:0 auto;padding:32px 0 48px}
+header{text-align:center;margin-bottom:24px}
+section{border:1px solid var(--line);border-radius:22px;background:var(--card)}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr))}
+.card{padding:18px}
+h2{text-align:center;margin:0 0 8px}
+p{line-height:1.55}
+a{color:var(--accent)}
+</style>
+<link rel="stylesheet" href="../cc-design.css">
+<link rel="stylesheet" href="../cc-skin.css">
+</head>
+<body>
+<main id="app">
+<header><a href="../index.html">Back to Command Center</a><h1>Command Center guide</h1><p>Start on Wall, then open the section that needs your attention.</p></header>
+<div class="grid">
+<section class="card"><h2>Wall</h2><p>Scan today’s timeline, open items, and System warnings. Open a tile for details.</p></section>
+<section class="card"><h2>Today</h2><p>Check deadlines and upcoming events. Open Recap for the broader review. Use Done or Dismiss when the item calls for it.</p></section>
+<section class="card"><h2>Business</h2><p>Check new leads and anything waiting on a reply. Use Marketing for recommendations and Business Pulse for market activity.</p></section>
+<section class="card"><h2>Local</h2><p>Review nearby events and open the Local Events page for more detail.</p></section>
+<section class="card"><h2>Private</h2><p>Open when you need personal status. Check the battery line if present. If the section is locked, use the hub’s unlock flow.</p></section>
+<section class="card"><h2>Work</h2><p>Check deadlines, requests and pending replies when this tile is available. Prioritize the items that need your action.</p></section>
+<section class="card"><h2>System</h2><p>Check routine failures, stale data and open problems. Green means checked, yellow means pending or unverified, and red means blocked or failed.</p></section>
+</div>
+</main>
+<script src="../cc-motion.js"></script>
+</body>
+</html>
