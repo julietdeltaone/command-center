@@ -464,9 +464,10 @@ function dayOffset(text){
   return idx < 0 ? null : (idx - today + 7) % 7;
 }
 function shortName(text){ return String(text).split(/,| tonight| today| Sat | Sun | Fri | Mon | Tue | Wed | Thu /)[0].trim().slice(0, 48); }
-function wtile(cls, label, tab, body){
+function wtile(cls, label, tab, body, st){
+  var dotCls = st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : null;
   return h("section", {class: "wt " + cls, "aria-label": label},
-    h("div", {class: "wh"}, h("span", {class: "mono"}, label),
+    h("div", {class: "wh"}, h("span", {class: "mono", style: "display:flex;align-items:center;gap:8px"}, dotCls ? h("span", {class: "dot " + dotCls}) : null, label),
       tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null),
     body);
 }
@@ -482,6 +483,55 @@ function lockBox(label){
   return h("div", {class: "lockbox"},
     h("div", {class: "ghost", "aria-hidden": "true"}, h("i", {style: "height:26px;width:70%"}), h("i", {style: "height:10px;width:90%"}), h("i", {style: "height:10px;width:60%"}), h("i", {style: "height:40px;width:100%"})),
     h("div", {class: "lk"}, label || "LOCKED"));
+}
+
+
+/* ---------- summary, sections, messages, config (optional until the API serves them) ---------- */
+function summaryRows(section){ return ((DATA && DATA.summary) || []).filter(function(r){ return r.section === section; }); }
+function summaryStatus(section){
+  var rows = summaryRows(section), rank = {good: 1, watch: 2, alert: 3}, best = null;
+  rows.forEach(function(r){ if (!best || (rank[r.status] || 0) > (rank[best] || 0)) best = r.status; });
+  return best;
+}
+function summaryNote(section){
+  var rows = summaryRows(section);
+  if (!rows.length) return null;
+  return h("div", {style: "display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px"}, rows.map(function(r){
+    return h("div", {style: "display:flex;flex-direction:column;gap:3px"},
+      h("div", {style: "font-weight:600;font-size:15px"}, r.headline),
+      h("div", {class: "wnote", style: "line-height:1.5"}, r.text));
+  }));
+}
+function tier2(name){
+  var row = ((DATA && DATA.sections) || []).filter(function(r){ return r.section === name; })[0];
+  return row ? Number(row.tier) === 2 : (name === "Private" || name === "Work");
+}
+function cfgName(id, fallback){
+  var rows = (DATA && DATA.config) || [];
+  for (var i = 0; i < rows.length; i++) if (rows[i].key === "name." + id) return rows[i].value;
+  return fallback;
+}
+var CREW = [["claude", "Atlas", "Lead"], ["muse", "Luna", "Routines"], ["chatgpt", "Argus", "Cross-check"], ["claude-jdm", "Athena", "Business account"], ["iphone", "Orion", "iPhone report"]];
+function crewTile(){
+  var msgs = (DATA.messages || []);
+  return wtile("ws4", "Crew", "System", h("div", null, CREW.map(function(c){
+    var mine = msgs.filter(function(m){ return m.from === c[0]; });
+    var last = mine.length ? mine[mine.length - 1].time : null;
+    var live = last && (nowMs() - new Date(last).getTime()) < 3600000;
+    return h("div", {class: "mrow"}, h("span", {class: "dot " + (live ? "ok" : "none")}),
+      h("span", {class: "nm"}, cfgName(c[0], c[1])), h("span", {class: "ct"}, last ? "spoke " + ago(last) : c[2]));
+  })));
+}
+function messagesTile(){
+  var msgs = (DATA.messages || []).slice().sort(function(a, b){ return new Date(b.time) - new Date(a.time); }).slice(0, 4);
+  var body = msgs.length ? h("div", {style: "display:flex;flex-direction:column;gap:10px"}, msgs.map(function(m){
+    var t = String(m.text || ""); if (t.length > 170) t = t.slice(0, 167) + "...";
+    return h("div", {style: "border:1px solid var(--line);border-radius:12px;padding:12px;background:rgba(0,0,0,.2);display:flex;flex-direction:column;gap:6px"},
+      h("div", {class: "wnote mono", style: "display:flex;justify-content:space-between;gap:10px;font-size:11px"},
+        h("span", null, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + m.type), h("span", null, ago(m.time) + (m.status === "open" ? " · open" : ""))),
+      h("div", {style: "font-size:13.5px;line-height:1.5"}, t));
+  })) : h("div", {class: "wnote"}, "No messages yet.");
+  return wtile("ws8", "Messages", "System", body);
 }
 
 function todayTile(){
@@ -507,7 +557,7 @@ function todayTile(){
   if (nh >= A && nh <= B) tl.appendChild(h("div", {class: "now", style: "left:" + ((nh - A) / span * 100) + "%"}, h("span", null, "NOW")));
   return wtile("ws8", "Today", "Today", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
     h("div", {class: "wbig"}, due + " due today", h("small", null, DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; }).length + " on the watch list")),
-    tl));
+    tl, summaryNote("Today")), summaryStatus("Today"));
 }
 
 function systemTile(){
@@ -525,14 +575,14 @@ function systemTile(){
     h("div", {class: "wbig"}, ok, h("small", null, "of " + rs.length + " routines on time")),
     cells,
     h("div", {class: "wnote", style: "display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"}, h("span", null, (DATA.problems || []).length + " open problems"), h("span", {class: "mono"}, ownerText)),
-    usage));
+    usage), summaryStatus("System"));
 }
 
 function businessTile(){
   var its = DATA.items.filter(function(i){ return i.tab === "Business"; }).sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
   return wtile("ws5", "Business", "Business", h("div", {style: "display:flex;flex-direction:column;gap:10px"},
     moduleRows("Business"),
-    its.length ? h("div", {class: "wnote", style: "border-top:1px solid var(--line);padding-top:12px;line-height:1.5"}, its[0].text) : null));
+    summaryNote("Business") || (its.length ? h("div", {class: "wnote", style: "border-top:1px solid var(--line);padding-top:12px;line-height:1.5"}, its[0].text) : null)), summaryStatus("Business"));
 }
 
 function localTile(){
@@ -555,7 +605,7 @@ function localTile(){
   var scan = moduleStatus("Scanner");
   return wtile("ws7", "Local · Potsdam", "Local", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
     h("div", {class: "wbig"}, total + (total === 1 ? " event" : " events"), h("small", null, "Scanner: " + scan.text.toLowerCase())),
-    cols.length ? h("div", {class: "wk"}, cols) : h("div", {class: "wnote"}, "No events listed.")));
+    cols.length ? h("div", {class: "wk"}, cols) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local")), summaryStatus("Local"));
 }
 
 function wall(){
@@ -570,11 +620,13 @@ function wall(){
   var em = EMBEDS.Business;
   box.appendChild(h("div", {class: "wall"},
     todayTile(), systemTile(), businessTile(), localTile(),
-    wtile("ws4", "Private", "Private", UNLOCK ? moduleRows("Private") : lockBox()),
-    wtile("ws4", "Work", null, UNLOCK ? h("div", {class: "wnote"}, "No Work feed is connected yet.") : lockBox()),
+    wtile("ws4", "Private", "Private", (UNLOCK || !tier2("Private")) ? h("div", {style: "display:flex;flex-direction:column;gap:12px"}, moduleRows("Private"), summaryNote("Private")) : lockBox(), (UNLOCK || !tier2("Private")) ? summaryStatus("Private") : null),
+    wtile("ws4", "Work", null, (UNLOCK || !tier2("Work")) ? (summaryNote("Work") || h("div", {class: "wnote"}, "No Work feed is connected yet.")) : lockBox(), (UNLOCK || !tier2("Work")) ? summaryStatus("Work") : null),
     wtile("ws4", em.name, "Business", h("div", {class: "pv"},
       h("iframe", {src: em.url, title: em.name + " preview", loading: "lazy", tabindex: "-1"}),
-      h("a", {href: em.url, target: "_blank", rel: "noopener"}, "OPEN FULL SCREEN")))));
+      h("a", {href: em.url, target: "_blank", rel: "noopener"}, "OPEN FULL SCREEN"))),
+    (DATA.config || DATA.messages) ? crewTile() : null,
+    (DATA.config || DATA.messages) ? messagesTile() : null));
   return box;
 }
 
@@ -728,6 +780,20 @@ function preview(){
       I("s11", "Local", "Scanner", "2-car crash near Grant and Elm", "Scanner dispatch", "Single source", 300),
       I("s12", "Private", "Health", "Last night's sleep has not synced", "Health sync", "Gap", 160),
       I("s13", "Private", "Guard, OTS, MBA", "Pre-drill pack reminder due Wednesday", "Guard schedule", "Exact", 2000, new Date(Date.now() + 3 * 86400000).toISOString())
+    ],
+    summary: [
+      {section: "Today", headline: "2 items due today", status: "watch", text: "One approval is still waiting on someone else.", writer: "sample"},
+      {section: "Business", headline: "Dashboard verified this morning", status: "good", text: "Competitor dashboard rebuilt and live-verified.", writer: "sample"},
+      {section: "Local", headline: "6 events this weekend, scanner quiet", status: "good", text: "Nothing flagged today.", writer: "sample"},
+      {section: "Private", headline: "Week-to-date check ran", status: "good", text: "Daily popup runs this afternoon.", writer: "sample"},
+      {section: "Work", headline: "23 open items, 0 urgent", status: "watch", text: "Two items are due today.", writer: "sample"},
+      {section: "System", headline: "3 open problems", status: "watch", text: "All routines write their run rows.", writer: "sample"}
+    ],
+    sections: [{section: "Private", tier: 2}, {section: "Work", tier: 2}],
+    config: [{key: "name.claude", value: "Atlas"}, {key: "name.muse", value: "Luna"}, {key: "name.chatgpt", value: "Argus"}],
+    messages: [
+      {id: "m1", from: "muse", to: "claude", type: "answer", text: "Summary rows written for all six sections.", status: "open", time: iso(20)},
+      {id: "m2", from: "chatgpt", to: "claude", type: "answer", text: "Write test worked.", status: "open", time: iso(4)}
     ],
     usage: [
       {read_time: iso(1470), percent: 29, reset_time: reset, writer: "sample"},
