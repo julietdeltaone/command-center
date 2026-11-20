@@ -177,6 +177,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 @media (max-width:1000px){.ws3,.ws4,.ws5{grid-column:span 6}.ws6,.ws7,.ws8{grid-column:span 12}}
 @media (max-width:640px){.ws3,.ws4,.ws5,.ws6,.ws7,.ws8{grid-column:span 12}}
 </style>
+<link rel="stylesheet" href="cc-design.css">
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -195,6 +196,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
   </header>
   <div id="app"></div>
 </div>
+<aside class="rail" id="rail" aria-label="Quick jump"></aside>
 <nav class="tabs" id="tabs" role="tablist" aria-label="Sections"></nav>
 
 <script>
@@ -442,7 +444,11 @@ function tiles(){
 
 
 /* ---------- wall ---------- */
-function go(tab){ TAB = tab; render(); window.scrollTo(0, 0); }
+function swap(fn){
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (document.startViewTransition && !reduce) document.startViewTransition(function(){ fn(); }); else fn();
+}
+function go(tab){ swap(function(){ TAB = tab; render(); window.scrollTo(0, 0); }); }
 function clock(txt){
   var m = /(\d{1,2})(?::(\d{2}))?\s?([AP])M/i.exec(txt || "");
   if (!m) return null;
@@ -487,7 +493,11 @@ function lockBox(label){
 
 
 /* ---------- summary, sections, messages, config (optional until the API serves them) ---------- */
-function summaryRows(section){ return ((DATA && DATA.summary) || []).filter(function(r){ return r.section === section; }); }
+function summaryRows(section){
+  var seen = {}, rows = ((DATA && DATA.summary) || []).filter(function(r){ return r.section === section; });
+  rows.forEach(function(r){ var k = r.headline; if (!seen[k] || String(r.as_of) >= String(seen[k].as_of)) seen[k] = r; });
+  return Object.keys(seen).map(function(k){ return seen[k]; });
+}
 function summaryStatus(section){
   var rows = summaryRows(section), rank = {good: 1, watch: 2, alert: 3}, best = null;
   rows.forEach(function(r){ if (!best || (rank[r.status] || 0) > (rank[best] || 0)) best = r.status; });
@@ -663,11 +673,15 @@ function render(){
 
 function renderNav(){
   var nav = document.getElementById("tabs");
+  var rail = document.getElementById("rail");
   nav.textContent = "";
+  if (rail) { rail.textContent = ""; rail.appendChild(h("div", {class: "rmark"}, h("i"))); }
   TABS.forEach(function(t){
     var n = DATA.items.filter(function(i){ return i.tab === t; }).length;
     nav.appendChild(h("button", {class: "tab", type: "button", role: "tab", "aria-selected": String(t === TAB),
-      onclick: function(){ TAB = t; render(); window.scrollTo(0, 0); }}, t, h("span", {class: "n"}, t === "Wall" ? "all" : n ? String(n) : "-")));
+      onclick: function(){ go(t); }}, t, h("span", {class: "n"}, t === "Wall" ? "all" : n ? String(n) : "-")));
+    if (rail) rail.appendChild(h("button", {type: "button", "aria-label": t, "aria-selected": String(t === TAB), onclick: function(){ go(t); }},
+      h("b", null, t.charAt(0)), h("span", null, t), (t !== "Wall" && n) ? h("em", {class: "rn"}, String(n)) : null));
   });
 }
 
@@ -713,14 +727,28 @@ function connectScreen(note){
 }
 
 /* ---------- data ---------- */
+function fixData(d){
+  /* A row written one column short (options missing) shifts everything after it left. Put it back. */
+  (d.problems || []).forEach(function(p){
+    if (/^\d{4}-\d\d-\d\d/.test(String(p.status || ""))) {
+      p.opened = p.status; p.status = p.owner; p.owner = p.options; p.options = "";
+    }
+  });
+  return d;
+}
+function skeleton(){
+  var app = document.getElementById("app");
+  if (app && !app.firstChild) app.appendChild(h("div", {class: "sk"}, h("div"), h("div"), h("div"), h("div"), h("div"), h("div")));
+}
 function load(){
   var cfg = getCfg();
   if (!cfg) { if (!DATA) connectScreen(); return; }
+  if (!DATA) skeleton();
   fetch(cfg.url + (cfg.url.indexOf("?") > -1 ? "&" : "?") + "key=" + encodeURIComponent(cfg.key))
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j.ok) throw new Error(j.error);
-      DATA = j.data; render();
+      DATA = fixData(j.data); render();
     })
     .catch(showError);
 }
@@ -816,5 +844,6 @@ load();
 setInterval(function(){ if (getCfg()) load(); }, 5 * 60000);
 })();
 </script>
+<script src="cc-motion.js"></script>
 </body>
 </html>

@@ -1,0 +1,135 @@
+/* Command Center design system. One stylesheet for the hub and every spoke page.
+   Load it AFTER the page's own styles:
+   <link rel="stylesheet" href="https://julietdeltaone.github.io/command-center/cc-design.css">
+   Tokens, depth, motion and layout rules live here only. */
+
+:root{
+  --rail:76px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --dur:.55s;
+  --surf-1:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.028));
+  --surf-2:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.04));
+  --edge:inset 0 1px 0 rgba(255,255,255,.09),inset 0 0 0 1px rgba(255,255,255,.02);
+  --shadow-1:0 1px 2px rgba(0,0,0,.5),0 14px 34px -16px rgba(0,0,0,.75);
+  --shadow-2:0 2px 4px rgba(0,0,0,.5),0 26px 56px -18px rgba(0,0,0,.85);
+  --glow:0 0 0 1px rgba(122,167,255,.45),0 0 34px -6px rgba(122,167,255,.45);
+}
+
+/* ---------- full screen ---------- */
+.wrap,.wrap.wide{max-width:none;width:100%;padding-left:clamp(18px,2.4vw,64px);padding-right:clamp(18px,2.4vw,64px)}
+@media (min-width:1100px){
+  body{padding-left:var(--rail)}
+}
+@media (min-width:1800px){
+  html{font-size:112%}
+}
+@media (min-width:2400px){
+  html{font-size:128%}
+}
+
+/* ---------- alive background ---------- */
+html{background:var(--bg)}
+body::after{
+  content:"";position:fixed;z-index:0;pointer-events:none;inset:-20%;
+  background:
+    radial-gradient(34% 30% at 20% 25%,rgba(122,167,255,.20),transparent 70%),
+    radial-gradient(30% 28% at 80% 18%,rgba(177,140,255,.16),transparent 70%),
+    radial-gradient(36% 32% at 60% 85%,rgba(95,212,138,.09),transparent 70%);
+  filter:blur(30px);
+  animation:drift 46s ease-in-out infinite alternate;
+}
+@keyframes drift{
+  0%{transform:translate3d(-3%,-2%,0) rotate(0deg) scale(1)}
+  50%{transform:translate3d(4%,3%,0) rotate(6deg) scale(1.08)}
+  100%{transform:translate3d(-2%,5%,0) rotate(-4deg) scale(1.04)}
+}
+
+/* ---------- depth: layered, frosted, lifts on hover ---------- */
+.card,.wt,.mod,.sysc,.wk>div{
+  background:var(--surf-1);
+  box-shadow:var(--edge),var(--shadow-1);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);
+  transition:transform .35s var(--ease),box-shadow .35s var(--ease),border-color .25s;
+}
+.wt{border-radius:18px}
+.wt:hover,.card:hover,.mod:hover{
+  transform:translateY(-3px);
+  border-color:rgba(122,167,255,.5);
+  box-shadow:var(--edge),var(--shadow-2),0 0 40px -14px rgba(122,167,255,.5);
+}
+.sysc:hover,.wk>div:hover{transform:translateY(-2px);box-shadow:var(--edge),var(--shadow-2)}
+.btn,.ibtn{transition:transform .2s var(--ease),border-color .2s,background .2s}
+.btn:hover,.ibtn:hover{transform:translateY(-1px);border-color:rgba(122,167,255,.6);background:var(--panel2)}
+.btn:active,.ibtn:active{transform:translateY(0) scale(.98)}
+
+/* ---------- glow on live status ---------- */
+.dot.ok{animation:pulse 2.4s ease-in-out infinite}
+.dot.late{box-shadow:0 0 8px var(--amber)}
+.dot.fail{box-shadow:0 0 10px var(--red);animation:pulse-red 1.6s ease-in-out infinite}
+.mark i{animation:pulse 2.8s ease-in-out infinite}
+.tl .now{box-shadow:0 0 14px rgba(122,167,255,.7)}
+@keyframes pulse{0%,100%{box-shadow:0 0 5px var(--accent);opacity:.9}50%{box-shadow:0 0 16px var(--accent),0 0 28px rgba(122,167,255,.4);opacity:1}}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 5px var(--red)}50%{box-shadow:0 0 18px var(--red),0 0 30px rgba(255,107,122,.4)}}
+.cells i{box-shadow:0 0 10px -2px rgba(95,212,138,.55)}
+.cells i.late{box-shadow:0 0 10px -2px rgba(240,180,80,.6)}
+.cells i.fail{box-shadow:0 0 12px -2px rgba(255,107,122,.7)}
+
+/* ---------- loading sequence: skeleton, then staggered rise ---------- */
+.sk{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.sk>div{
+  min-height:210px;border-radius:18px;border:1px solid var(--line);grid-column:span 4;
+  background:linear-gradient(100deg,rgba(255,255,255,.03) 20%,rgba(255,255,255,.09) 40%,rgba(255,255,255,.03) 60%) 0 0/220% 100%;
+  animation:shimmer 1.3s linear infinite;
+}
+.sk>div:nth-child(1){grid-column:span 8}
+.sk>div:nth-child(2){grid-column:span 4}
+@keyframes shimmer{to{background-position:-120% 0}}
+@media (max-width:1000px){.sk>div,.sk>div:nth-child(1),.sk>div:nth-child(2){grid-column:span 12}}
+
+#app>*,.wall>*,.tiles>*,.hero>*{animation:rise var(--dur) var(--ease) both;animation-delay:calc(var(--i,0) * 55ms)}
+@keyframes rise{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
+
+/* ---------- charts draw in ---------- */
+.g-fill{animation:gdraw 1.3s var(--ease) .15s both}
+@keyframes gdraw{from{stroke-dasharray:0 100}to{stroke-dasharray:var(--d,50) 100}}
+.cells i{animation:cellin .5s var(--ease) both;animation-delay:calc(var(--i,0) * 18ms + .2s)}
+@keyframes cellin{from{opacity:0;transform:scaleY(.2)}to{opacity:1;transform:none}}
+.tl .blk{transform-origin:left center;animation:blkin .7s var(--ease) both;animation-delay:calc(var(--i,0) * 90ms + .25s)}
+@keyframes blkin{from{opacity:0;transform:scaleX(.1)}to{opacity:1;transform:none}}
+.bar-fill{transform-origin:left center;animation:blkin .9s var(--ease) both}
+
+/* ---------- page transitions ---------- */
+::view-transition-old(root){animation:vt-out .22s var(--ease) both}
+::view-transition-new(root){animation:vt-in .38s var(--ease) both}
+@keyframes vt-out{to{opacity:0;transform:translateY(-6px)}}
+@keyframes vt-in{from{opacity:0;transform:translateY(10px)}}
+
+/* ---------- side rail (wide screens) ---------- */
+.rail{
+  display:none;position:fixed;z-index:30;left:0;top:0;bottom:0;width:var(--rail);
+  flex-direction:column;align-items:center;gap:6px;padding:20px 0;
+  background:rgba(7,9,13,.7);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+  border-right:1px solid var(--line);
+}
+@media (min-width:1100px){.rail{display:flex}.tabs{left:var(--rail)!important}}
+.rail .rmark{width:36px;height:36px;border-radius:11px;border:1px solid var(--line);display:grid;place-items:center;margin-bottom:14px;
+  background:linear-gradient(135deg,rgba(122,167,255,.25),rgba(177,140,255,.18))}
+.rail .rmark i{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent);animation:pulse 2.8s ease-in-out infinite}
+.rail button{
+  appearance:none;position:relative;width:60px;min-height:56px;border-radius:14px;border:1px solid transparent;background:transparent;color:var(--muted);
+  font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  transition:color .2s,background .2s,transform .25s var(--ease)
+}
+.rail button b{font-size:17px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.rail button span{font-family:var(--mono);font-size:9px;letter-spacing:.03em;text-transform:uppercase}
+.rail button:hover{color:var(--text);background:var(--panel);transform:translateX(2px)}
+.rail button[aria-selected="true"]{color:var(--text);background:var(--panel2);border-color:var(--line)}
+.rail button[aria-selected="true"]::before{content:"";position:absolute;left:-8px;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+.rail .rn{position:absolute;top:3px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--accent);color:#07090d;font-family:var(--mono);font-size:9.5px;font-weight:800;display:grid;place-items:center}
+.rail .rsp{flex:1}
+
+/* ---------- respect reduced motion ---------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  body::after{animation:none}
+}
