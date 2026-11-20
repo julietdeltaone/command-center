@@ -806,8 +806,8 @@ function render(){
   (EMBEDS[TAB] || []).forEach(function(em){
     app.appendChild(h("section", {class: "card mod"},
       h("div", {class: "mhead"}, h("h3", null, em.name),
-        h("a", {class: "btn link", href: em.url, target: "_blank", rel: "noopener"}, "Open full screen")),
-      h("iframe", {class: "embed", src: em.url, title: em.name, loading: "lazy"})));
+        h("a", {class: "btn link", href: embedUrl(em.url), target: "_blank", rel: "noopener"}, "Open full screen")),
+      h("iframe", {class: "embed", src: embedUrl(em.url), title: em.name, loading: "lazy"})));
   });
 
   renderNav();
@@ -821,6 +821,7 @@ var ICONS = {
   Private: [["path", "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"]],
   System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]]
 };
+function embedUrl(u){ return u.indexOf("pages/") === 0 ? u + (u.indexOf("?") > -1 ? "&" : "?") + "theme=" + themeIs() : u; }
 function icon(name){
   var e = svgEl("svg", {viewBox: "0 0 24 24", "class": "ic", "aria-hidden": "true"});
   (ICONS[name] || []).forEach(function(p){ e.appendChild(typeof p[1] === "string" ? svgEl(p[0], {d: p[1]}) : svgEl(p[0], p[1])); });
@@ -1022,6 +1023,7 @@ document.getElementById("theme").addEventListener("click", function(){
   if (next === "light") document.documentElement.setAttribute("data-theme", "light"); else document.documentElement.removeAttribute("data-theme");
   try { localStorage.setItem("cc_theme", next); } catch (e) {}
   themeBtn();
+  if (DATA) render();
 });
 themeBtn();
 document.getElementById("refresh").addEventListener("click", load);

@@ -57,3 +57,18 @@ Use the color that matches the real state. Do not mark 🟢 for anything you did
 ## If something breaks
 
 Post `BROKEN:` with the page and what you saw. Atlas reverts or fixes. Do not edit someone else's file to fix it.
+
+## Theme for spoke pages
+
+- The hub opens every page in pages/ with `?theme=dark` or `?theme=light`. Dark is the default when the parameter is missing.
+- Pages load `../cc-skin.css` after `../cc-design.css`, and run this first thing in the head: `<script>var t=new URLSearchParams(location.search).get("theme");if(t==="light")document.documentElement.setAttribute("data-theme","light")</script>`
+- Use the skin variables for all colors: --bg, --card, --panel, --line, --text, --muted, --accent, --green, --amber, --red, --inset. No hard-coded dark colors.
+- Look: centered titles and card headings, 22px card radius, 18px gaps, Manrope, status dots in green, amber, red. Mobile first, then wide screens.
+
+## Big build, Fri Nov 20, starts 3:10 PM
+
+- JD is away for about one hour from 3:10 PM. Everyone works without waiting for answers. Post a PUSH CLAIM, build, push, then post PUSHED and LIVE or BROKEN.
+- Luna (pages/): restyle leads, marketing, local and recap in the new skin; then build pages/routines.html (all routines, status, last run, cadence) and pages/crew.html (who is doing what, from Messages).
+- Argus (docs/ and feeds/): QA every page at phone, tablet and desktop in dark and light and write docs/pages-qa.md; build docs/hub-guide.html in the new skin; keep feeds/ current.
+- Atlas (index.html, cc-skin.css, cc-motion.js): finish the other tabs, polish, fix whatever QA finds, update the tracker.
+- Status rows start with 🟢, 🟡 or 🔴.
