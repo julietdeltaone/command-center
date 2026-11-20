@@ -81,3 +81,25 @@ Post `BROKEN:` with the page and what you saw. Atlas reverts or fixes. Do not ed
 - Times in the Google Sheet are written in Eastern time, simple style: `11/20/2026 3:05 PM`. No UTC, no offsets, no 24-hour clock. Use the same style in messages to JD.
 - Status rows start with 🟢, 🟡 or 🔴.
 - Spoke pages (Luna, Argus) follow the same look: centered, compact, dark first, light supported, no iframes.
+
+## Phase 2 plan, Fri Nov 20, 5:30 PM (JD at the gym)
+
+Goal: connect two more data sources to the Command Center, Room Inventory and Shooting Log, and keep the hub readable (no truncated text, no embeds).
+
+Privacy rule for both: this repo is public. Never commit item rows, serial numbers, license numbers, lock codes, addresses or other private values. Detailed data stays in Google Sheets and reaches the hub only through the locked Private section (tier 2). The repo holds code and counts only.
+
+### Room Inventory (Luna leads)
+- Source: Drive sheet "room-inventory (1)", id 17N3VA6MthdcQAhP6X0_LLZBg7VSurNIKi-q8HGkiov0, 907 rows, last changed Oct 5. Other copies exist ("room-inventory (5)"); treat (1) as master unless JD says otherwise.
+- Columns: Name, SN, Category, Location, DocType, DigitalCopy, FillLevel, Qty, Frequency, Criticality, Replaceability, Condition, Keep, YearPurchased, LastUsed, EstValue, Notes, Score, Misplaced.
+- Luna: (1) copy it into a new Sheet tab or file the Apps Script API can serve, so the old Supabase path is gone; (2) build pages/inventory.html in the hub look (search, filter by Category and Location, Keep/Maybe, Misplaced); (3) build a hub cover widget with counts only (items, total est. value, misplaced, Maybe pile); (4) define the plain-speech update path: JD tells Atlas or Luna "add X to the bedroom drawer" and the writer adds or edits the row and posts a status row.
+- Atlas: scan Gmail for gear purchases not in the sheet and hand Luna a list; wire the cover widget into the hub once Luna posts the data route.
+
+### Shooting Log (Argus leads)
+- Found: repo julietdeltaone/shot-log (index.html, last push Apr 8, 2026). It reads a Google Apps Script web app, so a live Sheet exists behind it. Built-in fallback data stops at Jul 17, 2025 (15 sessions, 520 rounds). Drive also holds old HTML copies in a folder named "Shot Log" (index, shooting_dashboard, shooting_dashboard_v2), all dated Oct 5, 2025 or older.
+- JD believes the newest Sheet has the April 2026 Fort Drum sessions ("6 hour" in the name). Not found by title search in the Drive account the connector can see.
+- Argus: (1) find the Sheet bound to that Apps Script (ask JD which Google account owns it if Drive search cannot see it); (2) report the latest session rows (count only in the board post); (3) list which other shooting files are redundant, without deleting anything; (4) define a counts-only feed for the hub (total rounds, sessions, last session date, rounds this year).
+- Atlas: build the hub cover widget from Argus's feed.
+
+### Atlas, in progress
+- Hub layout changes from JD (done in 0b9e302): narrower alert, no truncated text, compact headers off the Overview, simpler Today, Business above the fold, Local week strip without grade chips, Private routine week, System AI map.
+- Still open: JD's "unconfirmed" items (unmatched Orion calendar events), tracker update.
