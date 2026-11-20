@@ -30,6 +30,13 @@ Never edit a file you do not own. To change one, post a request row in the Comma
 - Show "Not available yet" for any missing value. Never invent numbers.
 - Times use the -05:00 offset, not Z.
 
+## Orion report (iPhone daily email)
+
+- Sent daily at 5 AM from the iPhone. Subject starts "Orion report".
+- Window: last 24 hours. Sections: photos trail, reminders, messages, alarms, music, notes, battery, upcoming calendar.
+- The hub gets counts and short status lines only. Message text stays in the email and never goes into the Sheet or this repo.
+- Calendar safety check: Google Calendar is the main source. If the Orion report lists an upcoming event that Google Calendar does not have, post a 🔴 alert row naming the event title and time. No match problem means no row.
+
 ## Status colors
 
 Start every Messages row, Problems row and report line with one color so JD can scan at a glance:
