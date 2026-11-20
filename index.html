@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Command Center</title>
+<style>
+:root{
+  --bg:#0b0e13; --card:#121722; --card2:#182030; --line:#212a38;
+  --text:#e8ecf3; --muted:#8b96a8; --accent:#8aa4ff; --accent-bg:rgba(138,164,255,.14);
+  --amber:#e5a94a; --red:#ef6b6b; --ring:#5b6678;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.45;padding-bottom:calc(40px + env(safe-area-inset-bottom));
+}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px}
+header{padding:calc(20px + env(safe-area-inset-top)) 0 12px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+h1{font-size:24px;margin:0;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:14px;margin-top:2px}
+.refresh{
+  appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--text);
+  font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:12px;cursor:pointer
+}
+.field{width:100%;min-height:48px;margin-top:10px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;font-size:16px}
+.banner{background:var(--accent-bg);border:1px solid rgba(138,164,255,.5);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:15px}
+.error{background:rgba(239,107,107,.12);border:1px solid rgba(239,107,107,.5);border-radius:12px;padding:12px 14px;margin:12px 0}
+
+.meter{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+.mtop{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.mlabel{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mpct{font-size:34px;font-weight:700;letter-spacing:-.02em}
+.mword{font-size:15px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:2px 12px}
+.track{position:relative;height:14px;border-radius:8px;background:var(--card2);margin:10px 0 8px;overflow:visible}
+.fill{height:100%;border-radius:8px;background:var(--accent)}
+.fill.amber{background:var(--amber)} .fill.red{background:var(--red)}
+.tick{position:absolute;top:-4px;width:2px;height:22px;background:var(--text);border-radius:1px}
+.mmeta{color:var(--muted);font-size:14px}
+
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+@media(min-width:640px){.tiles{grid-template-columns:repeat(4,1fr)}}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.tnum{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.tlab{font-size:13px;color:var(--muted)}
+
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;position:sticky;top:0;background:var(--bg);z-index:5}
+.tab{
+  appearance:none;flex:0 0 auto;min-height:48px;padding:0 18px;border-radius:12px;
+  border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:16px;font-weight:600;cursor:pointer
+}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#0b0e13}
+.tab small{font-weight:600;opacity:.75;margin-left:6px}
+
+.mod{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+.mod h3{margin:0;font-size:18px}
+.mhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.status{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:0 0 12px}
+.dot.ok{background:var(--accent)} .dot.late{background:var(--amber)} .dot.fail{background:var(--red)}
+.dot.nodata,.dot.none{background:transparent;border:2px solid var(--ring)}
+.empty{color:var(--muted);font-size:15px;padding:10px 0 2px}
+.item{border-top:1px solid var(--line);padding:12px 0 4px}
+.item:first-of-type{margin-top:8px}
+.itext{font-weight:600}
+.imeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px;color:var(--muted);font-size:14px}
+.chip{font-size:12.5px;font-weight:700;border-radius:999px;padding:2px 10px;border:1px solid var(--line);color:var(--text)}
+.chip.Exact,.chip.Confirmed{background:var(--accent);border-color:var(--accent);color:#0b0e13}
+.chip.Single,.chip.Image{border-color:var(--amber);color:var(--amber)}
+.chip.Derived{border-color:var(--ring);color:var(--muted)}
+.chip.Gap{border-color:var(--red);color:var(--red)}
+.acts{display:flex;gap:8px;margin:8px 0 6px;flex-wrap:wrap}
+.btn{
+  appearance:none;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);
+  background:var(--card2);color:var(--text);font:inherit;font-size:15px;cursor:pointer;text-decoration:none;
+  display:inline-flex;align-items:center
+}
+.btn.link{border-color:var(--accent);color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:15px;margin-top:8px}
+th{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:6px 6px 6px 0;font-weight:600}
+td{padding:10px 6px 10px 0;border-top:1px solid var(--line);vertical-align:top}
+.opts{margin:6px 0 0;padding-left:18px;color:var(--text)}
+.pid{font-size:12.5px;font-weight:700;color:var(--accent);margin-right:8px}
+.grades{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Command Center</h1>
+      <div class="sub" id="refreshed">Loading</div>
+    </div>
+    <div style="display:flex;gap:8px"><button class="refresh" id="disconnect" type="button">Disconnect</button><button class="refresh" id="refresh" type="button">Refresh</button></div>
+  </header>
+  <div id="app"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var DATA = null;
+var TAB = "Today";
+var TABS = ["Today", "Business", "Local", "Private", "System"];
+var timer = null;
+
+function h(tag, props){
+  var e = document.createElement(tag);
+  if (props) Object.keys(props).forEach(function(k){
+    var v = props[k];
+    if (k === "class") e.className = v;
+    else if (k.indexOf("on") === 0) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  });
+  Array.prototype.slice.call(arguments, 2).forEach(function add(c){
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) return c.forEach(add);
+    e.appendChild(c.nodeType ? c : document.createTextNode(String(c)));
+  });
+  return e;
+}
+
+/* ---------- time ---------- */
+function nowMs(){ return DATA ? new Date(DATA.now).getTime() : Date.now(); }
+function ago(iso){
+  if (!iso) return "never";
+  var m = Math.round((nowMs() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + " min ago";
+  var hr = Math.round(m / 60);
+  if (hr < 48) return hr + " hr ago";
+  return Math.round(hr / 24) + " days ago";
+}
+function dueLabel(iso){
+  if (!iso) return "";
+  var d = new Date(iso);
+  var t = d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  var today = new Date(nowMs()); today.setHours(0,0,0,0);
+  var dd = new Date(d); dd.setHours(0,0,0,0);
+  var diff = Math.round((dd - today) / 86400000);
+  if (diff === 0) return "due today " + t;
+  if (diff === 1) return "due tomorrow " + t;
+  if (diff < 0) return "overdue";
+  return "due " + d.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"});
+}
+function cadenceLabel(min){
+  min = Number(min);
+  if (!min) return "";
+  if (min < 60) return "every " + min + " min";
+  if (min < 1440) return "every " + Math.round(min / 60) + " hr";
+  if (min === 1440) return "daily";
+  if (min === 10080) return "weekly";
+  return "every " + Math.round(min / 1440) + " days";
+}
+
+/* ---------- usage ---------- */
+function computeUsage(){
+  var rows = (DATA && DATA.usage) || [];
+  if (!rows.length) return null;
+  var latest = rows[rows.length - 1];
+  var latestT = new Date(latest.read_time).getTime();
+  var stale = nowMs() - latestT > 24 * 3600000;
+  var base = null;
+  for (var i = rows.length - 2; i >= 0; i--) {
+    if (new Date(rows[i].read_time).getTime() <= latestT - 20 * 3600000) { base = rows[i]; break; }
+  }
+  var pct = Math.round(Number(latest.percent));
+  var resetAt = new Date(latest.reset_time).getTime();
+  var elapsed = Math.max(0, Math.min(1, (nowMs() - (resetAt - 7 * 86400000)) / (7 * 86400000)));
+  var expected = Math.round(elapsed * 100);
+  var word = pct >= 90 ? "Near limit" : pct >= 70 ? "High" : pct > expected + 10 ? "Ahead" : pct < expected - 10 ? "Under pace" : "On pace";
+  return {
+    pct: pct, expected: expected, word: word, stale: stale, read: latest.read_time, resetAt: resetAt,
+    change: base ? pct - Math.round(Number(base.percent)) : null,
+    cls: pct >= 90 ? "red" : pct >= 70 ? "amber" : ""
+  };
+}
+function resetLabel(ms){
+  var d = new Date(ms);
+  var t = d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  var a = new Date(nowMs()); a.setHours(0,0,0,0);
+  var b = new Date(d); b.setHours(0,0,0,0);
+  if (a.getTime() === b.getTime()) return "resets today " + t;
+  return "resets " + d.toLocaleDateString([], {weekday: "short"}) + " " + t;
+}
+function meterCard(big){
+  var u = computeUsage();
+  var card = h("section", {class: "meter"});
+  if (!u || u.stale) {
+    card.appendChild(h("div", {class: "mlabel"}, "Weekly usage"));
+    card.appendChild(h("div", {class: "mpct"}, "Not available"));
+    card.appendChild(h("div", {class: "mmeta"}, u ? "Last read " + ago(u.read) + ", too old to show as current." : "No usage reading yet."));
+    return card;
+  }
+  card.appendChild(h("div", {class: "mtop"},
+    h("span", {class: "mlabel"}, "Weekly usage"),
+    h("span", {class: "mpct"}, u.pct + "%"),
+    h("span", {class: "mword"}, u.word)));
+  card.appendChild(h("div", {class: "track", role: "img", "aria-label": u.pct + " percent used, pace marker at " + u.expected + " percent"},
+    h("div", {class: "fill " + u.cls, style: "width:" + Math.max(2, u.pct) + "%"}),
+    h("div", {class: "tick", style: "left:calc(" + u.expected + "% - 1px)"})));
+  var chg = u.change == null ? "no baseline" : (u.change >= 0 ? "+" : "") + u.change + " today";
+  card.appendChild(h("div", {class: "mmeta"}, chg + "  |  " + resetLabel(u.resetAt) + "  |  read " + ago(u.read)));
+  return card;
+}
+
+/* ---------- routines ---------- */
+function routinesFor(mod){ return DATA.routines.filter(function(r){ return r.module === mod; }); }
+function moduleStatus(mod){
+  var rs = routinesFor(mod);
+  if (!rs.length) return {state: "none", text: "Not connected", last: null};
+  var st = rs.map(function(r){ return r.status; });
+  var last = rs.map(function(r){ return r.last_run; }).filter(Boolean).sort().pop() || null;
+  var state = st.indexOf("fail") > -1 ? "fail" : st.indexOf("late") > -1 ? "late" : st.indexOf("nodata") > -1 ? "nodata" : "ok";
+  var text = state === "ok" ? "Ran " + ago(last)
+    : state === "late" ? "Late: last ran " + ago(last)
+    : state === "fail" ? "Failed: last run " + ago(last)
+    : "No data yet";
+  return {state: state, text: text, last: last};
+}
+function gradeClass(g){ return g === "Single source" ? "Single" : g === "Read from image" ? "Image" : g; }
+
+/* ---------- actions ---------- */
+function act(id, action){
+  function done(){
+    DATA.items = DATA.items.filter(function(i){ return String(i.id) !== String(id); });
+    render();
+  }
+  var cfg = getCfg();
+  if (!cfg) return done();
+  fetch(cfg.url, {method: "POST", headers: {"Content-Type": "text/plain;charset=utf-8"},
+                  body: JSON.stringify({key: cfg.key, id: id, action: action})})
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if (!j.ok) throw new Error(j.error); done(); })
+    .catch(showError);
+}
+
+/* ---------- cards ---------- */
+function itemRow(it){
+  var meta = h("div", {class: "imeta"},
+    h("span", {class: "chip " + gradeClass(it.grade)}, it.grade || "Ungraded"),
+    it.source ? h("span", null, it.source) : null,
+    h("span", null, ago(it.time)),
+    it.due ? h("span", null, dueLabel(it.due)) : null);
+  var acts = h("div", {class: "acts"},
+    it.link ? h("a", {class: "btn link", href: it.link, target: "_blank", rel: "noopener"}, "Open") : null,
+    h("button", {class: "btn", type: "button", onclick: function(){ act(it.id, "done"); }}, "Done"),
+    h("button", {class: "btn", type: "button", onclick: function(){ act(it.id, "dismissed"); }}, "Dismiss"));
+  return h("div", {class: "item"}, h("div", {class: "itext"}, it.text), meta, acts);
+}
+
+function itemsModule(m, tab){
+  var s = moduleStatus(m.name);
+  var items = DATA.items.filter(function(i){ return i.tab === tab && i.module === m.name; })
+    .sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
+  var card = h("section", {class: "mod"},
+    h("div", {class: "mhead"},
+      h("h3", null, m.name),
+      h("div", {class: "status"}, h("span", {class: "dot " + s.state}), s.text)));
+  if (items.length) items.forEach(function(it){ card.appendChild(itemRow(it)); });
+  else if (s.state === "ok") card.appendChild(h("div", {class: "empty"}, "Checked, nothing found."));
+  else if (s.state === "none") card.appendChild(h("div", {class: "empty"}, "No routine reports here yet."));
+  return card;
+}
+
+function usageModule(m){
+  var card = h("section", {class: "mod"}, h("div", {class: "mhead"}, h("h3", null, m.name)));
+  var rows = (DATA.usage || []).slice().reverse();
+  if (!rows.length) { card.appendChild(h("div", {class: "empty"}, "No readings yet.")); return card; }
+  var t = h("table", null,
+    h("thead", null, h("tr", null, h("th", null, "Read"), h("th", null, "Used"), h("th", null, "Resets"))),
+    h("tbody", null, rows.map(function(r){
+      return h("tr", null,
+        h("td", null, ago(r.read_time)),
+        h("td", null, Math.round(Number(r.percent)) + "%"),
+        h("td", null, new Date(r.reset_time).toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"})));
+    })));
+  card.appendChild(t);
+  return card;
+}
+
+function coverageModule(m){
+  var rs = DATA.routines;
+  var ok = rs.filter(function(r){ return r.status === "ok"; }).length;
+  var card = h("section", {class: "mod"},
+    h("div", {class: "mhead"}, h("h3", null, m.name), h("div", {class: "status"}, ok + " of " + rs.length + " routines on time")));
+  var counts = {};
+  DATA.items.forEach(function(i){ var g = i.grade || "Ungraded"; counts[g] = (counts[g] || 0) + 1; });
+  var gr = h("div", {class: "grades"});
+  Object.keys(counts).forEach(function(g){
+    gr.appendChild(h("span", {class: "chip " + gradeClass(g)}, g + " " + counts[g]));
+  });
+  if (Object.keys(counts).length) card.appendChild(gr);
+  card.appendChild(h("table", null,
+    h("thead", null, h("tr", null, h("th", null, "Routine"), h("th", null, "Status"), h("th", null, "Last run"), h("th", null, "Output"))),
+    h("tbody", null, rs.map(function(r){
+      var label = r.status === "ok" ? "On time" : r.status === "late" ? "Late" : r.status === "fail" ? "Failed" : "No data";
+      return h("tr", null,
+        h("td", null, r.routine, h("div", {class: "imeta"}, cadenceLabel(r.cadence_min))),
+        h("td", null, h("span", {class: "status"}, h("span", {class: "dot " + r.status}), label)),
+        h("td", null, r.last_run ? ago(r.last_run) : "never"),
+        h("td", null, r.last_run ? String(r.last_output_count === "" ? "?" : r.last_output_count) : "none"));
+    }))));
+  return card;
+}
+
+function problemsModule(m){
+  var ps = DATA.problems || [];
+  var card = h("section", {class: "mod"},
+    h("div", {class: "mhead"}, h("h3", null, m.name), h("div", {class: "status"}, ps.length + " open")));
+  if (!ps.length) card.appendChild(h("div", {class: "empty"}, "No open problems."));
+  ps.forEach(function(p){
+    var opts = String(p.options || "").split("|").map(function(s){ return s.trim(); }).filter(Boolean);
+    card.appendChild(h("div", {class: "item"},
+      h("div", {class: "itext"}, h("span", {class: "pid"}, p.id), p.problem),
+      h("div", {class: "imeta"}, "Impact: " + p.impact),
+      opts.length ? h("ul", {class: "opts"}, opts.map(function(o){ return h("li", null, o); })) : null,
+      h("div", {class: "imeta"}, "Owner: " + p.owner + "  |  opened " + ago(p.opened))));
+  });
+  return card;
+}
+
+/* ---------- page ---------- */
+function tiles(){
+  var watch = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; }).length;
+  var rs = DATA.routines;
+  var ok = rs.filter(function(r){ return r.status === "ok"; }).length;
+  var unconf = DATA.items.filter(function(i){ return i.grade === "Single source" || i.grade === "Read from image"; }).length;
+  function tile(n, l){ return h("div", {class: "tile"}, h("div", {class: "tnum"}, String(n)), h("div", {class: "tlab"}, l)); }
+  return h("div", {class: "tiles"},
+    tile(watch, "Watch items today"),
+    tile(ok + " of " + rs.length, "Routines on time"),
+    tile((DATA.problems || []).length, "Open problems"),
+    tile(unconf, "Unconfirmed items"));
+}
+
+function render(){
+  var app = document.getElementById("app");
+  app.textContent = "";
+  document.getElementById("refreshed").textContent = "Refreshed " + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
+  app.appendChild(meterCard());
+  app.appendChild(tiles());
+
+  var bar = h("div", {class: "tabs", role: "tablist"});
+  TABS.forEach(function(t){
+    var n = DATA.items.filter(function(i){ return i.tab === t; }).length;
+    bar.appendChild(h("button", {class: "tab", type: "button", role: "tab", "aria-selected": String(t === TAB),
+      onclick: function(){ TAB = t; render(); window.scrollTo(0, 0); }}, t, n ? h("small", null, String(n)) : null));
+  });
+  app.appendChild(bar);
+  var sel = bar.querySelector('[aria-selected="true"]');
+  if (sel) bar.scrollLeft = Math.max(0, sel.offsetLeft - 16);
+
+  (DATA.modules[TAB] || []).forEach(function(m){
+    app.appendChild(
+      m.kind === "usage" ? usageModule(m) :
+      m.kind === "coverage" ? coverageModule(m) :
+      m.kind === "problems" ? problemsModule(m) :
+      itemsModule(m, TAB));
+  });
+}
+
+function showError(err){
+  var app = document.getElementById("app");
+  var msg = err && err.message ? err.message : String(err);
+  if (msg === "Bad key") { connectScreen("That key was not accepted."); return; }
+  app.insertBefore(h("div", {class: "error"}, "Could not load: " + msg), app.firstChild);
+}
+
+/* ---------- connection (kept only in this browser) ---------- */
+var memCfg = null;
+function getCfg(){
+  try {
+    var c = JSON.parse(localStorage.getItem("cc_cfg") || "null");
+    if (c && c.url && c.key) return c;
+  } catch (e) {}
+  return memCfg;
+}
+function setCfg(c){ memCfg = c; try { localStorage.setItem("cc_cfg", JSON.stringify(c)); } catch (e) {} }
+function clearCfg(){ memCfg = null; try { localStorage.removeItem("cc_cfg"); } catch (e) {} }
+
+function connectScreen(note){
+  DATA = null;
+  document.getElementById("refreshed").textContent = "Not connected";
+  var app = document.getElementById("app");
+  app.textContent = "";
+  var url = h("input", {class: "field", type: "url", placeholder: "Web app URL (ends in /exec)", autocomplete: "off"});
+  var key = h("input", {class: "field", type: "password", placeholder: "Access key", autocomplete: "off"});
+  var msg = h("div", {class: "empty"}, note || "");
+  function go(){
+    var c = {url: url.value.trim(), key: key.value.trim()};
+    if (!c.url || !c.key) { msg.textContent = "Both fields are required."; return; }
+    setCfg(c); load();
+  }
+  app.appendChild(h("section", {class: "mod"},
+    h("h3", null, "Connect"),
+    h("div", {class: "empty"}, "Enter the web app URL and access key from your Apps Script project. They are stored only in this browser."),
+    url, key, msg,
+    h("div", {class: "acts"},
+      h("button", {class: "btn link", type: "button", onclick: go}, "Connect"),
+      h("button", {class: "btn", type: "button", onclick: function(){ DATA = preview(); render(); }}, "Preview sample"))));
+}
+
+/* ---------- data ---------- */
+function load(){
+  var cfg = getCfg();
+  if (!cfg) { if (!DATA) connectScreen(); return; }
+  fetch(cfg.url + (cfg.url.indexOf("?") > -1 ? "&" : "?") + "key=" + encodeURIComponent(cfg.key))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) throw new Error(j.error);
+      DATA = j.data; render();
+    })
+    .catch(showError);
+}
+
+/* Preview data, used only when opened outside Apps Script. */
+function preview(){
+  function iso(minAgo){ return new Date(Date.now() - minAgo * 60000).toISOString(); }
+  function R(routine, tab, module, cad, ago_, status, n){
+    var r = {routine: routine, tab: tab, module: module, cadence_min: cad, last_run: ago_ === null ? "" : iso(ago_),
+             last_status: status, last_output_count: n, writer: "sample"};
+    if (!r.last_run) r.status = "nodata";
+    else if (status === "fail") r.status = "fail";
+    else r.status = (ago_ > cad * 2 + 5) ? "late" : "ok";
+    return r;
+  }
+  function I(id, tab, module, text, source, grade, ago_, due){
+    return {id: id, tab: tab, module: module, text: text, link: "", source: source, grade: grade, time: iso(ago_), writer: "sample", due: due || ""};
+  }
+  var reset = new Date(Date.now() + 7 * 86400000 - 100 * 60000).toISOString();
+  return {
+    now: new Date().toISOString(), sample: true,
+    modules: {
+      Today: [{name: "Watch", kind: "items"}, {name: "Calendar and deadlines", kind: "items"}, {name: "Weather and drone", kind: "items"}],
+      Business: [{name: "Leads", kind: "items"}, {name: "Waiting on others", kind: "items"}, {name: "Competitors", kind: "items"}],
+      Local: [{name: "Events", kind: "items"}, {name: "Scanner", kind: "items"}, {name: "Chatter and signal feed", kind: "items"}],
+      Private: [{name: "Health", kind: "items"}, {name: "Money", kind: "items"}, {name: "Guard, OTS, MBA", kind: "items"}],
+      System: [{name: "Usage meter", kind: "usage"}, {name: "Coverage and fidelity", kind: "coverage"}, {name: "Open problems", kind: "problems"}]
+    },
+    routines: [
+      R("Brief run", "Today", "Watch", 1440, 160, "ok", 2),
+      R("Calendar pull", "Today", "Calendar and deadlines", 1440, 160, "ok", 2),
+      R("Forecast pull", "Today", "Weather and drone", 1440, 160, "ok", 1),
+      R("Form ingest", "Business", "Leads", 60, 25, "ok", 1),
+      R("Client-event watch", "Business", "Waiting on others", 60, 25, "ok", 1),
+      R("Competitor sync", "Business", "Competitors", 1440, 90, "ok", 1),
+      R("Local events pull", "Local", "Events", 1440, 160, "ok", 2),
+      R("Scanner watch", "Local", "Scanner", 30, 20, "ok", 1),
+      R("Chatter sweep", "Local", "Chatter and signal feed", 60, 400, "ok", 0),
+      R("Health sync", "Private", "Health", 1440, null, "", ""),
+      R("Finance popup", "Private", "Money", 1440, 1500, "ok", 1),
+      R("Drill schedule check", "Private", "Guard, OTS, MBA", 10080, 2000, "ok", 1),
+      R("Usage read", "System", "Usage meter", 1440, 30, "ok", 1),
+      R("Run log writer", "System", "Coverage and fidelity", 60, 700, "fail", 0),
+      R("Problem register", "System", "Open problems", 1440, 300, "ok", 3)
+    ],
+    items: [
+      I("s1", "Today", "Watch", "Pool rec swim cancelled today", "Facility posts", "Single source", 40),
+      I("s2", "Today", "Watch", "Scholarship email approval due today", "Clarkson overview doc", "Single source", 160, new Date(Date.now() + 8 * 3600000).toISOString()),
+      I("s3", "Today", "Calendar and deadlines", "Work shift 7:30 AM to 3:30 PM", "Personal calendar", "Exact", 160),
+      I("s4", "Today", "Calendar and deadlines", "Summer and Fall scheduling info due today", "Clarkson overview doc", "Single source", 160, new Date(Date.now() + 8 * 3600000).toISOString()),
+      I("s5", "Today", "Weather and drone", "Flyable. Gusts to 16 mph late morning.", "Forecast (one source)", "Single source", 160),
+      I("s6", "Business", "Leads", "New portrait inquiry logged", "Form log", "Exact", 180),
+      I("s7", "Business", "Waiting on others", "Booking confirmation draft waiting on your approval", "Draft queue", "Exact", 1500),
+      I("s8", "Business", "Competitors", "One tracked account gained 7 followers after a new post", "Instagram snapshot", "Exact", 90),
+      I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St", "Local listing", "Single source", 160),
+      I("s10", "Local", "Events", "Public Open Skate, Sun 1:15 PM", "Local listing", "Single source", 160),
+      I("s11", "Local", "Scanner", "2-car crash near Grant and Elm", "Scanner dispatch", "Single source", 300),
+      I("s12", "Private", "Health", "Last night's sleep has not synced", "Health sync", "Gap", 160),
+      I("s13", "Private", "Guard, OTS, MBA", "Pre-drill pack reminder due Wednesday", "Guard schedule", "Exact", 2000, new Date(Date.now() + 3 * 86400000).toISOString())
+    ],
+    usage: [
+      {read_time: iso(1470), percent: 29, reset_time: reset, writer: "sample"},
+      {read_time: iso(30), percent: 38, reset_time: reset, writer: "sample"}
+    ],
+    problems: [
+      {id: "B-001", problem: "Forwarding filter for business inquiries was never created", impact: "My Business reads 0; lead counts do not reconcile",
+       options: "JD creates the filter (2 minutes) | Claude in Chrome creates it in Gmail settings | Drop the card", owner: "JD", status: "open", opened: iso(4300), writer: "sample"},
+      {id: "B-002", problem: "Chatter sweeps with no logged result", impact: "About 1 in 12 runs leaves no result",
+       options: "Add an expected-run-missing check | Add a failure alert", owner: "Muse", status: "open", opened: iso(1400), writer: "sample"},
+      {id: "B-003", problem: "Brief shows a code-level repo name to the reader", impact: "Same failure appears under two names",
+       options: "Use the app name everywhere in the Brief", owner: "Muse", status: "open", opened: iso(120), writer: "sample"}
+    ]
+  };
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("disconnect").addEventListener("click", function(){ clearCfg(); connectScreen(); });
+load();
+setInterval(function(){ if (getCfg()) load(); }, 5 * 60000);
+})();
+</script>
+</body>
+</html>
