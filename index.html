@@ -240,7 +240,11 @@ function lockScreen(name){
     h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Private and Work")));
 }
 var TABS = ["Wall", "Today", "Business", "Local", "Private", "System"];
-var EMBEDS = {Business: {name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}};
+var EMBEDS = {
+  Today: [{name: "Recap", url: "pages/recap.html"}],
+  Business: [{name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}, {name: "Leads", url: "pages/leads.html"}, {name: "Marketing", url: "pages/marketing.html"}],
+  Local: [{name: "Local events", url: "pages/local.html"}]
+};
 
 function h(tag, props){
   var e = document.createElement(tag);
@@ -660,7 +664,7 @@ function wall(){
   box.appendChild(h("div", {class: "wbar"},
     h("div", {class: "tabhead", style: "margin:0"}, h("h2", null, "Wall"), h("span", {class: "mono", style: "margin-left:14px"}, new Date(nowMs()).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"}))),
     (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work") : null));
-  var em = EMBEDS.Business;
+  var em = EMBEDS.Business[0];
   box.appendChild(h("div", {class: "wall"},
     todayTile(), systemTile(), businessTile(), localTile(),
     wtile("ws4", "Private", "Private", (isUnlocked() || !tier2("Private")) ? h("div", {style: "display:flex;flex-direction:column;gap:12px"}, moduleRows("Private"), summaryNote("Private")) : lockBox(), (isUnlocked() || !tier2("Private")) ? summaryStatus("Private") : null),
@@ -694,13 +698,12 @@ function render(){
       itemsModule(m, TAB));
   });
 
-  var em = EMBEDS[TAB];
-  if (em) {
+  (EMBEDS[TAB] || []).forEach(function(em){
     app.appendChild(h("section", {class: "card mod"},
       h("div", {class: "mhead"}, h("h3", null, em.name),
         h("a", {class: "btn link", href: em.url, target: "_blank", rel: "noopener"}, "Open full screen")),
       h("iframe", {class: "embed", src: em.url, title: em.name, loading: "lazy"})));
-  }
+  });
 
   renderNav();
 }
