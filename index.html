@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#07090d">
+<meta name="theme-color" content="#090b14">
+<script>try{if(localStorage.getItem("cc_theme")==="light")document.documentElement.setAttribute("data-theme","light")}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&display=swap">
 <title>Command Center</title>
 <style>
 :root{
@@ -199,20 +202,21 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
 <link rel="stylesheet" href="cc-design.css">
+<link rel="stylesheet" href="cc-skin.css">
 </head>
 <body>
 <div class="wrap" id="wrap">
   <header>
     <div class="brand">
       <div class="mark"><i></i></div>
-      <div>
-        <h1>Command Center</h1>
-        <div class="sub" id="refreshed">Loading</div>
-      </div>
+      <h1>Command Center</h1>
+      <div class="sub" id="hdate"></div>
     </div>
     <div class="hbtns">
-      <button class="ibtn" id="disconnect" type="button" aria-label="Disconnect"><svg viewBox="0 0 24 24"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg></button>
-      <button class="ibtn" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+      <button class="ibtn" id="theme" type="button" aria-label="Switch theme"></button>
+      <span class="pill off" id="livepill"><i></i><span id="refreshed">Loading</span></span>
+      <button class="ibtn icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+      <button class="ibtn icon" id="disconnect" type="button" aria-label="Disconnect"><svg viewBox="0 0 24 24"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg></button>
     </div>
   </header>
   <div id="app"></div>
@@ -483,7 +487,7 @@ function problemsModule(m){
 }
 
 /* ---------- page ---------- */
-function tiles(){
+function tileList(){
   var watch = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; }).length;
   var rs = DATA.routines;
   var ok = rs.filter(function(r){ return r.status === "ok"; }).length;
@@ -491,14 +495,16 @@ function tiles(){
   var probs = (DATA.problems || []).length;
   var unconf = DATA.items.filter(function(i){ return i.grade === "Single source" || i.grade === "Read from image"; }).length;
   function tile(cls, label, num, note){
-    return h("div", {class: "card tile " + cls}, h("div", null, h("div", {class: "mono"}, label), h("div", {class: "tnum"}, String(num))), h("div", {class: "tnote"}, note));
+    return h("div", {class: "card tile " + cls}, h("div", null, h("div", {class: "mono"}, label), h("div", {class: "tnum"}, num)), h("div", {class: "tnote"}, note));
   }
-  return h("div", {class: "tiles"},
-    tile("", "Watch today", watch, watch ? "need attention" : "nothing flagged"),
-    tile(bad ? "warn" : "", "Routines", ok + "/" + rs.length, bad ? bad + " late, failed or empty" : "all on time"),
-    tile(probs ? "warn" : "", "Problems", probs, probs ? "open" : "none open"),
-    tile("", "Unconfirmed", unconf, "single source or image"));
+  var list = [
+    tile(watch ? "warn" : "", "Watch today", String(watch), watch ? "need attention" : "nothing flagged"),
+    tile(bad ? "warn" : "", "Routines", [String(ok), h("small", null, "/" + rs.length)], bad ? bad + " late, failed or empty" : "all on time"),
+    tile(probs ? "bad" : "", "Problems", String(probs), probs ? "open" : "none open"),
+    tile("", "Unconfirmed", String(unconf), "single source or image")];
+  return list;
 }
+function tiles(){ return h("div", {class: "tiles"}, tileList()); }
 
 
 /* ---------- wall ---------- */
@@ -592,14 +598,14 @@ function crewTile(){
 }
 function messagesTile(){
   var msgs = (DATA.messages || []).slice().sort(function(a, b){ return new Date(b.time) - new Date(a.time); }).slice(0, 4);
-  var body = msgs.length ? h("div", {style: "display:flex;flex-direction:column;gap:10px"}, msgs.map(function(m){
+  var body = msgs.length ? h("div", {class: "mgrid"}, msgs.map(function(m){
     var t = String(m.text || ""); if (t.length > 170) t = t.slice(0, 167) + "...";
-    return h("div", {style: "border:1px solid var(--line);border-radius:12px;padding:12px;background:rgba(0,0,0,.2);display:flex;flex-direction:column;gap:6px"},
-      h("div", {class: "wnote mono", style: "display:flex;justify-content:space-between;gap:10px;font-size:11px"},
+    return h("div", {class: "mcard"},
+      h("div", {class: "wnote mono", style: "display:flex;justify-content:center;flex-wrap:wrap;gap:4px 12px;font-size:10.5px"},
         h("span", null, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + m.type), h("span", null, ago(m.time) + (m.status === "open" ? " · open" : ""))),
       h("div", {style: "font-size:13.5px;line-height:1.5"}, t));
   })) : h("div", {class: "wnote"}, "No messages yet.");
-  return wtile("ws8", "Messages", "System", body);
+  return wtile("ws8", "Latest messages", "System", body);
 }
 
 
@@ -618,48 +624,59 @@ function svgEl(tag, attrs, kids){
   (kids || []).forEach(function(c){ e.appendChild(c); });
   return e;
 }
-function crewActivity(){
+function crewParts(){
   var all = (DATA.messages || []).slice().sort(function(a, b){ return new Date(a.time) - new Date(b.time); });
   if (!all.length) return null;
   var msgs = all.slice(-24);
   var lanes = CREW.map(function(c){ return {id: c[0], name: cfgName(c[0], c[1]), role: c[2]}; });
-  var laneY = {}, W = 1000, LH = 54, TOP = 28, LEFT = 130, H = TOP + lanes.length * LH + 16;
-  var n = msgs.length, step = n > 1 ? (W - LEFT - 40) / (n - 1) : 0;
-  var svg = svgEl("svg", {viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "Crew activity, oldest to newest message from left to right"});
+  var laneY = {}, W = 1000, LH = 58, TOP = 16, LEFT = 118, RIGHT = 92, H = TOP + lanes.length * LH + 8;
+  var n = msgs.length, step = n > 1 ? (W - LEFT - RIGHT - 20) / (n - 1) : 0;
+  var node = svgEl("svg", {viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "Crew activity, oldest to newest message from left to right"});
   lanes.forEach(function(l, i){
     var y = TOP + i * LH + LH / 2; laneY[l.id] = y;
-    svg.appendChild(svgEl("line", {x1: LEFT - 10, x2: W - 20, y1: y, y2: y, class: "ca-lane"}));
-    var t = svgEl("text", {x: 6, y: y - 2, class: "ca-name"}); t.textContent = l.name; svg.appendChild(t);
-    var r = svgEl("text", {x: 6, y: y + 12, class: "ca-sub"}); r.textContent = l.role.toUpperCase(); svg.appendChild(r);
+    var cnt = msgs.filter(function(m){ return m.from === l.id; }).length;
+    node.appendChild(svgEl("line", {x1: LEFT - 10, x2: W - RIGHT + 24, y1: y, y2: y, class: "ca-lane"}));
+    var t = svgEl("text", {x: 6, y: y + 4, class: "ca-name"}); t.textContent = l.name; node.appendChild(t);
+    var c = svgEl("text", {x: W - 4, y: y + 4, "text-anchor": "end", class: "ca-cnt"}); c.textContent = cnt ? cnt + (cnt === 1 ? " msg" : " msgs") : "idle"; node.appendChild(c);
   });
   var pos = msgs.map(function(m, i){ return {m: m, x: LEFT + i * step, y: laneY[m.from] != null ? laneY[m.from] : null, c: msgColor(m)}; });
   pos.forEach(function(p){
     if (p.y == null || laneY[p.m.to] == null || p.m.to === p.m.from) return;
     var y2 = laneY[p.m.to], mid = (p.y + y2) / 2;
-    svg.appendChild(svgEl("path", {d: "M" + p.x + " " + p.y + " C " + (p.x + 26) + " " + mid + ", " + (p.x + 26) + " " + mid + ", " + (p.x + 10) + " " + y2, class: "ca-link ca-" + p.c, stroke: "currentColor"}));
-    svg.appendChild(svgEl("circle", {cx: p.x + 10, cy: y2, r: 2.5, class: "ca-" + p.c, opacity: ".6"}));
+    node.appendChild(svgEl("path", {d: "M" + p.x + " " + p.y + " C " + (p.x + 26) + " " + mid + ", " + (p.x + 26) + " " + mid + ", " + (p.x + 10) + " " + y2, class: "ca-link ca-" + p.c, stroke: "currentColor"}));
+    node.appendChild(svgEl("circle", {cx: p.x + 10, cy: y2, r: 2.5, class: "ca-" + p.c, opacity: ".6"}));
   });
   pos.forEach(function(p, i){
     if (p.y == null) return;
     var d = svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-dot ca-" + p.c, style: "animation-delay:" + (i * 45) + "ms"});
     var tt = svgEl("title"); tt.textContent = cfgName(p.m.from, p.m.from) + " to " + cfgName(p.m.to, p.m.to) + " · " + ago(p.m.time) + " · " + String(p.m.text || "").slice(0, 160);
-    d.appendChild(tt); svg.appendChild(d);
-    if (i === pos.length - 1) svg.appendChild(svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-ring ca-" + p.c}));
+    d.appendChild(tt); node.appendChild(d);
+    if (i === pos.length - 1) node.appendChild(svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-ring ca-" + p.c}));
   });
   var counts = {g: 0, y: 0, r: 0};
   msgs.forEach(function(m){ counts[msgColor(m)]++; });
-  var feed = msgs.slice(-6).reverse().map(function(m){
+  var legend = h("div", {class: "ca-counts"},
+    h("span", null, h("b", {style: "color:var(--green)"}, String(counts.g)), "good"),
+    h("span", null, h("b", {style: "color:var(--amber)"}, String(counts.y)), "in progress"),
+    h("span", null, h("b", {style: "color:var(--red)"}, String(counts.r)), "blocked"));
+  return {msgs: msgs, n: n, svg: node, legend: legend, map: h("div", {class: "ca-scroll"}, node)};
+}
+function crewMapTile(){
+  var c = crewParts();
+  if (!c) return null;
+  return wtile("ws8", "Crew activity", "System", h("div", {style: "display:flex;flex-direction:column;gap:6px"}, c.legend, c.map));
+}
+function crewActivity(){
+  var c = crewParts();
+  if (!c) return null;
+  var feed = c.msgs.slice(-6).reverse().map(function(m){
     var t = String(m.text || "").replace(/^(\uD83D[\uDFE2\uDFE1\uDD34])\s*/, ""); if (t.length > 150) t = t.slice(0, 147) + "...";
     return h("div", null, h("span", {class: "st " + msgColor(m)}),
       h("span", null, h("span", {class: "who"}, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + ago(m.time)), h("br"), t));
   });
   return h("section", {class: "card mod"},
-    h("div", {class: "mhead"}, h("h3", null, "Crew activity"), h("span", {class: "mono"}, "last " + n + " messages, oldest to newest")),
-    h("div", {class: "ca-counts"},
-      h("span", null, h("b", {style: "color:#4ade80"}, String(counts.g)), "good"),
-      h("span", null, h("b", {style: "color:var(--amber)"}, String(counts.y)), "in progress or waiting"),
-      h("span", null, h("b", {style: "color:var(--red)"}, String(counts.r)), "broken or blocked")),
-    h("div", {class: "ca-scroll"}, svg),
+    h("div", {class: "mhead"}, h("h3", null, "Crew activity"), h("span", {class: "mono"}, "last " + c.n + " messages, oldest to newest")),
+    c.legend, c.map,
     h("div", {class: "ca-feed"}, feed));
 }
 
@@ -684,7 +701,7 @@ function todayTile(){
   });
   var d = new Date(nowMs()), nh = d.getHours() + d.getMinutes() / 60;
   if (nh >= A && nh <= B) tl.appendChild(h("div", {class: "now", style: "left:" + ((nh - A) / span * 100) + "%"}, h("span", null, "NOW")));
-  return wtile("ws8", "Today", "Today", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
+  return wtile("ws4", "Today", "Today", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
     h("div", {class: "wbig"}, due + " due today", h("small", null, DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; }).length + " on the watch list")),
     tl, summaryNote("Today")), summaryStatus("Today"));
 }
@@ -709,7 +726,7 @@ function systemTile(){
 
 function businessTile(){
   var its = DATA.items.filter(function(i){ return i.tab === "Business"; }).sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
-  return wtile("ws5", "Business", "Business", h("div", {style: "display:flex;flex-direction:column;gap:10px"},
+  return wtile("ws4", "Business", "Business", h("div", {style: "display:flex;flex-direction:column;gap:10px"},
     moduleRows("Business"),
     summaryNote("Business") || (its.length ? h("div", {class: "wnote", style: "border-top:1px solid var(--line);padding-top:12px;line-height:1.5"}, its[0].text) : null)), summaryStatus("Business"));
 }
@@ -732,7 +749,7 @@ function localTile(){
     }));
   });
   var scan = moduleStatus("Scanner");
-  return wtile("ws7", "Local · Potsdam", "Local", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
+  return wtile("ws8", "Local · Potsdam", "Local", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
     h("div", {class: "wbig"}, total + (total === 1 ? " event" : " events"), h("small", null, "Scanner: " + scan.text.toLowerCase())),
     cols.length ? h("div", {class: "wk"}, cols) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local")), summaryStatus("Local"));
 }
@@ -743,33 +760,37 @@ function wall(){
   if (bad.length) box.appendChild(h("div", {class: "walert", role: "status"}, h("b", null, "ATTENTION"),
     h("span", null, bad.map(function(r){ return r.routine; }).join(", ") + (bad.length === 1 ? " is failing." : " are failing.")),
     h("button", {class: "wopen", type: "button", onclick: function(){ go("System"); }}, "VIEW IN SYSTEM")));
-  box.appendChild(h("div", {class: "wbar"},
-    h("div", {class: "tabhead", style: "margin:0"}, h("h2", null, "Wall"), h("span", {class: "mono", style: "margin-left:14px"}, new Date(nowMs()).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"}))),
-    (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work") : null));
+  var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work") : null;
+  if (lockBtn) box.appendChild(h("div", {class: "wbar", style: "justify-content:center"}, lockBtn));
   var em = EMBEDS.Business[0];
+  var list = tileList();
+  box.appendChild(h("div", {class: "stats"}, [gaugeCard()].concat(list.slice(0, 3))));
+  var hasCrew = !!(DATA.config || DATA.messages);
   box.appendChild(h("div", {class: "wall"},
-    todayTile(), systemTile(), businessTile(), localTile(),
+    hasCrew ? crewMapTile() : null,
+    todayTile(), businessTile(), localTile(),
+    hasCrew ? messagesTile() : null,
+    systemTile(),
     wtile("ws4", "Private", "Private", (isUnlocked() || !tier2("Private")) ? h("div", {style: "display:flex;flex-direction:column;gap:12px"}, moduleRows("Private"), summaryNote("Private")) : lockBox(), (isUnlocked() || !tier2("Private")) ? summaryStatus("Private") : null),
     wtile("ws4", "Work", null, (isUnlocked() || !tier2("Work")) ? (summaryNote("Work") || h("div", {class: "wnote"}, "No Work feed is connected yet.")) : lockBox(), (isUnlocked() || !tier2("Work")) ? summaryStatus("Work") : null),
     wtile("ws4", em.name, "Business", h("div", {class: "pv"},
       h("iframe", {src: em.url, title: em.name + " preview", loading: "lazy", tabindex: "-1"}),
-      h("a", {href: em.url, target: "_blank", rel: "noopener"}, "OPEN FULL SCREEN"))),
-    (DATA.config || DATA.messages) ? crewTile() : null,
-    (DATA.config || DATA.messages) ? messagesTile() : null));
+      h("a", {href: em.url, target: "_blank", rel: "noopener"}, "OPEN FULL SCREEN")))));
   return box;
 }
 
 function render(){
   var app = document.getElementById("app");
   app.textContent = "";
-  document.getElementById("refreshed").textContent = "LIVE  " + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  document.getElementById("refreshed").textContent = "Live " + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  document.getElementById("livepill").classList.remove("off");
+  document.getElementById("hdate").textContent = new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"});
   if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   if (TAB === "Wall") { app.appendChild(wall()); renderNav(); return; }
   app.appendChild(h("div", {class: "hero"}, gaugeCard(), tiles()));
 
-  app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB),
-    h("span", {class: "mono"}, new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"}))));
+  app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
   (DATA.modules[TAB] || []).forEach(function(m){
@@ -792,6 +813,19 @@ function render(){
   renderNav();
 }
 
+var ICONS = {
+  Wall: [["path", "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"]],
+  Today: [["circle", {cx: 12, cy: 12, r: 9}], ["path", "M12 7v5l3 2"]],
+  Business: [["path", "M5 20V10M12 20V4M19 20v-7"]],
+  Local: [["path", "M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"], ["circle", {cx: 12, cy: 10, r: 2.5}]],
+  Private: [["path", "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"]],
+  System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]]
+};
+function icon(name){
+  var e = svgEl("svg", {viewBox: "0 0 24 24", "class": "ic", "aria-hidden": "true"});
+  (ICONS[name] || []).forEach(function(p){ e.appendChild(typeof p[1] === "string" ? svgEl(p[0], {d: p[1]}) : svgEl(p[0], p[1])); });
+  return e;
+}
 function renderNav(){
   var nav = document.getElementById("tabs");
   var rail = document.getElementById("rail");
@@ -800,9 +834,9 @@ function renderNav(){
   TABS.forEach(function(t){
     var n = DATA.items.filter(function(i){ return i.tab === t; }).length;
     nav.appendChild(h("button", {class: "tab", type: "button", role: "tab", "aria-selected": String(t === TAB),
-      onclick: function(){ go(t); }}, t, h("span", {class: "n"}, t === "Wall" ? "all" : n ? String(n) : "-")));
-    if (rail) rail.appendChild(h("button", {type: "button", "aria-label": t, "aria-selected": String(t === TAB), onclick: function(){ go(t); }},
-      h("b", null, t.charAt(0)), h("span", null, t), (t !== "Wall" && n) ? h("em", {class: "rn"}, String(n)) : null));
+      onclick: function(){ go(t); }}, icon(t), t));
+    if (rail) rail.appendChild(h("button", {type: "button", title: t, "aria-label": t, "aria-selected": String(t === TAB), onclick: function(){ go(t); }},
+      icon(t), (t !== "Wall" && n) ? h("em", {class: "rn"}, String(n)) : null));
   });
 }
 
@@ -828,6 +862,7 @@ function clearCfg(){ memCfg = null; try { localStorage.removeItem("cc_cfg"); } c
 function connectScreen(note){
   DATA = null;
   document.getElementById("refreshed").textContent = "Not connected";
+  document.getElementById("livepill").classList.add("off");
   var app = document.getElementById("app");
   app.textContent = "";
   var url = h("input", {class: "field", type: "url", placeholder: "Web app URL (ends in /exec)", autocomplete: "off"});
@@ -972,8 +1007,25 @@ function preview(){
   };
 }
 
+function themeIs(){ return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark"; }
+function themeBtn(){
+  var b = document.getElementById("theme"), light = themeIs() === "light";
+  b.textContent = "";
+  b.appendChild(svgEl("svg", {viewBox: "0 0 24 24", "class": "ic", style: "width:17px;height:17px", "aria-hidden": "true"},
+    light ? [svgEl("path", {d: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"})]
+          : [svgEl("circle", {cx: 12, cy: 12, r: 4}), svgEl("path", {d: "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"})]));
+  b.appendChild(document.createTextNode(light ? "Dark" : "Light"));
+  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", light ? "#eef1ff" : "#090b14");
+}
+document.getElementById("theme").addEventListener("click", function(){
+  var next = themeIs() === "light" ? "dark" : "light";
+  if (next === "light") document.documentElement.setAttribute("data-theme", "light"); else document.documentElement.removeAttribute("data-theme");
+  try { localStorage.setItem("cc_theme", next); } catch (e) {}
+  themeBtn();
+});
+themeBtn();
 document.getElementById("refresh").addEventListener("click", load);
-document.getElementById("disconnect").addEventListener("click", function(){ clearCfg(); document.getElementById("tabs").textContent = ""; connectScreen(); });
+document.getElementById("disconnect").addEventListener("click", function(){ clearCfg(); document.getElementById("tabs").textContent = ""; document.getElementById("rail").textContent = ""; connectScreen(); });
 load();
 setInterval(function(){ if (getCfg()) load(); }, 5 * 60000);
 ["pointerdown", "keydown", "scroll"].forEach(function(ev){ window.addEventListener(ev, armIdle, {passive: true}); });
