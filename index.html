@@ -659,7 +659,7 @@ function wall(){
     h("button", {class: "wopen", type: "button", onclick: function(){ go("System"); }}, "VIEW IN SYSTEM")));
   box.appendChild(h("div", {class: "wbar"},
     h("div", {class: "tabhead", style: "margin:0"}, h("h2", null, "Wall"), h("span", {class: "mono", style: "margin-left:14px"}, new Date(nowMs()).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"}))),
-    h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work")));
+    (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work") : null));
   var em = EMBEDS.Business;
   box.appendChild(h("div", {class: "wall"},
     todayTile(), systemTile(), businessTile(), localTile(),
