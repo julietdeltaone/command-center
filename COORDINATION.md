@@ -30,6 +30,16 @@ Never edit a file you do not own. To change one, post a request row in the Comma
 - Show "Not available yet" for any missing value. Never invent numbers.
 - Times use the -05:00 offset, not Z.
 
+## Status colors
+
+Start every Messages row, Problems row and report line with one color so JD can scan at a glance:
+
+- 🟢 good: done and checked
+- 🟡 in progress, waiting, or unverified
+- 🔴 bad: broken, blocked, or failed
+
+Use the color that matches the real state. Do not mark 🟢 for anything you did not check.
+
 ## If something breaks
 
 Post `BROKEN:` with the page and what you saw. Atlas reverts or fixes. Do not edit someone else's file to fix it.
