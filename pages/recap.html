@@ -2,44 +2,47 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>var t=new URLSearchParams(location.search).get("theme");if(t==="light")document.documentElement.setAttribute("data-theme","light")</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <title>Recap · Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#07090d;--text:#e8eaf2;--muted:#9aa3b8;--line:rgba(200,205,255,.13);--panel:#0d1017;--panel2:#12151f;--accent:#7aa7ff;--amber:#f0b450;--red:#ff6b7a;--green:#5fd48a;--mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace}
 *{box-sizing:border-box}
-html{background:var(--bg)}
-body{margin:0;color:var(--text);font:15px/1.55 -apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;padding:26px clamp(16px,3vw,44px) 44px}
+body{margin:0;font-family:var(--font);padding:26px clamp(16px,3vw,44px) 48px}
 a{color:var(--accent)}
-header.top{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:20px}
-header.top h1{font-size:26px;letter-spacing:-.02em;margin:0}
-header.top .back{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-decoration:none}
+header.top{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;margin-bottom:22px}
+header.top .back{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);text-decoration:none}
 header.top .back:hover{color:var(--text)}
-header.top .stamp{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:14px}
-.card{border-radius:18px;padding:18px 20px}
-.card h2{font-size:13px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 12px;font-weight:600}
-.big{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.05}
-.sub{color:var(--muted);font-size:13px;margin-top:6px}
-.stack{display:grid;gap:14px}
+header.top h1{font-size:clamp(28px,3.1vw,40px);font-weight:300;letter-spacing:.05em;margin:0}
+header.top .stamp{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
+.card{border-radius:var(--r);padding:20px 22px}
+.card h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:600;text-align:center}
+.big{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.05;text-align:center}
+.sub{color:var(--muted);font-size:13px;margin-top:6px;text-align:center}
+.stack{display:grid;gap:var(--gap)}
 .item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
 .item:last-child{border-bottom:0}
-.item .when{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;padding-top:2px;min-width:118px}
+.item .when{font-family:var(--font);font-size:12px;color:var(--muted);white-space:nowrap;padding-top:2px;min-width:118px}
 .item .txt{flex:1}
 .item .src{color:var(--muted);font-size:12.5px;margin-top:2px}
-.chip{display:inline-block;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;border:1px solid var(--line);border-radius:20px;padding:1px 8px;color:var(--muted);white-space:nowrap;height:fit-content}
-.empty{color:var(--muted);padding:8px 0}
-.headline{font-size:19px;font-weight:650;letter-spacing:-.01em}
+.chip{display:inline-block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);border-radius:20px;padding:1px 8px;color:var(--muted);white-space:nowrap;height:fit-content}
+.empty{color:var(--muted);padding:8px 0;text-align:center}
+.headline{font-size:19px;font-weight:650;letter-spacing:-.01em;text-align:center}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--muted);margin-right:8px;flex:none}
 .dot.ok{background:var(--green)} .dot.late{background:var(--amber)} .dot.fail{background:var(--red)}
 .rrow{display:flex;align-items:center;gap:4px;padding:8px 0;border-bottom:1px solid var(--line)}
 .rrow:last-child{border-bottom:0}
 .rrow .nm{flex:1}
-.rrow .meta{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap}
-.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:14px}
+.rrow .meta{font-size:12px;color:var(--muted);white-space:nowrap}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
 </style>
 <link rel="stylesheet" href="../cc-design.css">
+<link rel="stylesheet" href="../cc-skin.css">
 </head>
 <body>
 <div id="app">
@@ -58,17 +61,25 @@ header.top .stamp{margin-left:auto;font-family:var(--mono);font-size:12px;color:
 function getCfg(){ try { var c = JSON.parse(localStorage.getItem("cc_cfg") || "null"); if (c && c.url && c.key) return c; } catch (e) {} return null; }
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
 function fmtTime(iso){ if (!iso) return "Not available yet"; var d = new Date(iso); if (isNaN(d)) return esc(iso); return d.toLocaleString("en-US", {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/New_York"}); }
+function items(data, tab, module){ return (data.items || []).filter(function(i){ return i.tab === tab && i.module === module; }).slice().sort(function(a,b){ return new Date(b.time) - new Date(a.time); }); }
+function summary(data, section){ var rows = (data.summary || []).filter(function(s){ return s.section === section; }); return rows.length ? rows[rows.length - 1] : null; }
+function itemRow(i){
+  var link = i.link ? ' <a href="' + esc(i.link) + '" target="_blank" rel="noopener">Open</a>' : "";
+  return '<div class="item"><span class="when">' + fmtTime(i.time) + '</span><span class="txt">' + esc(i.text) + link +
+    (i.source ? '<div class="src">' + esc(i.source) + '</div>' : "") + '</span><span class="chip">' + esc(i.grade || "") + '</span></div>';
+}
+function listOrEmpty(rows){ return rows.length ? rows.map(itemRow).join("") : '<div class="empty">Not available yet</div>'; }
 function newestSummary(data, section){ var rows = (data.summary || []).filter(function(s){ return s.section === section; }); return rows.length ? rows[rows.length - 1] : null; }
-function routineStatus(r){
-  if (!r.last_run) return "nodata";
-  if (r.last_status === "fail") return "fail";
-  if (typeof r.cadence_min === "number" && r.cadence_min > 0) {
-    var ageMin = (Date.now() - new Date(r.last_run)) / 60000;
-    if (ageMin > r.cadence_min * 2 + 5) return "late";
+function routineStatus(rt){
+  if (!rt.last_run) return "nodata";
+  if (rt.last_status === "fail") return "fail";
+  if (typeof rt.cadence_min === "number" && rt.cadence_min > 0) {
+    var ageMin = (Date.now() - new Date(rt.last_run)) / 60000;
+    if (ageMin > rt.cadence_min * 2 + 5) return "late";
   }
   return "ok";
 }
-function itemRow(i){
+function actRow(i){
   var link = i.link ? ' <a href="' + esc(i.link) + '" target="_blank" rel="noopener">Open</a>' : "";
   return '<div class="item"><span class="when">' + fmtTime(i.time) + '</span><span class="txt">' + esc(i.text) + link +
     '<div class="src">' + esc(i.tab) + ' · ' + esc(i.module) + (i.source ? ' · ' + esc(i.source) : "") + '</div></span><span class="chip">' + esc(i.grade || "") + '</span></div>';
@@ -85,11 +96,11 @@ function render(data){
   }).join("");
   var routines = (data.routines || []).slice().sort(function(a,b){ return String(a.routine).localeCompare(String(b.routine)); });
   var counts = {ok:0, late:0, fail:0, nodata:0};
-  routines.forEach(function(r){ counts[routineStatus(r)]++; });
-  var rRows = routines.length ? routines.map(function(r){
-    var st = routineStatus(r);
-    return '<div class="rrow"><span class="dot ' + (st === "nodata" ? "" : st) + '"></span><span class="nm">' + esc(r.routine) + '</span><span class="meta">' +
-      (r.last_run ? fmtTime(r.last_run) : "no run yet") + (r.last_output_count !== "" && r.last_output_count != null ? " · " + esc(r.last_output_count) + " out" : "") + '</span></div>';
+  routines.forEach(function(rt){ counts[routineStatus(rt)]++; });
+  var rRows = routines.length ? routines.map(function(rt){
+    var st = routineStatus(rt);
+    return '<div class="rrow"><span class="dot ' + (st === "nodata" ? "" : st) + '"></span><span class="nm">' + esc(rt.routine) + '</span><span class="meta">' +
+      (rt.last_run ? fmtTime(rt.last_run) : "no run yet") + (rt.last_output_count !== "" && rt.last_output_count != null ? " · " + esc(rt.last_output_count) + " out" : "") + '</span></div>';
   }).join("") : '<div class="empty">Not available yet</div>';
   var latest = (data.items || []).slice().sort(function(a,b){ return new Date(b.time) - new Date(a.time); }).slice(0, 10);
   document.getElementById("stage").innerHTML =
@@ -102,7 +113,7 @@ function render(data){
     '<div class="sumgrid">' + sumCards + '</div>' +
     '<div class="stack">' +
       '<div class="card"><h2>Routine health</h2>' + rRows + '</div>' +
-      '<div class="card"><h2>Latest activity</h2>' + (latest.length ? latest.map(itemRow).join("") : '<div class="empty">Not available yet</div>') + '</div>' +
+      '<div class="card"><h2>Latest activity</h2>' + (latest.length ? latest.map(actRow).join("") : '<div class="empty">Not available yet</div>') + '</div>' +
     '</div>';
 }
 function fail(msg){
