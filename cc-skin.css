@@ -647,7 +647,7 @@ body:not(.onwall) .ibtn.icon{width:34px}
 .lbar h3{margin:0}.lchips{display:flex;gap:6px;flex-wrap:wrap;flex:1}.lcount{color:var(--muted);font-size:12px}
 .lchip{appearance:none;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
 .lchip i{width:8px;height:8px;border-radius:50%;background:var(--c)}.lchip.off{opacity:.45}.lchip.off i{background:transparent;box-shadow:inset 0 0 0 1px var(--c)}
-.lscroll{overflow:auto;height:calc(100vh - 150px);min-height:320px}
+.lscroll{overflow:auto;height:calc(100vh - 168px);min-height:320px}
 .ltbl{width:100%;min-width:1040px;border-collapse:collapse;font-size:13px;table-layout:fixed}
 .ltbl th{position:sticky;top:0;z-index:1;background:var(--bg);text-align:left;padding:0;border-bottom:1px solid var(--line)}
 .ltbl th button{appearance:none;width:100%;display:flex;justify-content:space-between;gap:6px;padding:10px 12px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
