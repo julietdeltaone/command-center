@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>var t=new URLSearchParams(location.search).get("theme");if(t==="light")document.documentElement.setAttribute("data-theme","light")</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="color-scheme" content="dark light">
+<title>Crew · Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);padding:26px clamp(16px,3vw,44px) 48px}
+a{color:var(--accent)}
+header.top{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;margin-bottom:22px}
+header.top .back{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);text-decoration:none}
+header.top .back:hover{color:var(--text)}
+header.top h1{font-size:clamp(28px,3.1vw,40px);font-weight:300;letter-spacing:.05em;margin:0}
+header.top .stamp{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:var(--gap);margin-bottom:var(--gap)}
+.card{border-radius:var(--r);padding:20px 22px}
+.card h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:600;text-align:center}
+.big{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.05;text-align:center}
+.sub{color:var(--muted);font-size:13px;margin-top:6px;text-align:center}
+.stack{display:grid;gap:var(--gap)}
+.item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item .when{font-family:var(--font);font-size:12px;color:var(--muted);white-space:nowrap;padding-top:2px;min-width:118px}
+.item .txt{flex:1}
+.item .src{color:var(--muted);font-size:12.5px;margin-top:2px}
+.chip{display:inline-block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);border-radius:20px;padding:1px 8px;color:var(--muted);white-space:nowrap;height:fit-content}
+.empty{color:var(--muted);padding:8px 0;text-align:center}
+.headline{font-size:19px;font-weight:650;letter-spacing:-.01em;text-align:center}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--muted);margin-right:8px;flex:none}
+.dot.ok{background:var(--green)} .dot.late{background:var(--amber)} .dot.fail{background:var(--red)}
+.member .who{font-size:21px;font-weight:650;text-align:center}
+.member .role{color:var(--muted);font-size:12.5px;text-align:center;margin-top:2px}
+.member .last{font-size:13.5px;line-height:1.5;margin-top:12px;background:var(--inset);border-radius:12px;padding:10px 12px}
+.member .live{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:10px;font-size:12px;color:var(--muted)}
+</style>
+<link rel="stylesheet" href="../cc-design.css">
+<link rel="stylesheet" href="../cc-skin.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <a class="back" href="../index.html">Command Center</a>
+    <h1>Crew</h1>
+    <span class="stamp" id="stamp">Loading</span>
+  </header>
+  <main id="stage">
+    <div class="sk"><div></div><div></div><div></div></div>
+  </main>
+</div>
+<script>
+(function(){
+"use strict";
+function getCfg(){ try { var c = JSON.parse(localStorage.getItem("cc_cfg") || "null"); if (c && c.url && c.key) return c; } catch (e) {} return null; }
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+function fmtTime(iso){ if (!iso) return "Not available yet"; var d = new Date(iso); if (isNaN(d)) return esc(iso); return d.toLocaleString("en-US", {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", timeZone:"America/New_York"}); }
+function items(data, tab, module){ return (data.items || []).filter(function(i){ return i.tab === tab && i.module === module; }).slice().sort(function(a,b){ return new Date(b.time) - new Date(a.time); }); }
+function summary(data, section){ var rows = (data.summary || []).filter(function(s){ return s.section === section; }); return rows.length ? rows[rows.length - 1] : null; }
+function itemRow(i){
+  var link = i.link ? ' <a href="' + esc(i.link) + '" target="_blank" rel="noopener">Open</a>' : "";
+  return '<div class="item"><span class="when">' + fmtTime(i.time) + '</span><span class="txt">' + esc(i.text) + link +
+    (i.source ? '<div class="src">' + esc(i.source) + '</div>' : "") + '</span><span class="chip">' + esc(i.grade || "") + '</span></div>';
+}
+function listOrEmpty(rows){ return rows.length ? rows.map(itemRow).join("") : '<div class="empty">Not available yet</div>'; }
+var CREW = [["claude", "Atlas", "Lead"], ["muse", "Luna", "Routines"], ["chatgpt", "Argus", "Cross-check"], ["claude-jdm", "Athena", "Business account"], ["iphone", "Orion", "iPhone report"]];
+var NAMES = {}; CREW.forEach(function(m){ NAMES[m[0]] = m[1]; });
+function ago(iso){
+  if (!iso) return "not yet";
+  var s = (Date.now() - new Date(iso)) / 1000;
+  if (isNaN(s)) return "not yet";
+  if (s < 90) return "just now";
+  if (s < 3600) return Math.round(s / 60) + " min ago";
+  if (s < 86400) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " d ago";
+}
+function render(data){
+  var stamp = document.getElementById("stamp");
+  stamp.textContent = "Updated " + fmtTime(data.now || new Date().toISOString());
+  var msgs = (data.messages || []).slice().sort(function(a,b){ return new Date(a.time) - new Date(b.time); });
+  var cards = CREW.map(function(m){
+    var mine = msgs.filter(function(x){ return x.from === m[0]; });
+    var last = mine.length ? mine[mine.length - 1] : null;
+    var live = last && (Date.now() - new Date(last.time)) < 3600000;
+    var txt = last ? String(last.text || "") : "";
+    if (txt.length > 220) txt = txt.slice(0, 217) + "...";
+    return '<div class="card member"><h2>' + esc(m[2]) + '</h2><div class="who">' + esc(m[1]) + '</div>' +
+      '<div class="live"><span class="dot ' + (live ? "ok" : "") + '"></span>' + (last ? "spoke " + ago(last.time) : "no posts yet") + '</div>' +
+      (last ? '<div class="last">' + esc(txt) + '<div class="src">' + esc(last.type || "") + ' · ' + fmtTime(last.time) + '</div></div>' : '<div class="empty">Not available yet</div>') + '</div>';
+  }).join("");
+  var recent = msgs.slice().sort(function(a,b){ return new Date(b.time) - new Date(a.time); }).slice(0, 12);
+  var rows = recent.length ? recent.map(function(x){
+    return '<div class="item"><span class="when">' + fmtTime(x.time) + '</span><span class="txt">' + esc(x.text || "") +
+      '<div class="src">' + esc(NAMES[x.from] || x.from) + ' to ' + esc(NAMES[x.to] || x.to || "") + '</div></span><span class="chip">' + esc(x.type || "") + '</span></div>';
+  }).join("") : '<div class="empty">Not available yet</div>';
+  document.getElementById("stage").innerHTML =
+    '<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">' + cards + '</div>' +
+    '<div class="stack"><div class="card"><h2>Recent board activity</h2>' + rows + '</div></div>';
+}
+function fail(msg){
+  document.getElementById("stage").innerHTML = '<div class="card"><h2>Crew</h2><div class="empty">' + esc(msg) + '</div></div>';
+  document.getElementById("stamp").textContent = "Not available yet";
+}
+var cfg = getCfg();
+if (!cfg) { fail("Not connected yet. Open the Command Center hub and connect first; this page reads through the hub connection."); return; }
+fetch(cfg.url + (cfg.url.indexOf("?") > -1 ? "&" : "?") + "key=" + encodeURIComponent(cfg.key))
+  .then(function(r){ return r.json(); })
+  .then(function(j){ if (!j.ok) throw new Error(j.error || "load failed"); render(j.data); })
+  .catch(function(){ fail("Could not load the board. Values are not available yet."); });
+})();
+</script>
+<script src="../cc-motion.js"></script>
+</body>
+</html>
