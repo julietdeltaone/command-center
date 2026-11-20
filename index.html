@@ -1120,21 +1120,137 @@ function weekStrip(){
     h("div", {class: "mhead"}, h("h3", null, "Next 7 days"), h("div", {class: "status"}, h("span", {class: "dot " + scan.state}), li.flat.length + (li.flat.length === 1 ? " event" : " events"))),
     h("div", {class: "wsgrid"}, cols));
 }
-function localView(){
-  var wrap = h("div", {class: "wall vgrid top"});
-  wrap.appendChild(weekStrip());
-  var undated = localInfo().groups[99] || [];
-  if (undated.length) {
-    var ev = h("section", {class: "card mod vs12"}, h("div", {class: "mhead"}, h("h3", null, "No day given"), h("div", {class: "status"}, undated.length + " listed")),
-      h("div", {class: "agenda"}, undated.map(function(e){ return h("div", {class: "ag"}, h("span", {class: "agd"}, ""), h("em", null, e.time == null ? "" : fmtClock(e.time)), h("span", {class: "agl"}, e.label)); })));
-    wrap.appendChild(ev);
+var POT = {lat: 44.67, lon: -74.98};
+function etOff(d){
+  try { var p = new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", timeZoneName: "shortOffset"}).formatToParts(d).filter(function(x){ return x.type === "timeZoneName"; })[0].value; var m = /GMT([+-]\d+)/.exec(p); if (m) return Number(m[1]); } catch (e) {}
+  return -d.getTimezoneOffset() / 60;
+}
+function sunDay(d){
+  var y = d.getFullYear(), mo = d.getMonth() + 1, da = d.getDate(), R = Math.PI / 180, tz = etOff(d);
+  var N = Math.floor(275 * mo / 9) - Math.floor((mo + 9) / 12) * (1 + Math.floor((y - 4 * Math.floor(y / 4) + 2) / 3)) + da - 30;
+  function one(rise){
+    var lh = POT.lon / 15, t = N + ((rise ? 6 : 18) - lh) / 24, M = 0.9856 * t - 3.289;
+    var L = (M + 1.916 * Math.sin(M * R) + 0.02 * Math.sin(2 * M * R) + 282.634 + 720) % 360;
+    var RA = (Math.atan(0.91764 * Math.tan(L * R)) / R + 720) % 360;
+    RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90; RA /= 15;
+    var sd = 0.39782 * Math.sin(L * R), cd = Math.cos(Math.asin(sd));
+    var ch = (Math.cos(90.833 * R) - sd * Math.sin(POT.lat * R)) / (cd * Math.cos(POT.lat * R));
+    if (ch > 1 || ch < -1) return null;
+    var H = (rise ? 360 - Math.acos(ch) / R : Math.acos(ch) / R) / 15;
+    var T = H + RA - 0.06571 * t - 6.622;
+    return ((T - lh + tz) % 24 + 48) % 24;
   }
-  ((DATA.modules || {})[TAB] || []).forEach(function(m){
-    if (m.name === "Events") return;
-    var card = itemsModuleRO(m, TAB);
-    card.classList.add("vs6");
-    wrap.appendChild(card);
+  return {rise: one(true), set: one(false)};
+}
+function lightAt(d, hr){
+  if (hr == null) return null;
+  var s = sunDay(d); if (s.rise == null || s.set == null) return null;
+  var st = hr < s.rise - 0.75 || hr >= s.set + 0.75 ? "night" : hr < s.rise + 0.5 ? "dawn" : hr >= s.set - 0.75 ? "dusk" : "day";
+  return {st: st, rise: s.rise, set: s.set};
+}
+function lightIcon(st){
+  var ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 20 20"); svg.setAttribute("width", "18"); svg.setAttribute("height", "18"); svg.setAttribute("aria-hidden", "true");
+  var inner = {
+    day: '<circle cx="10" cy="10" r="4" fill="#f0b450"/><g stroke="#f0b450" stroke-width="1.6" stroke-linecap="round"><path d="M10 1.5v2.2M10 16.3v2.2M1.5 10h2.2M16.3 10h2.2M4 4l1.6 1.6M14.4 14.4L16 16M16 4l-1.6 1.6M5.6 14.4L4 16"/></g>',
+    dawn: '<path d="M4 14a6 6 0 0112 0z" fill="#ff9a5a"/><path d="M1.5 14h17M10 3v2.4M3.5 6.5l1.6 1.6M16.5 6.5l-1.6 1.6" stroke="#ff9a5a" stroke-width="1.6" stroke-linecap="round"/>',
+    night: '<path d="M15.5 12.6A6.5 6.5 0 017.4 4.5a6.5 6.5 0 108.1 8.1z" fill="#9aa6ff"/>'
+  };
+  inner.dusk = inner.dawn;
+  svg.innerHTML = inner[st] || inner.day;
+  return svg;
+}
+function fh(x){ var hh = Math.floor(x), mm = Math.round((x - hh) * 60); if (mm === 60) { hh++; mm = 0; } return ((hh + 11) % 12 + 1) + ":" + (mm < 10 ? "0" : "") + mm + " " + (hh % 24 >= 12 ? "PM" : "AM"); }
+var LSORT = {k: "when", dir: 1}, LFILT = {};
+var LTYPES = [["Event", "var(--accent)"], ["Meeting", "var(--green)"], ["Deadline", "var(--violet)"], ["Closure", "var(--amber)"], ["Alert", "var(--red)"], ["Chatter", "var(--muted)"]];
+function ltypeColor(t){ for (var i = 0; i < LTYPES.length; i++) if (LTYPES[i][0] === t) return LTYPES[i][1]; return "var(--muted)"; }
+function ltype(i){
+  var t = i.text || "";
+  if (i.module === "Scanner") return "Alert";
+  if (i.module !== "Events") return "Chatter";
+  if (/clos(ed|ure)|detour|road work|cancel|delay|outage|no school/i.test(t)) return "Closure";
+  if (/deadline|\bdue\b|register by|apply by|sign.?up by/i.test(t)) return "Deadline";
+  if (/meeting|council|board|hearing|committee/i.test(t)) return "Meeting";
+  return "Event";
+}
+function W(o, w){ o.writer = w; return o; }
+function lsrc(i){
+  var s = String(i.source || ""), k = "web";
+  if (/instagram|\big\b|@/i.test(s)) k = "ig";
+  else if (/facebook|\bfb\b|group/i.test(s)) k = "fb";
+  else if (/scanner|dispatch/i.test(s)) k = "scan";
+  else if (/official|\.gov|\.edu|town of|village|university|county|511/i.test(s)) k = "off";
+  var lab = {ig: "Instagram", fb: "Facebook group", web: "Web", scan: "Scanner", off: "Official"}[k];
+  return {k: k, lab: lab, name: (s.replace(/^(instagram|facebook group)\s*:?\s*/i, "") || s || "unknown")};
+}
+function lvia(i){
+  var w = String(i.writer || "");
+  for (var c = 0; c < CREW.length; c++) if (CREW[c][0] === w) return cfgName(w, CREW[c][1]);
+  return w === "sample" ? "Sample" : (w || "unknown");
+}
+function lwhere(i){
+  var parts = String(i.text || "").split(",").map(function(x){ return x.trim(); }).slice(1);
+  var keep = parts.filter(function(p){ return !/^(tonight|today|tomorrow|(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*)\b/i.test(p) && !/^\d{1,2}(:\d{2})?\s?[AP]M/i.test(p) && !/\d{1,2}(:\d{2})?\s?[AP]M\s+to\s+/i.test(p); });
+  return keep.join(", ");
+}
+function lfull(x){ if (x == null) return ""; var hh = Math.floor(x), mm = Math.round((x - hh) * 60); return ((hh + 11) % 12 + 1) + ":" + (mm < 10 ? "0" : "") + mm + " " + (hh >= 12 ? "PM" : "AM"); }
+function lrows(){
+  return DATA.items.filter(function(i){ return i.tab === "Local"; }).map(function(i){
+    var o = i.module === "Events" ? dayOffset(i.text) : null, tm = i.module === "Events" ? clock(i.text) : null;
+    var d = o == null ? null : new Date(nowMs() + o * 86400000);
+    var rng = clockRange(i.text), when = rng ? lfull(rng[0]) + " to " + lfull(rng[1]) : lfull(tm);
+    return {it: i, type: ltype(i), what: shortName(i.text) || i.text, where: lwhere(i), src: lsrc(i), via: lvia(i),
+      date: d ? (o === 0 ? "Today" : DAYS[d.getDay()] + " " + (d.getMonth() + 1) + "/" + d.getDate()) : "", time: when,
+      hr: tm, light: d && tm != null ? lightAt(d, tm) : null, whenKey: o == null ? 9999 : o * 100 + (tm == null ? 99 : tm), pulled: i.time ? new Date(i.time).getTime() : 0, grade: i.grade || ""};
   });
+}
+function lightCell(r){
+  if (!r.light) return h("td", {class: "c-light"});
+  var L = r.light, word = {day: "Daylight", dawn: "Dawn", dusk: "Dusk", night: "Dark"}[L.st];
+  var note = L.st === "dawn" || (L.st === "night" && r.hr < L.rise) ? "sunrise " + fh(L.rise) : "sunset " + fh(L.set);
+  return h("td", {class: "c-light " + L.st}, h("span", {class: "lg"}, lightIcon(L.st), word), h("small", null, note));
+}
+function sunBadge(){
+  var d = new Date(nowMs()), s = sunDay(d); if (s.rise == null) return null;
+  var hr = d.getHours() + d.getMinutes() / 60, st = (lightAt(d, hr) || {}).st || "day";
+  return h("span", {class: "lsun"}, lightIcon(st), (hr < s.rise ? "Sunrise " + fh(s.rise) : hr < s.set ? "Sunset " + fh(s.set) : "Dark now · sunrise " + fh(sunDay(new Date(d.getTime() + 86400000)).rise)));
+}
+function localTable(){
+  var cols = [["when", "Date", function(r){ return r.whenKey; }], ["time", "Time", function(r){ return r.whenKey % 100; }], ["light", "Light", function(r){ return r.light ? ({day: 0, dawn: 1, dusk: 1, night: 2}[r.light.st]) : 3; }], ["what", "What", function(r){ return r.what.toLowerCase(); }],
+    ["where", "Where", function(r){ return r.where.toLowerCase() || "~"; }], ["type", "Type", function(r){ return r.type; }], ["src", "Source", function(r){ return r.src.lab + r.src.name; }],
+    ["via", "Pulled by", function(r){ return r.via; }], ["pulled", "Pulled", function(r){ return r.pulled; }], ["grade", "Confirmed", function(r){ return r.grade; }], ["link", "Link", function(r){ return r.it.link ? 0 : 1; }]];
+  var card = h("section", {class: "card mod ltab"}), rows = lrows();
+  function paint(){
+    var shown = rows.filter(function(r){ return !LFILT[r.type]; }), col = cols.filter(function(c){ return c[0] === LSORT.k; })[0] || cols[0];
+    shown.sort(function(a, b){ var x = col[2](a), y = col[2](b); return (x < y ? -1 : x > y ? 1 : 0) * LSORT.dir || (a.whenKey - b.whenKey); });
+    var counts = {}; rows.forEach(function(r){ counts[r.type] = (counts[r.type] || 0) + 1; });
+    var chips = LTYPES.filter(function(t){ return counts[t[0]]; }).map(function(t){
+      return h("button", {type: "button", class: "lchip" + (LFILT[t[0]] ? " off" : ""), style: "--c:" + t[1], "aria-pressed": String(!LFILT[t[0]]),
+        onclick: function(){ LFILT[t[0]] = !LFILT[t[0]]; paint(); }}, h("i"), t[0] + " " + counts[t[0]]);
+    });
+    var head = h("tr", null, cols.map(function(c){
+      var on = LSORT.k === c[0];
+      return h("th", {class: "c-" + c[0], "aria-sort": on ? (LSORT.dir > 0 ? "ascending" : "descending") : "none"},
+        h("button", {type: "button", onclick: function(){ if (LSORT.k === c[0]) LSORT.dir = -LSORT.dir; else { LSORT.k = c[0]; LSORT.dir = c[0] === "pulled" ? -1 : 1; } paint(); }}, c[1], h("b", null, on ? (LSORT.dir > 0 ? "▲" : "▼") : "")));
+    }));
+    var body = shown.map(function(r){
+      return h("tr", {style: "--c:" + ltypeColor(r.type)},
+        h("td", {class: "c-when"}, r.date || "No day"), h("td", {class: "c-time"}, r.time || ""), lightCell(r), h("td", {class: "c-what"}, r.what), h("td", {class: "c-where"}, r.where || ""),
+        h("td", {class: "c-type"}, h("span", {class: "ltag"}, r.type)),
+        h("td", {class: "c-src"}, h("span", {class: "ssrc " + r.src.k}, r.src.lab), h("small", null, r.src.name)),
+        h("td", {class: "c-via"}, r.via), h("td", {class: "c-pulled"}, ago(r.it.time)), h("td", {class: "c-grade"}, r.grade),
+        h("td", {class: "c-link"}, r.it.link ? h("a", {href: r.it.link, target: "_blank", rel: "noopener"}, "↗") : ""));
+    });
+    card.innerHTML = "";
+    card.appendChild(h("div", {class: "lbar"}, h("h3", null, "Local feed"), h("div", {class: "lchips"}, chips), sunBadge(), h("span", {class: "lcount"}, shown.length + " of " + rows.length)));
+    card.appendChild(h("div", {class: "lscroll"}, h("table", {class: "ltbl"}, h("thead", null, head), h("tbody", null, shown.length ? body : h("tr", null, h("td", {colspan: String(cols.length), class: "lempty"}, "Nothing listed."))))));
+  }
+  paint();
+  return card;
+}
+function localView(){
+  var wrap = h("div", {class: "ltwrap"});
+  wrap.appendChild(localTable());
   return wrap;
 }
 function routineWeek(tab){
@@ -1547,6 +1663,12 @@ function preview(){
       I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St", "Local listing", "Single source", 160),
       I("s10", "Local", "Events", "Public Open Skate, Sun 1:15 PM", "Local listing", "Single source", 160),
       I("s11", "Local", "Scanner", "2-car crash near Grant and Elm", "Scanner dispatch", "Single source", 300),
+      W(I("s14", "Local", "Events", "Tree lighting, Tue 6 PM, Clarkson Quad", "Facebook group: Potsdam NY Community", "Seen twice", 150), "muse"),
+      W(I("s15", "Local", "Events", "Winter concert, Sun 3 PM to 5 PM, Hosmer Hall, SUNY Potsdam", "Instagram @sunypotsdam", "Seen twice", 170), "muse"),
+      W(I("s16", "Local", "Events", "Lane closure on Route 11, Mon 7 AM to 4 PM, Canton at Main St", "511ny.org (official)", "Exact", 200), "chatgpt"),
+      W(I("s17", "Local", "Events", "Town board meeting, Mon 7 PM, Potsdam Town Hall", "Town of Potsdam website", "Exact", 210), "chatgpt"),
+      W(I("s18", "Local", "Events", "Scholarship application deadline, Fri 11:59 PM, online", "clarkson.edu financial aid", "Single source", 190), "chatgpt"),
+      W(I("s19", "Local", "Events", "Holiday craft fair, Sat 4:30 PM to 8 PM, Potsdam Civic Center", "Instagram @potsdamchamber", "Single source", 120), "muse"),
       I("s12", "Private", "Health", "Last night's sleep has not synced", "Health sync", "Gap", 160),
       I("s13", "Private", "Guard, OTS, MBA", "Pre-drill pack reminder due Wednesday", "Guard schedule", "Exact", 2000, new Date(Date.now() + 3 * 86400000).toISOString())
     ],
