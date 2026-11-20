@@ -516,7 +516,7 @@ function swap(fn){
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (document.startViewTransition && !reduce) document.startViewTransition(function(){ fn(); }); else fn();
 }
-function go(tab){ swap(function(){ TAB = tab; render(); window.scrollTo(0, 0); }); }
+function go(tab){ swap(function(){ TAB = tab; PSUB = null; render(); window.scrollTo(0, 0); }); }
 function clock(txt){
   var m = /(\d{1,2})(?::(\d{2}))?\s?([AP])M/i.exec(txt || "");
   if (!m) return null;
@@ -1188,9 +1188,24 @@ function lvia(i){
   for (var c = 0; c < CREW.length; c++) if (CREW[c][0] === w) return cfgName(w, CREW[c][1]);
   return w === "sample" ? "Sample" : (w || "unknown");
 }
+function lprice(i){
+  var t = String(i.text || ""), m = /\$\s?\d+(?:\.\d{2})?(?:\s?(?:-|to)\s?\$?\d+(?:\.\d{2})?)?/.exec(t);
+  if (m) return {label: m[0].replace(/\s+/g, ""), key: Number(/\d+(?:\.\d+)?/.exec(m[0])[0])};
+  if (/\bfree\b|no cost|no charge|no admission/i.test(t)) return {label: "Free", key: 0};
+  return {label: "", key: 1e9};
+}
+function laud(i){
+  var t = String(i.text || "");
+  if (/students? only|for students|student[- ]only|enrolled students/i.test(t)) return "Students only";
+  if (/members only|member[- ]only/i.test(t)) return "Members only";
+  if (/invite only|by invitation|private/i.test(t)) return "Invite only";
+  if (/faculty and staff|campus only|campus community|employees only/i.test(t)) return "Campus only";
+  if (/open to (the )?public|\bpublic\b|all welcome|everyone welcome/i.test(t)) return "Public";
+  return "";
+}
 function lwhere(i){
   var parts = String(i.text || "").split(",").map(function(x){ return x.trim(); }).slice(1);
-  var keep = parts.filter(function(p){ return !/^(tonight|today|tomorrow|(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*)\b/i.test(p) && !/^\d{1,2}(:\d{2})?\s?[AP]M/i.test(p) && !/\d{1,2}(:\d{2})?\s?[AP]M\s+to\s+/i.test(p); });
+  var keep = parts.filter(function(p){ return !/^(tonight|today|tomorrow|(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*)\b/i.test(p) && !/^\d{1,2}(:\d{2})?\s?[AP]M/i.test(p) && !/\d{1,2}(:\d{2})?\s?[AP]M\s+to\s+/i.test(p) && !/^\$|^free\b|^open to|^students? only|^public\b|^members only|^invite only|^campus only|^\d+ admission|admission$/i.test(p); });
   return keep.join(", ");
 }
 function lfull(x){ if (x == null) return ""; var hh = Math.floor(x), mm = Math.round((x - hh) * 60); return ((hh + 11) % 12 + 1) + ":" + (mm < 10 ? "0" : "") + mm + " " + (hh >= 12 ? "PM" : "AM"); }
@@ -1199,7 +1214,7 @@ function lrows(){
     var o = i.module === "Events" ? dayOffset(i.text) : null, tm = i.module === "Events" ? clock(i.text) : null;
     var d = o == null ? null : new Date(nowMs() + o * 86400000);
     var rng = clockRange(i.text), when = rng ? lfull(rng[0]) + " to " + lfull(rng[1]) : lfull(tm);
-    return {it: i, type: ltype(i), what: shortName(i.text) || i.text, where: lwhere(i), src: lsrc(i), via: lvia(i),
+    return {it: i, type: ltype(i), price: lprice(i), aud: laud(i), what: shortName(i.text) || i.text, where: lwhere(i), src: lsrc(i), via: lvia(i),
       date: d ? (o === 0 ? "Today" : DAYS[d.getDay()] + " " + (d.getMonth() + 1) + "/" + d.getDate()) : "", time: when,
       hr: tm, light: d && tm != null ? lightAt(d, tm) : null, whenKey: o == null ? 9999 : o * 100 + (tm == null ? 99 : tm), pulled: i.time ? new Date(i.time).getTime() : 0, grade: i.grade || ""};
   });
@@ -1217,7 +1232,7 @@ function sunBadge(){
 }
 function localTable(){
   var cols = [["when", "Date", function(r){ return r.whenKey; }], ["time", "Time", function(r){ return r.whenKey % 100; }], ["light", "Light", function(r){ return r.light ? ({day: 0, dawn: 1, dusk: 1, night: 2}[r.light.st]) : 3; }], ["what", "What", function(r){ return r.what.toLowerCase(); }],
-    ["where", "Where", function(r){ return r.where.toLowerCase() || "~"; }], ["type", "Type", function(r){ return r.type; }], ["src", "Source", function(r){ return r.src.lab + r.src.name; }],
+    ["where", "Where", function(r){ return r.where.toLowerCase() || "~"; }], ["type", "Type", function(r){ return r.type; }], ["price", "Price", function(r){ return r.price.key; }], ["aud", "Who can come", function(r){ return r.aud || "~"; }], ["src", "Source", function(r){ return r.src.lab + r.src.name; }],
     ["via", "Pulled by", function(r){ return r.via; }], ["pulled", "Pulled", function(r){ return r.pulled; }], ["grade", "Confirmed", function(r){ return r.grade; }], ["link", "Link", function(r){ return r.it.link ? 0 : 1; }]];
   var card = h("section", {class: "card mod ltab"}), rows = lrows();
   function paint(){
@@ -1236,7 +1251,7 @@ function localTable(){
     var body = shown.map(function(r){
       return h("tr", {style: "--c:" + ltypeColor(r.type)},
         h("td", {class: "c-when"}, r.date || "No day"), h("td", {class: "c-time"}, r.time || ""), lightCell(r), h("td", {class: "c-what"}, r.what), h("td", {class: "c-where"}, r.where || ""),
-        h("td", {class: "c-type"}, h("span", {class: "ltag"}, r.type)),
+        h("td", {class: "c-type"}, h("span", {class: "ltag"}, r.type)), h("td", {class: "c-price" + (r.price.label ? "" : " dim")}, r.price.label || "–"), h("td", {class: "c-aud" + (r.aud ? "" : " dim")}, r.aud || "–"),
         h("td", {class: "c-src"}, h("span", {class: "ssrc " + r.src.k}, r.src.lab), h("small", null, r.src.name)),
         h("td", {class: "c-via"}, r.via), h("td", {class: "c-pulled"}, ago(r.it.time)), h("td", {class: "c-grade"}, r.grade),
         h("td", {class: "c-link"}, r.it.link ? h("a", {href: r.it.link, target: "_blank", rel: "noopener"}, "↗") : ""));
@@ -1284,14 +1299,107 @@ function routineWeek(tab){
   card.appendChild(h("div", {class: "rw-k"}, h("span", null, "● ran"), h("span", null, "○ expected next"), h("span", null, h("i", {class: "bar"}), "runs through the day")));
   return card;
 }
+/* ---------- Private > Shooting log ---------- */
+var PSUB = null, SHOT = {state: "idle", sessions: [], at: null}, SSORT = {k: "date", dir: 1}, SFILT = {};
+var SHOT_SAMPLE = [["Session 1", "Sep 12, 2024", "pistol", "9MM", "Range A", 30], ["Session 2", "Oct 3, 2024", "pistol", "9MM", "Range A", 30], ["Training 1", "Jan 14, 2025", "rifle", "5.56MM", "Training range", 40], ["Training 2", "Jan 15, 2025", "rifle", "5.56MM", "Training range", 80], ["Training 3", "Feb 3, 2025", "rifle", "5.56MM", "Training range", 40], ["Session 3", "Jul 17, 2025", "pistol", "9MM", "Range A", 30], ["Session 4", "Apr 9, 2026", "rifle", "5.56MM", "Training area", 120], ["Session 5", "Oct 22, 2026", "pistol", "9MM", "Range A", 50]];
+function cfgVal(key){
+  var rows = (DATA && DATA.config) || [];
+  for (var i = 0; i < rows.length; i++) if (rows[i].key === key) return rows[i].value;
+  return "";
+}
+function shotClean(raw){
+  var out = [];
+  (raw || []).forEach(function(x){
+    var r = Number(x.r), d = new Date(x.d);
+    if (!isFinite(r) || r < 0 || x.r === "" || x.r == null || isNaN(d.getTime())) return;
+    out.push({n: String(x.n || ""), d: d, t: String(x.t || "").toLowerCase(), cal: String(x.cal || ""), loc: String(x.loc || ""), r: r});
+  });
+  out.sort(function(a, b){ return a.d - b.d; });
+  var cum = 0; out.forEach(function(s){ cum += s.r; s.cum = cum; });
+  return out;
+}
+function loadShots(){
+  if (SHOT.state === "loading" || SHOT.state === "live" || SHOT.state === "sample") return;
+  if (DATA.sample) { SHOT = {state: "sample", sessions: shotClean(SHOT_SAMPLE.map(function(a){ return {n: a[0], d: a[1], t: a[2], cal: a[3], loc: a[4], r: a[5]}; })), at: nowMs()}; return; }
+  var u = cfgVal("shotlog_url");
+  if (!u) { SHOT = {state: "noconfig", sessions: [], at: null}; return; }
+  SHOT.state = "loading";
+  fetch(u).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(function(j){
+    SHOT = {state: "live", sessions: shotClean(j.sessions), at: nowMs()};
+    if (TAB === "Private") render();
+  }).catch(function(){ SHOT.state = SHOT.sessions.length ? "stale" : "error"; if (TAB === "Private") render(); });
+}
+function shotStats(ss){
+  var y = Number(new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", year: "numeric"}).format(new Date(nowMs())));
+  var tot = 0, yr = 0, peak = 0, by = {}, last = null;
+  ss.forEach(function(s){ tot += s.r; if (s.d.getFullYear() === y) yr += s.r; if (s.r > peak) peak = s.r; var b = by[s.t] = by[s.t] || {r: 0, n: 0}; b.r += s.r; b.n++; if (!last || s.d > last) last = s.d; });
+  return {total: tot, n: ss.length, year: yr, y: y, peak: peak, avg: ss.length ? Math.round(tot / ss.length * 10) / 10 : 0, by: by, last: last};
+}
+function sdate(d){ return d ? DAYS[d.getDay()] + " " + (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear() : "Not available yet"; }
+var SHOT_COL = ["var(--accent)", "var(--green)", "var(--amber)", "var(--violet)", "var(--red)"];
+function shotOk(){ return SHOT.state === "live" || SHOT.state === "sample" || SHOT.state === "stale"; }
+function shotNote(){
+  if (SHOT.state === "sample") return "Sample data";
+  if (SHOT.state === "live") return "Live · read " + ago(new Date(SHOT.at).toISOString());
+  if (SHOT.state === "stale") return "Stale · last read " + ago(new Date(SHOT.at).toISOString());
+  if (SHOT.state === "loading" || SHOT.state === "idle") return "Loading…";
+  if (SHOT.state === "noconfig") return "Not connected: add shotlog_url in Config";
+  return "Not available yet";
+}
+function shotCard(){
+  var st = shotStats(SHOT.sessions), ok = shotOk() && SHOT.sessions.length >= 0 && (SHOT.state !== "loading");
+  var m = function(l, v){ return h("div", {class: "shm"}, h("b", null, ok && shotOk() ? v : "–"), h("span", null, l)); };
+  return h("section", {class: "card mod vs4 shcard"},
+    h("div", {class: "mhead"}, h("h3", null, "Shooting log"), h("button", {type: "button", class: "btn link", onclick: function(){ PSUB = "shooting"; render(); window.scrollTo(0, 0); }}, "Open ↗")),
+    h("div", {class: "shgrid"}, m("Total rounds", String(st.total)), m("Sessions", String(st.n)), m("Last session", st.last ? (st.last.getMonth() + 1) + "/" + st.last.getDate() + "/" + st.last.getFullYear() : "–"), m("Rounds in " + st.y, String(st.year))),
+    h("div", {class: "wnote", style: "margin-top:10px"}, shotNote()));
+}
+function shotView(){
+  var ss = SHOT.sessions, st = shotStats(ss), types = Object.keys(st.by).sort();
+  var colOf = function(t){ return SHOT_COL[Math.max(0, types.indexOf(t)) % SHOT_COL.length]; };
+  var wrap = h("div", {class: "shwrap"});
+  wrap.appendChild(h("div", {class: "shbar"}, h("button", {type: "button", class: "btn", onclick: function(){ PSUB = null; render(); }}, "← Private"), h("h3", null, "Shooting log"), h("span", {class: "lcount"}, shotNote())));
+  if (!shotOk()) { wrap.appendChild(h("section", {class: "card mod"}, h("div", {class: "empty"}, shotNote()))); return wrap; }
+  var tile = function(l, v, sub){ return h("div", {class: "shm big"}, h("b", null, v), h("span", null, l), sub ? h("small", null, sub) : null); };
+  var goal = 1000, pct = Math.min(100, Math.round(st.total / goal * 100));
+  wrap.appendChild(h("div", {class: "shtiles"}, tile("Total rounds", String(st.total)), tile("Sessions", String(st.n)), tile("Average per session", String(st.avg)), tile("Largest session", String(st.peak)),
+    tile("Last session", st.last ? (st.last.getMonth() + 1) + "/" + st.last.getDate() + "/" + st.last.getFullYear() : "–"), tile("Rounds in " + st.y, String(st.year)), tile("Toward " + goal + " rounds", pct + "%", Math.max(0, goal - st.total) + " to go")));
+  var bars = h("div", {class: "shby"}, types.map(function(t){
+    var b = st.by[t], w = st.total ? Math.round(b.r / st.total * 100) : 0;
+    return h("div", {class: "shrow"}, h("span", null, t || "other"), h("div", {class: "shtrack"}, h("i", {style: "width:" + w + "%;background:" + colOf(t)})), h("em", null, b.r + " rounds · " + b.n + " sessions"));
+  }));
+  var W = 640, H = 150, pad = 6, maxc = Math.max(1, st.total), n = ss.length, pts = ss.map(function(s, i){ return [pad + (n > 1 ? i / (n - 1) : 1) * (W - 2 * pad), H - pad - s.cum / maxc * (H - 2 * pad)]; });
+  var chart = svgEl("svg", {viewBox: "0 0 " + W + " " + H, class: "shchart", role: "img", "aria-label": "Cumulative rounds across sessions"});
+  if (n) { chart.appendChild(svgEl("path", {d: "M" + pts.map(function(p){ return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": "2"}));
+    pts.forEach(function(p, i){ chart.appendChild(svgEl("circle", {cx: p[0].toFixed(1), cy: p[1].toFixed(1), r: "3", fill: colOf(ss[i].t)})); }); }
+  wrap.appendChild(h("div", {class: "shtwo"}, h("section", {class: "card mod"}, h("div", {class: "mhead"}, h("h3", null, "By weapon")), bars), h("section", {class: "card mod"}, h("div", {class: "mhead"}, h("h3", null, "Cumulative rounds")), chart)));
+  var cols = [["n", "Session", function(s){ return s.n.toLowerCase(); }], ["date", "Date", function(s){ return s.d.getTime(); }], ["t", "Weapon", function(s){ return s.t; }], ["cal", "Caliber", function(s){ return s.cal; }], ["loc", "Location", function(s){ return s.loc.toLowerCase(); }], ["r", "Rounds", function(s){ return s.r; }], ["cum", "Cumulative", function(s){ return s.cum; }]];
+  var card = h("section", {class: "card mod ltab shtab"});
+  function paint(){
+    var col = cols.filter(function(c){ return c[0] === SSORT.k; })[0] || cols[1], shown = ss.filter(function(s){ return !SFILT[s.t]; });
+    shown.sort(function(a, b){ var x = col[2](a), y = col[2](b); return (x < y ? -1 : x > y ? 1 : 0) * SSORT.dir || (a.d - b.d); });
+    var chips = types.map(function(t){ return h("button", {type: "button", class: "lchip" + (SFILT[t] ? " off" : ""), style: "--c:" + colOf(t), "aria-pressed": String(!SFILT[t]), onclick: function(){ SFILT[t] = !SFILT[t]; paint(); }}, h("i"), (t || "other") + " " + st.by[t].n); });
+    card.innerHTML = "";
+    card.appendChild(h("div", {class: "lbar"}, h("h3", null, "Sessions"), h("div", {class: "lchips"}, chips), h("span", {class: "lcount"}, shown.length + " of " + ss.length)));
+    card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:60vh"}, h("table", {class: "ltbl sht"},
+      h("thead", null, h("tr", null, cols.map(function(c){ var on = SSORT.k === c[0]; return h("th", {"aria-sort": on ? (SSORT.dir > 0 ? "ascending" : "descending") : "none"}, h("button", {type: "button", onclick: function(){ if (SSORT.k === c[0]) SSORT.dir = -SSORT.dir; else { SSORT.k = c[0]; SSORT.dir = 1; } paint(); }}, c[1], h("b", null, on ? (SSORT.dir > 0 ? "▲" : "▼") : ""))); }))),
+      h("tbody", null, shown.map(function(s){ return h("tr", {style: "--c:" + colOf(s.t)}, h("td", null, s.n), h("td", null, sdate(s.d)), h("td", null, h("span", {class: "ltag"}, s.t || "other")), h("td", null, s.cal), h("td", null, s.loc), h("td", null, String(s.r)), h("td", null, String(s.cum))); })))));
+  }
+  paint(); wrap.appendChild(card);
+  return wrap;
+}
 function privateView(){
+  loadShots();
+  if (PSUB === "shooting") return shotView();
   var wrap = h("div", {class: "wall vgrid top"});
   ((DATA.modules || {})[TAB] || []).forEach(function(m){
     var card = m.name === "Guard, OTS, MBA" ? guardModule(m, TAB) : itemsModule(m, TAB);
     card.classList.add("vs4");
     wrap.appendChild(card);
   });
-  wrap.appendChild(routineWeek("Private"));
+  wrap.appendChild(shotCard());
+  var rw = routineWeek("Private"); rw.classList.remove("vs12"); rw.classList.add("vs8");
+  wrap.appendChild(rw);
   return wrap;
 }
 
@@ -1660,15 +1768,15 @@ function preview(){
       I("s6", "Business", "Leads", "New portrait inquiry logged", "Form log", "Exact", 180),
       I("s7", "Business", "Waiting on others", "Booking confirmation draft waiting on your approval", "Draft queue", "Exact", 1500),
       I("s8", "Business", "Competitors", "One tracked account gained 7 followers after a new post", "Instagram snapshot", "Exact", 90),
-      I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St", "Local listing", "Single source", 160),
+      I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St, free, open to the public", "Local listing", "Single source", 160),
       I("s10", "Local", "Events", "Public Open Skate, Sun 1:15 PM", "Local listing", "Single source", 160),
       I("s11", "Local", "Scanner", "2-car crash near Grant and Elm", "Scanner dispatch", "Single source", 300),
-      W(I("s14", "Local", "Events", "Tree lighting, Tue 6 PM, Clarkson Quad", "Facebook group: Potsdam NY Community", "Seen twice", 150), "muse"),
-      W(I("s15", "Local", "Events", "Winter concert, Sun 3 PM to 5 PM, Hosmer Hall, SUNY Potsdam", "Instagram @sunypotsdam", "Seen twice", 170), "muse"),
+      W(I("s14", "Local", "Events", "Tree lighting, Tue 6 PM, Clarkson Quad, free, open to the public", "Facebook group: Potsdam NY Community", "Seen twice", 150), "muse"),
+      W(I("s15", "Local", "Events", "Winter concert, Sun 3 PM to 5 PM, Hosmer Hall, SUNY Potsdam, $10, public", "Instagram @sunypotsdam", "Seen twice", 170), "muse"),
       W(I("s16", "Local", "Events", "Lane closure on Route 11, Mon 7 AM to 4 PM, Canton at Main St", "511ny.org (official)", "Exact", 200), "chatgpt"),
-      W(I("s17", "Local", "Events", "Town board meeting, Mon 7 PM, Potsdam Town Hall", "Town of Potsdam website", "Exact", 210), "chatgpt"),
-      W(I("s18", "Local", "Events", "Scholarship application deadline, Fri 11:59 PM, online", "clarkson.edu financial aid", "Single source", 190), "chatgpt"),
-      W(I("s19", "Local", "Events", "Holiday craft fair, Sat 4:30 PM to 8 PM, Potsdam Civic Center", "Instagram @potsdamchamber", "Single source", 120), "muse"),
+      W(I("s17", "Local", "Events", "Town board meeting, Mon 7 PM, Potsdam Town Hall, open to the public", "Town of Potsdam website", "Exact", 210), "chatgpt"),
+      W(I("s18", "Local", "Events", "Scholarship application deadline, Fri 11:59 PM, online, students only", "clarkson.edu financial aid", "Single source", 190), "chatgpt"),
+      W(I("s19", "Local", "Events", "Holiday craft fair, Sat 4:30 PM to 8 PM, Potsdam Civic Center, $5 admission, public", "Instagram @potsdamchamber", "Single source", 120), "muse"),
       I("s12", "Private", "Health", "Last night's sleep has not synced", "Health sync", "Gap", 160),
       I("s13", "Private", "Guard, OTS, MBA", "Pre-drill pack reminder due Wednesday", "Guard schedule", "Exact", 2000, new Date(Date.now() + 3 * 86400000).toISOString())
     ],
