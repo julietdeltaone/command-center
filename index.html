@@ -213,10 +213,10 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
       <div class="sub" id="hdate"></div>
     </div>
     <div class="hbtns">
-      <button class="ibtn" id="theme" type="button" aria-label="Switch theme"></button>
+      <button class="ibtn icon" id="theme" type="button" aria-label="Switch theme" title="Switch theme"></button>
       <span class="pill off" id="livepill"><i></i><span id="refreshed">Loading</span></span>
       <button class="ibtn icon" id="refresh" type="button" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
-      <button class="ibtn icon" id="disconnect" type="button" aria-label="Disconnect"><svg viewBox="0 0 24 24"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg></button>
+      <button class="ibtn icon" id="disconnect" type="button" aria-label="Disconnect" title="Disconnect"><svg viewBox="0 0 24 24"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg></button>
     </div>
   </header>
   <div id="app"></div>
@@ -265,6 +265,7 @@ function lockScreen(name){
     h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Private and Work")));
 }
 var TABS = ["Wall", "Today", "Business", "Local", "Private", "System"];
+var TABLABEL = {Wall: "Overview"};
 var PAGES = {
   Today: [{name: "Recap", url: "pages/recap.html"}],
   Business: [{name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}, {name: "Leads", url: "pages/leads.html"}, {name: "Marketing", url: "pages/marketing.html"}],
@@ -940,6 +941,290 @@ function wall(){
   return box;
 }
 
+/* ---------- per-view stats + collapsible global strip (JD review) ---------- */
+var GS_OPEN = false;
+function vstat(label, big, note, st){
+  return wtile("ws3 stat", label, null, h("div", {class: "sbody"}, h("div", {class: "sbig"}, big), h("div", {class: "sviz"}), note ? h("div", {class: "snote"}, note) : null), st);
+}
+function tabRoutines(tab){ return DATA.routines.filter(function(r){ return r.tab === tab; }); }
+function modItems(tab, name){ return DATA.items.filter(function(i){ return i.tab === tab && i.module === name; }); }
+function newestOf(list){ return list.slice().sort(function(a, b){ return new Date(b.time) - new Date(a.time); })[0]; }
+function viewStats(tab){
+  if (tab === "Today") {
+    var due = DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; });
+    var watch = modItems("Today", "Watch");
+    var ev = (localInfo().groups[0] || []).length;
+    var rs = tabRoutines("Today"), ok = rs.filter(function(r){ return r.status === "ok"; }).length;
+    return [
+      vstat("Due today", String(due.length), due.length ? shortName(due[0].text) : "nothing due", due.length ? "watch" : "good"),
+      vstat("Watch", String(watch.length), watch.length ? shortName(watch[0].text) : "nothing flagged", watch.length ? "watch" : "good"),
+      vstat("Events today", String(ev), ev ? "on the local list" : "none listed"),
+      vstat("Routines", [String(ok), h("small", null, "/" + rs.length)], rs.length - ok ? (rs.length - ok) + " not on time" : "all on time", rs.length - ok ? "watch" : "good")];
+  }
+  if (tab === "Business") {
+    var leads = modItems("Business", "Leads"), wait = modItems("Business", "Waiting on others"), comp = modItems("Business", "Competitors");
+    var all = DATA.items.filter(function(i){ return i.tab === "Business"; }).length;
+    return [
+      vstat("Open leads", String(leads.length), leads.length ? "newest " + ago(newestOf(leads).time) : "none open"),
+      vstat("Waiting on others", String(wait.length), wait.length ? shortName(wait[0].text) : "nothing waiting", wait.length ? "watch" : "good"),
+      vstat("Competitor items", String(comp.length), comp.length ? "latest " + ago(newestOf(comp).time) : "none reported"),
+      vstat("Business items", String(all), "across all business feeds")];
+  }
+  if (tab === "Local") {
+    var li = localInfo();
+    var scan = moduleStatus("Scanner");
+    var sig = modItems("Local", "Chatter and signal feed").length;
+    var scanWord = scan.state === "ok" ? "On time" : scan.state === "late" ? "Late" : scan.state === "fail" ? "Failed" : "No data";
+    return [
+      vstat("Events listed", String(li.flat.length), "next 7 days plus undated"),
+      vstat("Events today", String((li.groups[0] || []).length), (li.groups[0] || []).length ? li.groups[0][0].label : "none today"),
+      vstat("Scanner", scanWord, scan.text, scan.state === "fail" ? "alert" : scan.state === "late" ? "watch" : scan.state === "ok" ? "good" : null),
+      vstat("Signal items", String(sig), sig ? "chatter and signal feed" : "nothing reported")];
+  }
+  if (tab === "Private") {
+    var mods = ((DATA.modules || {}).Private || []);
+    var out = mods.slice(0, 3).map(function(m){
+      var n = modItems("Private", m.name).length, s = moduleStatus(m.name);
+      return vstat(m.name, String(n), s.text, s.state === "fail" ? "alert" : s.state === "late" ? "watch" : s.state === "ok" ? "good" : null);
+    });
+    var tot = DATA.items.filter(function(i){ return i.tab === "Private"; }).length;
+    out.push(vstat("Private items", String(tot), "across all private feeds"));
+    return out;
+  }
+  var rs2 = DATA.routines, ok2 = rs2.filter(function(r){ return r.status === "ok"; }).length;
+  var ps = (DATA.problems || []).length;
+  var u = computeUsage();
+  return [
+    vstat("Routines", [String(ok2), h("small", null, "/" + rs2.length)], rs2.length - ok2 ? (rs2.length - ok2) + " not on time" : "all on time", rs2.length - ok2 ? "watch" : "good"),
+    vstat("Open problems", String(ps), ps ? "in Diagnostics below" : "none open", ps ? "alert" : "good"),
+    vstat("Messages", String((DATA.messages || []).length), "on the crew board"),
+    vstat("Weekly usage", u && !u.stale ? u.pct + "%" : "n/a", u ? u.word + " · resets " + resetLabel(u.resetAt) : "no reading yet", u && u.pct >= 90 ? "alert" : u && u.pct >= 70 ? "watch" : "good")];
+}
+function globalStrip(){
+  var body = h("div", {class: "wall gstrip-body"}, statsRow());
+  if (!GS_OPEN) body.style.display = "none";
+  var chev = h("span", {class: "chev"}, GS_OPEN ? "\u25BE" : "\u25B8");
+  var head = h("button", {class: "gstrip-head", type: "button", "aria-expanded": String(GS_OPEN), onclick: function(){
+    GS_OPEN = !GS_OPEN;
+    body.style.display = GS_OPEN ? "" : "none";
+    chev.textContent = GS_OPEN ? "\u25BE" : "\u25B8";
+    head.setAttribute("aria-expanded", String(GS_OPEN));
+  }}, h("span", {class: "mono"}, "System at a glance"), h("span", {class: "sysn"}, "usage · watch · routines · problems · unconfirmed · local events"), chev);
+  return h("div", {class: "card gstrip"}, head, body);
+}
+
+/* ---------- display-only items (Local: no Done / Dismiss) ---------- */
+function itemRowRO(it){
+  var g = gradeClass(it.grade || "");
+  return h("div", {class: "item s-" + g},
+    h("div", {class: "itext"}, it.text),
+    h("div", {class: "imeta"},
+      h("span", {class: "chip " + g}, it.grade || "Ungraded"),
+      it.source ? h("span", null, it.source) : null,
+      h("span", null, ago(it.time)),
+      it.due ? h("span", null, dueLabel(it.due)) : null,
+      it.link ? h("a", {class: "rolink", href: it.link, target: "_blank", rel: "noopener"}, "Open") : null));
+}
+function itemsModuleRO(m, tab){
+  var s = moduleStatus(m.name);
+  var items = DATA.items.filter(function(i){ return i.tab === tab && i.module === m.name; })
+    .sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
+  var card = h("section", {class: "card mod"},
+    h("div", {class: "mhead"}, h("h3", null, m.name),
+      h("div", {class: "status"}, h("span", {class: "dot " + s.state}), s.text)));
+  if (items.length) items.forEach(function(it){ card.appendChild(itemRowRO(it)); });
+  else if (s.state === "ok") card.appendChild(h("div", {class: "empty"}, "Checked, nothing found."));
+  else if (s.state === "none") card.appendChild(h("div", {class: "empty"}, "Nothing reported yet."));
+  return card;
+}
+
+/* ---------- Private: Guard / OTS / MBA unstacked into groups ---------- */
+function guardModule(m, tab){
+  var s = moduleStatus(m.name);
+  var items = DATA.items.filter(function(i){ return i.tab === tab && i.module === m.name; })
+    .sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
+  var card = h("section", {class: "card mod"},
+    h("div", {class: "mhead"}, h("h3", null, m.name),
+      h("div", {class: "status"}, h("span", {class: "dot " + s.state}), s.text)));
+  if (!items.length) {
+    card.appendChild(h("div", {class: "empty"}, s.state === "ok" ? "Checked, nothing found." : "Nothing reported yet."));
+    return card;
+  }
+  var groups = [["Guard", /guard|drill|army|unit|bsb|ibct|sergeant|\bsgt\b/i],
+                ["OTS", /ots|afoqt|officer|commission/i],
+                ["MBA", /mba|clarkson|course|tuition/i]];
+  var used = [];
+  groups.forEach(function(g){
+    var mine = items.filter(function(it){ return used.indexOf(it) === -1 && g[1].test(it.text + " " + (it.source || "")); });
+    mine.forEach(function(it){ used.push(it); });
+    card.appendChild(h("div", {class: "gsub"}, g[0]));
+    if (mine.length) mine.forEach(function(it){ card.appendChild(itemRow(it)); });
+    else card.appendChild(h("div", {class: "empty"}, "Nothing current."));
+  });
+  var rest = items.filter(function(it){ return used.indexOf(it) === -1; });
+  if (rest.length) {
+    card.appendChild(h("div", {class: "gsub"}, "More"));
+    rest.forEach(function(it){ card.appendChild(itemRow(it)); });
+  }
+  return card;
+}
+
+/* ---------- per-view layouts ---------- */
+function todayView(){
+  var wrap = h("div", {class: "wall vgrid"});
+  ((DATA.modules || {})[TAB] || []).forEach(function(m){
+    var card = itemsModule(m, TAB);
+    card.classList.add("vs4");
+    wrap.appendChild(card);
+  });
+  wrap.appendChild(recapCover(12));
+  return wrap;
+}
+function businessView(){
+  var box = h("div", null);
+  var rows = summaryRows("Business");
+  if (rows.length) {
+    var hero = h("section", {class: "card bhero"});
+    rows.forEach(function(r){
+      hero.appendChild(h("div", {class: "bh-h"}, r.headline));
+      hero.appendChild(h("div", {class: "bh-t"}, r.text));
+    });
+    box.appendChild(hero);
+  }
+  var wallEl = h("div", {class: "wall vgrid"});
+  wallEl.appendChild(pulseCover(4));
+  wallEl.appendChild(leadsCover(4));
+  wallEl.appendChild(marketingCover(4));
+  var cols = [[], [], []];
+  ((DATA.modules || {}).Business || []).forEach(function(m){
+    var card = itemsModule(m, "Business");
+    if (m.name === "Competitors") cols[0].push(card);
+    else cols[1].push(card);
+  });
+  cols.forEach(function(list, i){
+    var col = h("div", {class: "bcol"});
+    list.forEach(function(c){ col.appendChild(c); });
+    if (!list.length && i === 2) col.appendChild(h("div", {class: "bnote"}, "All marketing moves are in the cover above."));
+    wallEl.appendChild(col);
+  });
+  box.appendChild(wallEl);
+  return box;
+}
+function localView(){
+  var mods = h("div", {class: "mods"});
+  ((DATA.modules || {})[TAB] || []).forEach(function(m){ mods.appendChild(itemsModuleRO(m, TAB)); });
+  return mods;
+}
+function privateView(){
+  var wrap = h("div", {class: "wall vgrid"});
+  ((DATA.modules || {})[TAB] || []).forEach(function(m){
+    var card = m.name === "Guard, OTS, MBA" ? guardModule(m, TAB) : itemsModule(m, TAB);
+    card.classList.add("vs4");
+    wrap.appendChild(card);
+  });
+  return wrap;
+}
+
+/* ---------- System: structure visual + nested sections ---------- */
+var SYS_OPEN = {structure: true};
+var PROB_OPEN = {};
+function sysSection(id, title, note, body, openDefault){
+  var open = SYS_OPEN[id] != null ? SYS_OPEN[id] : !!openDefault;
+  var bodyWrap = h("div", {class: "sysbody"}, body);
+  if (!open) bodyWrap.style.display = "none";
+  var chev = h("span", {class: "chev"}, open ? "\u25BE" : "\u25B8");
+  var head = h("button", {class: "syshead", type: "button", "aria-expanded": String(open), onclick: function(){
+    var now = bodyWrap.style.display === "none";
+    bodyWrap.style.display = now ? "" : "none";
+    SYS_OPEN[id] = now;
+    chev.textContent = now ? "\u25BE" : "\u25B8";
+    head.setAttribute("aria-expanded", String(now));
+  }}, h("span", {class: "syst"}, title), h("span", {class: "sysn"}, note || ""), chev);
+  return h("section", {class: "card mod syssec"}, head, bodyWrap);
+}
+function structureTree(){
+  var tree = h("div", {class: "tree"});
+  var order = ["Today", "Business", "Local", "Private", "Work", "System"];
+  var keys = Object.keys(DATA.modules || {});
+  var tabs = order.filter(function(t){ return keys.indexOf(t) > -1; });
+  keys.forEach(function(t){ if (tabs.indexOf(t) === -1) tabs.push(t); });
+  if (!tabs.length) { tree.appendChild(h("div", {class: "empty"}, "No modules reported yet.")); return tree; }
+  tabs.forEach(function(t){
+    var mods = DATA.modules[t] || [];
+    var nr = 0;
+    mods.forEach(function(m){ nr += routinesFor(m.name).length; });
+    var node = h("div", {class: "tnode"},
+      h("div", {class: "trow"}, h("b", null, t),
+        h("span", {class: "tct"}, mods.length + (mods.length === 1 ? " module" : " modules") + " · " + nr + " routines")));
+    mods.forEach(function(m){
+      var rs = routinesFor(m.name);
+      var st = moduleStatus(m.name);
+      var sub = h("div", {class: "tsub"},
+        h("div", {class: "trow"}, h("span", {class: "dot " + st.state}), h("span", null, m.name),
+          h("span", {class: "tct"}, rs.length + (rs.length === 1 ? " routine" : " routines"))));
+      rs.forEach(function(r){
+        sub.appendChild(h("div", {class: "tleaf"}, h("span", {class: "dot " + r.status}), r.routine,
+          h("span", {class: "tct"}, cadenceLabel(r.cadence_min))));
+      });
+      node.appendChild(sub);
+    });
+    tree.appendChild(node);
+  });
+  return tree;
+}
+function problemsDiag(){
+  var ps = DATA.problems || [];
+  var box = h("div", null);
+  if (!ps.length) { box.appendChild(h("div", {class: "empty"}, "No open problems.")); return box; }
+  ps.forEach(function(p){
+    var opts = String(p.options || "").split("|").map(function(s){ return s.trim(); }).filter(Boolean);
+    var open = !!PROB_OPEN[p.id];
+    var detail = h("div", {class: "pdetail"},
+      h("div", {class: "imeta"}, "Impact: " + p.impact),
+      opts.length ? h("div", null, h("div", {class: "mono", style: "margin-top:8px"}, "Ways to fix"),
+        h("ul", {class: "opts"}, opts.map(function(o){ return h("li", null, o); })))
+        : h("div", {class: "imeta"}, "No fix listed yet."),
+      h("div", {class: "imeta"}, "Owner: " + p.owner + " | opened " + ago(p.opened)));
+    if (!open) detail.style.display = "none";
+    var chev = h("span", {class: "chev"}, open ? "\u25BE" : "\u25B8");
+    var head = h("button", {class: "prow", type: "button", "aria-expanded": String(open), onclick: function(){
+      var now = detail.style.display === "none";
+      detail.style.display = now ? "" : "none";
+      PROB_OPEN[p.id] = now;
+      chev.textContent = now ? "\u25BE" : "\u25B8";
+      head.setAttribute("aria-expanded", String(now));
+    }}, h("span", {class: "pid"}, p.id), h("span", {class: "ptxt"}, p.problem), h("span", {class: "pown"}, p.owner || ""), chev);
+    box.appendChild(h("div", {class: "prob"}, head, detail));
+  });
+  return box;
+}
+function systemView(){
+  var box = h("div", null);
+  var nMods = 0, keys = Object.keys(DATA.modules || {});
+  keys.forEach(function(t){ nMods += (DATA.modules[t] || []).length; });
+  box.appendChild(sysSection("structure", "Structure",
+    nMods + " modules · " + DATA.routines.length + " routines", structureTree(), true));
+  if (DATA.messages) {
+    var ca = crewActivity();
+    if (ca) box.appendChild(sysSection("crew", "Crew", (DATA.messages || []).length + " messages on the board", ca, false));
+  }
+  ((DATA.modules || {}).System || []).forEach(function(m){
+    if (m.kind === "problems") {
+      box.appendChild(sysSection("diagnostics", "Diagnostics", (DATA.problems || []).length + " open problems", problemsDiag(), false));
+    } else if (m.kind === "coverage") {
+      var rs = DATA.routines, ok = rs.filter(function(r){ return r.status === "ok"; }).length;
+      box.appendChild(sysSection("coverage", m.name, ok + " of " + rs.length + " routines on time", coverageModule(m), false));
+    } else if (m.kind === "usage") {
+      var u = computeUsage();
+      box.appendChild(sysSection("usage", m.name, u ? u.pct + "% used this week" : "no readings yet", usageModule(m), false));
+    } else {
+      var s = moduleStatus(m.name);
+      box.appendChild(sysSection("mod-" + m.name, m.name, s.text, itemsModule(m, "System"), false));
+    }
+  });
+  return box;
+}
+
 function render(){
   var app = document.getElementById("app");
   app.textContent = "";
@@ -949,25 +1234,16 @@ function render(){
   if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   if (TAB === "Wall") { app.appendChild(wall()); renderNav(); return; }
-  app.appendChild(h("div", {class: "wall stripe"}, statsRow()));
-
   app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB)));
+  app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
+  app.appendChild(globalStrip());
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
-  var mods = h("div", {class: "mods"});
-  (DATA.modules[TAB] || []).forEach(function(m){
-    var card = m.kind === "usage" ? usageModule(m) :
-      m.kind === "coverage" ? coverageModule(m) :
-      m.kind === "problems" ? problemsModule(m) :
-      itemsModule(m, TAB);
-    if (m.kind === "coverage" || m.kind === "problems") card.classList.add("all");
-    mods.appendChild(card);
-  });
-  if (TAB === "System" && DATA.messages) { var ca = crewActivity(); if (ca) { ca.classList.add("all"); mods.insertBefore(ca, mods.firstChild); } }
-  app.appendChild(mods);
-
-  var covers = TAB === "Business" ? [pulseCover(4), leadsCover(4), marketingCover(4)] : TAB === "Today" ? [recapCover(4)] : [];
-  if (covers.length) app.appendChild(h("div", {class: "wall"}, covers));
+  if (TAB === "Business") app.appendChild(businessView());
+  else if (TAB === "Local") app.appendChild(localView());
+  else if (TAB === "Private") app.appendChild(privateView());
+  else if (TAB === "System") app.appendChild(systemView());
+  else app.appendChild(todayView());
 
   renderNav();
 }
@@ -992,11 +1268,12 @@ function renderNav(){
   nav.textContent = "";
   if (rail) { rail.textContent = ""; rail.appendChild(h("div", {class: "rmark"}, h("i"))); }
   TABS.forEach(function(t){
+    var lbl = TABLABEL[t] || t;
     var n = DATA.items.filter(function(i){ return i.tab === t; }).length;
     nav.appendChild(h("button", {class: "tab", type: "button", role: "tab", "aria-selected": String(t === TAB),
-      onclick: function(){ go(t); }}, icon(t), t));
-    if (rail) rail.appendChild(h("button", {type: "button", title: t, "aria-label": t, "aria-selected": String(t === TAB), onclick: function(){ go(t); }},
-      icon(t), (t !== "Wall" && n) ? h("em", {class: "rn"}, String(n)) : null));
+      onclick: function(){ go(t); }}, icon(t), lbl));
+    if (rail) rail.appendChild(h("button", {type: "button", title: lbl, "aria-label": lbl, "aria-selected": String(t === TAB), onclick: function(){ go(t); }},
+      icon(t), h("span", {class: "rlab"}, lbl), (t !== "Wall" && n) ? h("em", {class: "rn"}, String(n)) : null));
   });
 }
 
@@ -1174,8 +1451,9 @@ function themeBtn(){
   b.appendChild(svgEl("svg", {viewBox: "0 0 24 24", "class": "ic", style: "width:17px;height:17px", "aria-hidden": "true"},
     light ? [svgEl("path", {d: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"})]
           : [svgEl("circle", {cx: 12, cy: 12, r: 4}), svgEl("path", {d: "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"})]));
-  b.appendChild(document.createTextNode(light ? "Dark" : "Light"));
-  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", light ? "#eef1ff" : "#090b14");
+  b.title = light ? "Switch to dark theme" : "Switch to light theme";
+  b.setAttribute("aria-label", b.title);
+  var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", light ? "#dde2f5" : "#090b14");
 }
 document.getElementById("theme").addEventListener("click", function(){
   var next = themeIs() === "light" ? "dark" : "light";
@@ -1186,7 +1464,29 @@ document.getElementById("theme").addEventListener("click", function(){
 });
 themeBtn();
 document.getElementById("refresh").addEventListener("click", load);
-document.getElementById("disconnect").addEventListener("click", function(){ clearCfg(); document.getElementById("tabs").textContent = ""; document.getElementById("rail").textContent = ""; connectScreen(); });
+var dcTimer = null;
+function dcDisarm(){
+  var b = document.getElementById("disconnect");
+  if (dcTimer) { clearTimeout(dcTimer); dcTimer = null; }
+  b.classList.remove("armed");
+  b.setAttribute("aria-label", "Disconnect");
+  b.title = "Disconnect";
+  var s = b.querySelector(".armtxt"); if (s) s.remove();
+}
+document.getElementById("disconnect").addEventListener("click", function(){
+  var b = document.getElementById("disconnect");
+  if (dcTimer) {
+    dcDisarm();
+    clearCfg(); document.getElementById("tabs").textContent = ""; document.getElementById("rail").textContent = ""; connectScreen();
+    return;
+  }
+  b.classList.add("armed");
+  b.setAttribute("aria-label", "Tap again to disconnect");
+  b.title = "Tap again to disconnect";
+  var s = document.createElement("span"); s.className = "armtxt"; s.textContent = "Sure?";
+  b.appendChild(s);
+  dcTimer = setTimeout(dcDisarm, 3000);
+});
 load();
 setInterval(function(){ if (getCfg()) load(); }, 5 * 60000);
 ["pointerdown", "keydown", "scroll"].forEach(function(ev){ window.addEventListener(ev, armIdle, {passive: true}); });
