@@ -16,15 +16,15 @@
   --r:22px; --gap:18px;
 }
 :root[data-theme="light"]{
-  --bg:#eef1ff; --card:rgba(255,255,255,.66); --panel:rgba(255,255,255,.55); --panel2:rgba(255,255,255,.9);
-  --line:rgba(27,30,46,.12); --text:#1b1e2e; --muted:#545b75; --accent:#5b4dff; --violet:#8a3ffc;
-  --green:#12905f; --amber:#b06f00; --red:#cf3a44; --ring:#9aa0b8; --inset:rgba(255,255,255,.6);
-  --bgfx:linear-gradient(135deg,#e8eeff 0%,#f6efff 48%,#e4f6ff 100%);
-  --railbg:rgba(255,255,255,.55); --navbg:rgba(238,241,255,.88);
-  --surf-2:rgba(255,255,255,.9);
-  --edge:inset 0 1px 0 rgba(255,255,255,.9);
-  --shadow-1:0 18px 40px -28px rgba(30,30,60,.3); --shadow-2:0 24px 50px -26px rgba(30,30,60,.4);
-  --glow:0 0 0 1px rgba(91,77,255,.4);
+  --bg:#dde2f5; --card:rgba(255,255,255,.82); --panel:rgba(255,255,255,.68); --panel2:rgba(255,255,255,.96);
+  --line:rgba(24,28,48,.26); --text:#141828; --muted:#3d4460; --accent:#3a2bd0; --violet:#7a24d8;
+  --green:#0b7a4b; --amber:#9a6200; --red:#c22f3a; --ring:#646c8c; --inset:rgba(24,28,48,.07);
+  --bgfx:linear-gradient(135deg,#d0d8f8 0%,#e3d5fa 48%,#c9e2f4 100%);
+  --railbg:rgba(255,255,255,.72); --navbg:rgba(219,224,245,.94);
+  --surf-2:rgba(255,255,255,.95);
+  --edge:inset 0 1px 0 rgba(255,255,255,.95);
+  --shadow-1:0 18px 40px -26px rgba(24,28,60,.4); --shadow-2:0 24px 50px -24px rgba(24,28,60,.48);
+  --glow:0 0 0 1px rgba(58,43,208,.45);
   --orb:.35; --btntext:#fff;
 }
 :root[data-theme="light"] meta{color-scheme:light}
@@ -163,9 +163,10 @@ h1{font-size:clamp(28px,3.1vw,40px);font-weight:300;letter-spacing:.05em;text-tr
 .rail{background:var(--railbg);border-right:1px solid var(--line);gap:10px;padding:26px 0;justify-content:flex-start}
 .rail .rmark{background:none;border:0;margin-bottom:22px}
 .rail .rmark i{width:14px;height:14px;background:var(--accent);box-shadow:0 0 18px var(--accent)}
-.rail button{width:48px;min-height:48px;height:48px;border-radius:14px;gap:0}
+.rail button{width:60px;min-height:56px;height:auto;padding:7px 2px 6px;border-radius:14px;gap:3px}
 .rail button svg{width:20px;height:20px}
-.rail button b,.rail button span{display:none}
+.rail button b{display:none}
+.rail button .rlab{display:block;font-family:var(--font);font-size:9.5px;font-weight:600;letter-spacing:.04em;line-height:1.15;text-align:center;color:inherit}
 .rail button[aria-selected="true"]{background:var(--card);border-color:var(--line);color:var(--accent)}
 .rail button[aria-selected="true"]::before{left:-14px;background:var(--accent)}
 .rail button:hover{transform:none;color:var(--text)}
@@ -490,3 +491,63 @@ body:has(.wall.fit) .wrap{padding-bottom:12px}
 .wp .hh{padding-right:20px}
 .wh .mono{letter-spacing:.1em!important}
 .tl .hr:nth-child(8) span{display:none}
+
+/* ---------- JD review pass: view layouts, system sections, armed disconnect ---------- */
+.ws12{grid-column:span 12}
+.vgrid{align-items:stretch}
+.vgrid>.mod{margin-bottom:0;height:100%}
+.vs4{grid-column:span 4}
+@media (max-width:1000px){.vs4{grid-column:span 6}.bcol{grid-column:span 12}}
+@media (max-width:640px){.vs4{grid-column:span 12}}
+@media (max-width:1199px) and (min-width:701px){.wall.stripe>.wt.ws3{grid-column:span 6}}
+
+/* Business hero + nesting columns */
+.bhero{padding:30px 28px;margin-bottom:14px;text-align:center}
+.bh-h{font-size:clamp(24px,2.6vw,34px);font-weight:650;letter-spacing:-.01em;line-height:1.15}
+.bh-t{color:var(--muted);font-size:15.5px;line-height:1.5;margin:8px auto 0;max-width:660px}
+.bhero .bh-h~.bh-h{margin-top:20px}
+.bcol{grid-column:span 4;display:flex;flex-direction:column;gap:14px;min-width:0}
+.bcol>.mod{margin-bottom:0}
+.bnote{color:var(--muted);font-size:13.5px;padding:4px 2px}
+
+/* Collapsible global stats strip */
+.gstrip{padding:8px 16px;margin-bottom:14px}
+.gstrip-head{appearance:none;background:none;border:0;color:var(--text);font:inherit;width:100%;display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;text-align:left;padding:0}
+.gstrip-head .sysn{flex:1}
+.gstrip-body{margin:6px 0 10px}
+.sysn{color:var(--muted);font-size:13px}
+.chev{color:var(--muted);font-size:13px;flex:0 0 auto}
+
+/* System sections */
+.syssec{padding:6px 18px 14px}
+.syshead{appearance:none;background:none;border:0;color:var(--text);font:inherit;width:100%;display:flex;align-items:center;gap:12px;min-height:52px;cursor:pointer;text-align:left;padding:0}
+.syst{font-size:17px;font-weight:650;letter-spacing:-.01em;flex:0 0 auto}
+.syshead .sysn{flex:1}
+.sysbody{border-top:1px solid var(--line);padding-top:10px}
+.sysbody>section.card.mod,.sysbody>section.mod{border:0;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;padding:0;margin:0;border-radius:0}
+
+/* Structure tree */
+.tree{font-size:14.5px}
+.tnode{padding:8px 0;border-top:1px solid var(--line)}
+.tnode:first-child{border-top:0;padding-top:2px}
+.trow{display:flex;align-items:center;gap:9px}
+.trow b{font-size:15.5px}
+.tct{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:auto;text-align:right}
+.tsub{margin:6px 0 2px 14px;padding-left:12px;border-left:1px solid var(--line)}
+.tleaf{display:flex;align-items:center;gap:9px;margin:4px 0 0 26px;color:var(--muted);font-size:13.5px}
+
+/* Diagnostics: glanceable problem rows, click for the fix */
+.prob{border-top:1px solid var(--line);padding:6px 0}
+.prob:first-child{border-top:0}
+.prow{appearance:none;background:none;border:0;color:var(--text);font:inherit;width:100%;display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer;text-align:left;padding:4px 0}
+.ptxt{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pown{font-family:var(--mono);font-size:11.5px;color:var(--muted);flex:0 0 auto}
+.pdetail{padding:2px 0 10px 14px}
+
+/* Private grouped subheads + Local read-only link */
+.gsub{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:16px 0 2px;padding-top:12px;border-top:1px solid var(--line)}
+.rolink{color:var(--accent);font-weight:600;text-decoration:none}
+
+/* Two-step disconnect */
+.ibtn.armed{background:rgba(255,107,122,.16);border-color:var(--red);color:var(--red);width:auto;padding:0 12px;gap:6px}
+.armtxt{font-size:12px;font-weight:700}
