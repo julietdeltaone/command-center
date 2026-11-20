@@ -420,8 +420,7 @@ function itemRow(it){
   return h("div", {class: "item s-" + g},
     h("div", {class: "itext"}, it.text),
     h("div", {class: "imeta"},
-      h("span", {class: "chip " + g}, it.grade || "Ungraded"),
-      it.source ? h("span", null, it.source) : null,
+      g === "Single" ? null : h("span", {class: "chip " + g}, it.grade || "Ungraded"),
       h("span", null, ago(it.time)),
       it.due ? h("span", null, dueLabel(it.due)) : null),
     h("div", {class: "acts"},
@@ -538,7 +537,7 @@ function dayOffset(text){
   var idx = DAYS.indexOf(m[1].charAt(0).toUpperCase() + m[1].slice(1, 3).toLowerCase());
   return idx < 0 ? null : (idx - today + 7) % 7;
 }
-function shortName(text){ return String(text).split(/,| tonight| today| Sat | Sun | Fri | Mon | Tue | Wed | Thu /)[0].trim().slice(0, 48); }
+function shortName(text){ return String(text).split(/,| tonight| today| Sat | Sun | Fri | Mon | Tue | Wed | Thu /)[0].trim(); }
 function wtile(cls, label, tab, body, st){
   var dotCls = st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : null;
   return h("section", {class: "wt " + cls, "aria-label": label},
@@ -855,7 +854,7 @@ function todayTile(){
   blocks.forEach(function(b, idx){
     var a = Math.max(A, b.a), e = Math.min(B, b.b);
     if (e <= a) return;
-    tl.appendChild(h("div", {class: "blk", style: "left:" + ((a - A) / span * 100) + "%;width:" + ((e - a) / span * 100) + "%;top:" + (8 + (idx % 3) * 26) + "px"}, b.label));
+    tl.appendChild(h("div", {class: "blk", style: "left:" + ((a - A) / span * 100) + "%;width:" + ((e - a) / span * 100) + "%;top:" + (8 + (idx % 3) * 26) + "px", title: b.label}));
   });
   var d = new Date(nowMs()), nh = d.getHours() + d.getMinutes() / 60;
   if (nh >= A && nh <= B) tl.appendChild(h("div", {class: "now", style: "left:" + ((nh - A) / span * 100) + "%"}, h("span", null, "NOW")));
@@ -871,31 +870,44 @@ function todayTile(){
 function businessTile(){
   var mods = DATA.modules.Business || [];
   var its = DATA.items.filter(function(i){ return i.tab === "Business"; }).sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
-  var chips = h("div", {class: "chips"}, mods.slice(0, 4).map(function(m){
+  var chips = h("div", {class: "brows"}, mods.slice(0, 4).map(function(m){
     var st = moduleStatus(m.name), n = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === m.name; }).length;
-    return h("div", {class: "chip2"}, h("span", {class: "dot " + st.state}), h("b", null, String(n)), h("span", null, m.name));
+    return h("div", {class: "brow"}, h("span", {class: "dot " + st.state}), h("span", {class: "bn"}, m.name), h("b", null, String(n)));
   }));
   return wtile("ws2", "Business", "Business", h("div", {class: "tbody"},
     chips,
     summaryNote("Business") || (its.length ? h("div", {class: "wnote"}, its[0].text) : null)), summaryStatus("Business"));
 }
 
+function dayName(off){
+  if (off === 0) return "Today";
+  if (off === 1) return "Tomorrow";
+  if (off === 99) return "No day given";
+  return DAYS[(new Date(nowMs()).getDay() + off) % 7];
+}
+function agenda(max){
+  var li = localInfo(), keys = Object.keys(li.groups).map(Number).sort(function(a, b){ return a - b; });
+  var rows = [], n = 0;
+  keys.forEach(function(k){
+    var evs = li.groups[k].slice().sort(function(a, b){ return (a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time); });
+    evs.forEach(function(e, i){
+      if (max && n >= max) return;
+      n++;
+      rows.push(h("div", {class: "ag" + (k === 0 ? " today" : "")},
+        h("span", {class: "agd"}, i === 0 ? dayName(k) : ""),
+        h("em", null, e.time == null ? "" : fmtClock(e.time)),
+        h("span", {class: "agl"}, e.label)));
+    });
+  });
+  return rows;
+}
 function localTile(){
-  var li = localInfo(), groups = li.groups, today = new Date(nowMs());
-  var cols = [];
-  for (var k = 0; k < 7; k++) {
-    var day = new Date(today.getTime() + k * 86400000), wd = day.getDay();
-    var evs = (groups[k] || []).slice().sort(function(a, b){ return (a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time); });
-    cols.push(h("div", {class: "wd" + (k === 0 ? " today" : "") + ((wd === 0 || wd === 6) ? " wkend" : "") + (evs.length ? "" : " idle")},
-      h("div", {class: "wdh"}, h("span", null, k === 0 ? "Today" : DAYS[wd]), h("b", null, String(day.getDate()))),
-      h("div", {class: "wde"}, evs.length ? evs.slice(0, 4).map(function(e){ return h("div", {class: "pill2"}, h("em", null, fmtClock(e.time)), h("span", null, e.label)); }) : h("div", {class: "none2"}, "Open")),
-      evs.length > 4 ? h("div", {class: "more"}, "+" + (evs.length - 4) + " more") : null));
-  }
-  var soon = (groups[99] || []).length;
+  var li = localInfo();
   var scan = moduleStatus("Scanner");
+  var rows = agenda(0);
   return wtile("ws5", "Local · Potsdam", "Local", h("div", {class: "tbody"},
-    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events")), h("span", null, "Scanner " + scan.text.toLowerCase() + (soon ? " · " + soon + " undated" : ""))),
-    h("div", {class: "week7"}, cols), summaryNote("Local")), summaryStatus("Local"));
+    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events")), h("span", null, "Scanner " + scan.text.toLowerCase())),
+    rows.length ? h("div", {class: "agenda"}, rows) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local")), summaryStatus("Local"));
 }
 
 function latestTile(){
@@ -1019,8 +1031,7 @@ function itemRowRO(it){
   return h("div", {class: "item s-" + g},
     h("div", {class: "itext"}, it.text),
     h("div", {class: "imeta"},
-      h("span", {class: "chip " + g}, it.grade || "Ungraded"),
-      it.source ? h("span", null, it.source) : null,
+      g === "Single" ? null : h("span", {class: "chip " + g}, it.grade || "Ungraded"),
       h("span", null, ago(it.time)),
       it.due ? h("span", null, dueLabel(it.due)) : null,
       it.link ? h("a", {class: "rolink", href: it.link, target: "_blank", rel: "noopener"}, "Open") : null));
@@ -1077,56 +1088,162 @@ function todayView(){
     card.classList.add("vs4");
     wrap.appendChild(card);
   });
-  wrap.appendChild(recapCover(12));
   return wrap;
 }
 function businessView(){
-  var box = h("div", null);
+  var box = h("div", {class: "bizview"});
   var rows = summaryRows("Business");
-  if (rows.length) {
-    var hero = h("section", {class: "card bhero"});
-    rows.forEach(function(r){
-      hero.appendChild(h("div", {class: "bh-h"}, r.headline));
-      hero.appendChild(h("div", {class: "bh-t"}, r.text));
-    });
-    box.appendChild(hero);
-  }
+  if (rows.length) box.appendChild(h("div", {class: "bline"}, h("b", null, rows[0].headline), h("span", null, rows[0].text)));
   var wallEl = h("div", {class: "wall vgrid"});
   wallEl.appendChild(pulseCover(4));
   wallEl.appendChild(leadsCover(4));
   wallEl.appendChild(marketingCover(4));
-  var cols = [[], [], []];
   ((DATA.modules || {}).Business || []).forEach(function(m){
     var card = itemsModule(m, "Business");
-    if (m.name === "Competitors") cols[0].push(card);
-    else cols[1].push(card);
-  });
-  cols.forEach(function(list, i){
-    var col = h("div", {class: "bcol"});
-    list.forEach(function(c){ col.appendChild(c); });
-    if (!list.length && i === 2) col.appendChild(h("div", {class: "bnote"}, "All marketing moves are in the cover above."));
-    wallEl.appendChild(col);
+    card.classList.add("vs4");
+    wallEl.appendChild(card);
   });
   box.appendChild(wallEl);
   return box;
 }
+function weekStrip(){
+  var li = localInfo(), today = new Date(nowMs()), cols = [];
+  for (var k = 0; k < 7; k++) {
+    var day = new Date(today.getTime() + k * 86400000), wd = day.getDay();
+    var evs = (li.groups[k] || []).slice().sort(function(a, b){ return (a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time); });
+    cols.push(h("div", {class: "wsd" + (k === 0 ? " today" : "") + (evs.length ? "" : " idle")},
+      h("div", {class: "wsh"}, h("span", null, k === 0 ? "Today" : DAYS[wd]), h("b", null, String(day.getDate()))),
+      evs.length ? evs.map(function(e){ return h("div", {class: "wse"}, h("em", null, e.time == null ? "" : fmtClock(e.time)), h("span", null, e.label)); }) : h("div", {class: "wsn"}, "Open")));
+  }
+  var scan = moduleStatus("Events");
+  return h("section", {class: "card mod vs12"},
+    h("div", {class: "mhead"}, h("h3", null, "Next 7 days"), h("div", {class: "status"}, h("span", {class: "dot " + scan.state}), li.flat.length + (li.flat.length === 1 ? " event" : " events"))),
+    h("div", {class: "wsgrid"}, cols));
+}
 function localView(){
-  var mods = h("div", {class: "mods"});
-  ((DATA.modules || {})[TAB] || []).forEach(function(m){ mods.appendChild(itemsModuleRO(m, TAB)); });
-  return mods;
+  var wrap = h("div", {class: "wall vgrid top"});
+  wrap.appendChild(weekStrip());
+  var undated = localInfo().groups[99] || [];
+  if (undated.length) {
+    var ev = h("section", {class: "card mod vs12"}, h("div", {class: "mhead"}, h("h3", null, "No day given"), h("div", {class: "status"}, undated.length + " listed")),
+      h("div", {class: "agenda"}, undated.map(function(e){ return h("div", {class: "ag"}, h("span", {class: "agd"}, ""), h("em", null, e.time == null ? "" : fmtClock(e.time)), h("span", {class: "agl"}, e.label)); })));
+    wrap.appendChild(ev);
+  }
+  ((DATA.modules || {})[TAB] || []).forEach(function(m){
+    if (m.name === "Events") return;
+    var card = itemsModuleRO(m, TAB);
+    card.classList.add("vs6");
+    wrap.appendChild(card);
+  });
+  return wrap;
+}
+function routineWeek(tab){
+  var rs = DATA.routines.filter(function(r){ return r.tab === tab; });
+  var start = new Date(nowMs()); start.setHours(0, 0, 0, 0);
+  var D0 = start.getTime(), DAY = 86400000;
+  var head = h("div", {class: "rw-h"}, h("span", null, "Routine"), h("span", null, "Cadence"));
+  for (var k = 0; k < 7; k++) head.appendChild(h("span", {class: k === 0 ? "today" : ""}, k === 0 ? "Today" : DAYS[(start.getDay() + k) % 7]));
+  var card = h("section", {class: "card mod vs12 rweek"},
+    h("div", {class: "mhead"}, h("h3", null, "Routine week"), h("div", {class: "status"}, rs.length + (rs.length === 1 ? " routine" : " routines") + " · next 7 days")),
+    head);
+  if (!rs.length) card.appendChild(h("div", {class: "empty"}, "No routines reported for this section yet."));
+  rs.forEach(function(r){
+    var row = h("div", {class: "rw-r"}, h("span", {class: "rw-n"}, h("span", {class: "dot " + r.status}), r.routine), h("span", {class: "rw-c"}, cadenceLabel(r.cadence_min)));
+    var cells = [];
+    for (var d = 0; d < 7; d++) cells.push({ran: false, due: false});
+    var last = r.last_run ? new Date(r.last_run).getTime() : null;
+    var cad = Number(r.cadence_min) * 60000;
+    if (last != null) {
+      var li = Math.floor((last - D0) / DAY);
+      if (li >= 0 && li < 7) cells[li].ran = true;
+      if (cad > 0) { for (var t = last + cad, guard = 0; t < D0 + 7 * DAY && guard < 3000; t += cad, guard++) { var di = Math.floor((t - D0) / DAY); if (di >= 0 && di < 7) cells[di].due = true; } }
+    }
+    var often = cad > 0 && cad < DAY;
+    cells.forEach(function(c, i){
+      var cls = "rw-x" + (i === 0 ? " today" : "") + (often ? " often" : c.ran ? " ran " + r.status : c.due ? " due" : "");
+      row.appendChild(h("span", {class: cls, title: often ? "runs about every " + cadenceLabel(r.cadence_min).replace(/^every /, "") : c.ran ? "last ran" : c.due ? "expected" : ""}, often ? "" : c.ran ? "●" : c.due ? "○" : ""));
+    });
+    card.appendChild(row);
+  });
+  card.appendChild(h("div", {class: "rw-k"}, h("span", null, "● ran"), h("span", null, "○ expected next"), h("span", null, h("i", {class: "bar"}), "runs through the day")));
+  return card;
 }
 function privateView(){
-  var wrap = h("div", {class: "wall vgrid"});
+  var wrap = h("div", {class: "wall vgrid top"});
   ((DATA.modules || {})[TAB] || []).forEach(function(m){
     var card = m.name === "Guard, OTS, MBA" ? guardModule(m, TAB) : itemsModule(m, TAB);
     card.classList.add("vs4");
     wrap.appendChild(card);
   });
+  wrap.appendChild(routineWeek("Private"));
   return wrap;
 }
 
+/* ---------- System: AI map ---------- */
+var AI_WAY = {claude: "Messages board, hub code", muse: "Messages board, pages", chatgpt: "Messages board, feeds and docs", "claude-jdm": "Messages board, via JD", iphone: "Email reports, 4 per day"};
+function aiMap(){
+  var msgs = DATA.messages || [], routines = DATA.routines || [], now = nowMs();
+  var secs = ["Today", "Business", "Local", "Private", "Work", "System"];
+  var W = 940, H = 420, xa = 120, xb = 470, xc = 820;
+  var ya = function(i){ return 40 + i * 80; }, yc = function(i){ return 30 + i * 68; };
+  var info = CREW.map(function(c){
+    var sent = msgs.filter(function(m){ return m.from === c[0]; });
+    var recv = msgs.filter(function(m){ return m.to === c[0] || m.to === "all"; });
+    var day = sent.filter(function(m){ return now - new Date(m.time).getTime() < 86400000; });
+    var last = sent.length ? sent.slice().sort(function(a, b){ return new Date(b.time) - new Date(a.time); })[0] : null;
+    var mine = routines.filter(function(r){ return r.writer === c[0]; });
+    var perTab = {}; mine.forEach(function(r){ perTab[r.tab] = (perTab[r.tab] || 0) + 1; });
+    var fast = mine.length ? Math.min.apply(null, mine.map(function(r){ return Number(r.cadence_min) || 1e9; })) : null;
+    return {id: c[0], name: cfgName(c[0], c[1]), role: c[2], sent: sent.length, recv: recv.length, day: day.length, last: last, mine: mine.length, perTab: perTab, fast: fast};
+  });
+  var svgn = svgEl("svg", {viewBox: "0 0 " + W + " " + H, class: "aimap", role: "img", "aria-label": "Which AI feeds which section, and who talks through the Messages board"});
+  var hubY = H / 2;
+  info.forEach(function(a, i){
+    Object.keys(a.perTab).forEach(function(t){
+      var j = secs.indexOf(t); if (j < 0) return;
+      svgn.appendChild(svgEl("line", {x1: xa + 34, y1: ya(i), x2: xc - 62, y2: yc(j) + 16, class: "ed rt", "stroke-width": 1 + Math.min(5, a.perTab[t])}));
+    });
+  });
+  secs.forEach(function(n, j){
+    svgn.appendChild(svgEl("line", {x1: xb + 70, y1: hubY, x2: xc - 62, y2: yc(j) + 16, class: "ed rt", "stroke-width": 1.5, "stroke-dasharray": "4 5"}));
+  });
+  info.forEach(function(a, i){
+    var col = !a.last ? "none" : msgColor(a.last);
+    svgn.appendChild(svgEl("line", {x1: xa + 34, y1: ya(i), x2: xb - 70, y2: hubY, class: "ed mg " + col, "stroke-width": 1.5 + Math.min(5, a.day / 2)}));
+  });
+  svgn.appendChild(svgEl("rect", {x: xb - 70, y: hubY - 48, width: 140, height: 96, rx: 18, class: "hub"}));
+  var t1 = svgEl("text", {x: xb, y: hubY - 8, class: "hubt"}); t1.textContent = "Messages board"; svgn.appendChild(t1);
+  var t2 = svgEl("text", {x: xb, y: hubY + 14, class: "hubs"}); t2.textContent = msgs.length + " messages"; svgn.appendChild(t2);
+  var t3 = svgEl("text", {x: xb, y: hubY + 32, class: "hubs"}); t3.textContent = "Google Sheet"; svgn.appendChild(t3);
+  info.forEach(function(a, i){
+    var col = !a.last ? "none" : (now - new Date(a.last.time).getTime() < 3600000 ? "live" : "idle");
+    svgn.appendChild(svgEl("circle", {cx: xa, cy: ya(i), r: 30, class: "an " + col}));
+    var ini = svgEl("text", {x: xa, y: ya(i) + 6, class: "ani"}); ini.textContent = a.name.charAt(0); svgn.appendChild(ini);
+    var nm = svgEl("text", {x: xa - 44, y: ya(i) - 2, class: "anm", "text-anchor": "end"}); nm.textContent = a.name; svgn.appendChild(nm);
+    var rl = svgEl("text", {x: xa - 44, y: ya(i) + 14, class: "arl", "text-anchor": "end"}); rl.textContent = a.role; svgn.appendChild(rl);
+  });
+  secs.forEach(function(n, j){
+    var st = summaryStatus(n);
+    svgn.appendChild(svgEl("rect", {x: xc - 62, y: yc(j), width: 140, height: 32, rx: 12, class: "sn"}));
+    svgn.appendChild(svgEl("circle", {cx: xc - 46, cy: yc(j) + 16, r: 5, class: "sd " + (st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : "none")}));
+    var tx = svgEl("text", {x: xc - 32, y: yc(j) + 21, class: "snm"}); tx.textContent = n; svgn.appendChild(tx);
+  });
+  var any = routines.some(function(r){ return CREW.some(function(c){ return c[0] === r.writer; }); });
+  var rows = info.map(function(a){
+    return h("div", {class: "am-r"}, h("span", {class: "am-n"}, h("b", null, a.name), h("small", null, a.role)),
+      h("span", null, AI_WAY[a.id] || "Messages board"),
+      h("span", null, a.sent + " sent · " + a.recv + " received"),
+      h("span", null, a.last ? ago(a.last.time) : "no messages"),
+      h("span", null, a.mine ? a.mine + (a.mine === 1 ? " routine" : " routines") + (a.fast ? ", fastest " + cadenceLabel(a.fast).replace(/^every /, "") : "") : "none reported"));
+  });
+  return h("div", {class: "amap"}, svgn,
+    h("div", {class: "am-k"}, h("span", null, h("i", {class: "l1"}), "talks through the board (thicker = more in 24 hours)"),
+      h("span", null, h("i", {class: "l2"}), any ? "writes routines for a section" : "routine writers not reported yet")),
+    h("div", {class: "am-t"}, h("div", {class: "am-h"}, h("span", null, "AI"), h("span", null, "Reaches the hub by"), h("span", null, "Messages"), h("span", null, "Last spoke"), h("span", null, "Routines")), rows));
+}
+
 /* ---------- System: structure visual + nested sections ---------- */
-var SYS_OPEN = {structure: true};
+var SYS_OPEN = {aimap: true, structure: false};
 var PROB_OPEN = {};
 function sysSection(id, title, note, body, openDefault){
   var open = SYS_OPEN[id] != null ? SYS_OPEN[id] : !!openDefault;
@@ -1202,6 +1319,7 @@ function systemView(){
   var box = h("div", null);
   var nMods = 0, keys = Object.keys(DATA.modules || {});
   keys.forEach(function(t){ nMods += (DATA.modules[t] || []).length; });
+  box.appendChild(sysSection("aimap", "AI map", CREW.length + " AIs · who feeds what", aiMap(), true));
   box.appendChild(sysSection("structure", "Structure",
     nMods + " modules · " + DATA.routines.length + " routines", structureTree(), true));
   if (DATA.messages) {
@@ -1225,6 +1343,34 @@ function systemView(){
   return box;
 }
 
+/* Drop whole low-priority rows (never cut text) until each Wall tile fits */
+function tileOver(t){
+  var r = t.getBoundingClientRect(), all = t.querySelectorAll("*");
+  if (t.scrollHeight > t.clientHeight + 1 || t.scrollWidth > t.clientWidth + 1) return true;
+  for (var i = 0; i < all.length; i++) {
+    var c = all[i].getBoundingClientRect();
+    if (c.width && c.height && (c.bottom > r.bottom - 8 || c.right > r.right + 1 || c.left < r.left - 1)) return true;
+  }
+  return false;
+}
+function fitWall(){
+  var w = document.querySelector(".wall.fit"); if (!w) return;
+  var tiles = w.children;
+  for (var i = 0; i < tiles.length; i++) {
+    var t = tiles[i];
+    var hid = t.querySelectorAll("[data-fit]");
+    for (var k = 0; k < hid.length; k++) { hid[k].style.display = ""; hid[k].removeAttribute("data-fit"); }
+    function q(sel, rev){ var a = Array.prototype.slice.call(t.querySelectorAll(sel)); return rev ? a.reverse() : a; }
+    var cand = q(".kfoot,.legend,.sumnote,.spark,.kn").concat(q(".tl")).concat(q(".ag,.lmr,.dl,.moves li,.sh,.shi,.brow,.pill2,.chip2", true)).concat(q(".kwide,.shl,.duo")), n = 0;
+    while (n < cand.length && tileOver(t)) {
+      cand[n].style.display = "none"; cand[n].setAttribute("data-fit", "1"); n++;
+    }
+  }
+}
+var fitTimer = null;
+window.addEventListener("resize", function(){ clearTimeout(fitTimer); fitTimer = setTimeout(function(){ if (TAB === "Wall") { render(); } }, 150); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if (TAB === "Wall" && DATA) fitWall(); });
+
 function render(){
   var app = document.getElementById("app");
   app.textContent = "";
@@ -1233,10 +1379,10 @@ function render(){
   document.getElementById("hdate").textContent = new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"});
   if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
-  if (TAB === "Wall") { app.appendChild(h("div", {class: "tabhead"}, h("h2", null, "Overview"))); app.appendChild(wall()); renderNav(); return; }
-  app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB)));
-  app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
-  app.appendChild(globalStrip());
+  document.body.classList.toggle("onwall", TAB === "Wall");
+  var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : TAB;
+  if (TAB === "Wall") { app.appendChild(wall()); renderNav(); setTimeout(fitWall, 0); return; }
+  if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
   if (TAB === "Business") app.appendChild(businessView());
