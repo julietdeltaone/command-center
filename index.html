@@ -265,7 +265,7 @@ function lockScreen(name){
     h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Private and Work")));
 }
 var TABS = ["Wall", "Today", "Business", "Local", "Private", "System"];
-var EMBEDS = {
+var PAGES = {
   Today: [{name: "Recap", url: "pages/recap.html"}],
   Business: [{name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}, {name: "Leads", url: "pages/leads.html"}, {name: "Marketing", url: "pages/marketing.html"}],
   Local: [{name: "Local events", url: "pages/local.html"}]
@@ -362,6 +362,17 @@ function gaugeCard(){
       h("div", {class: "big"}, "Not available"),
       h("div", {class: "tnote"}, u ? "Last read " + ago(u.read) + ", too old to show as current." : "No usage reading yet."));
   }
+  var s = gaugeSvg(u);
+  var chg = u.change == null ? "none yet" : (u.change >= 0 ? "+" : "") + u.change + " pts";
+  return h("section", {class: "card gauge"},
+    h("div", {class: "mono"}, "Weekly usage"),
+    s,
+    h("div", {class: "gmeta"},
+      h("div", null, h("span", {class: "mono"}, "Today"), h("b", null, chg)),
+      h("div", null, h("span", {class: "mono"}, "Resets"), h("b", null, resetLabel(u.resetAt))),
+      h("div", null, h("span", {class: "mono"}, "Read"), h("b", null, ago(u.read)))));
+}
+function gaugeSvg(u){
   var f = Math.max(0, Math.min(1, u.pct / 100));
   var arc = "M20 110 A90 90 0 0 1 200 110";
   var p1 = pt(u.expected / 100, 78), p2 = pt(u.expected / 100, 102);
@@ -371,14 +382,7 @@ function gaugeCard(){
     svg("line", {"class": "g-tick", x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1]}),
     svg("text", {x: 110, y: 100, "text-anchor": "middle", "class": "g-pct"}, u.pct + "%"),
     svg("text", {x: 110, y: 122, "text-anchor": "middle", "class": "g-word"}, u.word));
-  var chg = u.change == null ? "none yet" : (u.change >= 0 ? "+" : "") + u.change + " pts";
-  return h("section", {class: "card gauge"},
-    h("div", {class: "mono"}, "Weekly usage"),
-    s,
-    h("div", {class: "gmeta"},
-      h("div", null, h("span", {class: "mono"}, "Today"), h("b", null, chg)),
-      h("div", null, h("span", {class: "mono"}, "Resets"), h("b", null, resetLabel(u.resetAt))),
-      h("div", null, h("span", {class: "mono"}, "Read"), h("b", null, ago(u.read)))));
+  return s;
 }
 
 /* ---------- routines ---------- */
@@ -570,7 +574,7 @@ function summaryStatus(section){
 function summaryNote(section){
   var rows = summaryRows(section);
   if (!rows.length) return null;
-  return h("div", {style: "display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px"}, rows.map(function(r){
+  return h("div", {class: "sumnote", style: "display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px"}, rows.map(function(r){
     return h("div", {style: "display:flex;flex-direction:column;gap:3px"},
       h("div", {style: "font-weight:600;font-size:15px"}, r.headline),
       h("div", {class: "wnote", style: "line-height:1.5"}, r.text));
@@ -624,158 +628,315 @@ function svgEl(tag, attrs, kids){
   (kids || []).forEach(function(c){ e.appendChild(c); });
   return e;
 }
-function crewParts(){
+function crewBoard(){
   var all = (DATA.messages || []).slice().sort(function(a, b){ return new Date(a.time) - new Date(b.time); });
   if (!all.length) return null;
-  var msgs = all.slice(-24);
-  var lanes = CREW.map(function(c){ return {id: c[0], name: cfgName(c[0], c[1]), role: c[2]}; });
-  var laneY = {}, W = 1000, LH = 58, TOP = 16, LEFT = 118, RIGHT = 92, H = TOP + lanes.length * LH + 8;
-  var n = msgs.length, step = n > 1 ? (W - LEFT - RIGHT - 20) / (n - 1) : 0;
-  var node = svgEl("svg", {viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "Crew activity, oldest to newest message from left to right"});
-  lanes.forEach(function(l, i){
-    var y = TOP + i * LH + LH / 2; laneY[l.id] = y;
-    var cnt = msgs.filter(function(m){ return m.from === l.id; }).length;
-    node.appendChild(svgEl("line", {x1: LEFT - 10, x2: W - RIGHT + 24, y1: y, y2: y, class: "ca-lane"}));
-    var t = svgEl("text", {x: 6, y: y + 4, class: "ca-name"}); t.textContent = l.name; node.appendChild(t);
-    var c = svgEl("text", {x: W - 4, y: y + 4, "text-anchor": "end", class: "ca-cnt"}); c.textContent = cnt ? cnt + (cnt === 1 ? " msg" : " msgs") : "idle"; node.appendChild(c);
+  var ids = CREW.map(function(c){ return c[0]; });
+  var nm = function(id){ var c = CREW.filter(function(x){ return x[0] === id; })[0]; return cfgName(id, c ? c[1] : id); };
+  var rank = {g: 1, y: 2, r: 3};
+  var rows = CREW.map(function(c){
+    var mine = all.filter(function(m){ return m.from === c[0]; });
+    var strip = mine.slice(-14);
+    var last = mine.length ? mine[mine.length - 1] : null;
+    var lastCol = last ? msgColor(last) : null;
+    var live = last && (nowMs() - new Date(last.time).getTime()) < 3600000;
+    var text = last ? String(last.text || "").replace(/^(\uD83D[\uDFE2\uDFE1\uDD34])\s*/, "") : "No messages yet";
+    if (text.length > 120) text = text.slice(0, 117) + "...";
+    return h("div", {class: "cb-row"},
+      h("div", {class: "cb-av " + (lastCol || "n")}, cfgName(c[0], c[1]).charAt(0)),
+      h("div", {class: "cb-who"}, h("b", null, cfgName(c[0], c[1])), h("span", null, c[2])),
+      h("div", {class: "cb-strip", "aria-label": mine.length + " messages"}, strip.length ? strip.map(function(m){
+        return h("i", {class: msgColor(m), title: ago(m.time) + " · " + String(m.text || "").slice(0, 120)});
+      }) : h("em", null, "idle")),
+      h("div", {class: "cb-last"}, h("span", {class: "cb-t"}, last ? ago(last.time) + (live ? " · live" : "") : "never"), h("span", null, text)));
   });
-  var pos = msgs.map(function(m, i){ return {m: m, x: LEFT + i * step, y: laneY[m.from] != null ? laneY[m.from] : null, c: msgColor(m)}; });
-  pos.forEach(function(p){
-    if (p.y == null || laneY[p.m.to] == null || p.m.to === p.m.from) return;
-    var y2 = laneY[p.m.to], mid = (p.y + y2) / 2;
-    node.appendChild(svgEl("path", {d: "M" + p.x + " " + p.y + " C " + (p.x + 26) + " " + mid + ", " + (p.x + 26) + " " + mid + ", " + (p.x + 10) + " " + y2, class: "ca-link ca-" + p.c, stroke: "currentColor"}));
-    node.appendChild(svgEl("circle", {cx: p.x + 10, cy: y2, r: 2.5, class: "ca-" + p.c, opacity: ".6"}));
+  var grid = {};
+  all.slice(-60).forEach(function(m){
+    var to = m.to === "all" ? "all" : m.to, k = m.from + ">" + to, c = msgColor(m);
+    var g = grid[k] || (grid[k] = {n: 0, w: "g"}); g.n++; if (rank[c] > rank[g.w]) g.w = c;
   });
-  pos.forEach(function(p, i){
-    if (p.y == null) return;
-    var d = svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-dot ca-" + p.c, style: "animation-delay:" + (i * 45) + "ms"});
-    var tt = svgEl("title"); tt.textContent = cfgName(p.m.from, p.m.from) + " to " + cfgName(p.m.to, p.m.to) + " · " + ago(p.m.time) + " · " + String(p.m.text || "").slice(0, 160);
-    d.appendChild(tt); node.appendChild(d);
-    if (i === pos.length - 1) node.appendChild(svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-ring ca-" + p.c}));
-  });
-  var counts = {g: 0, y: 0, r: 0};
+  var cols = ids.concat(["all"]);
+  var max = 1; Object.keys(grid).forEach(function(k){ if (grid[k].n > max) max = grid[k].n; });
+  var mx = h("div", {class: "cb-mx", style: "grid-template-columns:84px repeat(" + cols.length + ",minmax(0,1fr))"},
+    h("span", {class: "mono cb-corner"}, "from / to"),
+    cols.map(function(c){ return h("span", {class: "mono cb-h"}, c === "all" ? "All" : nm(c)); }),
+    ids.map(function(f){
+      return [h("span", {class: "cb-rl"}, nm(f))].concat(cols.map(function(t){
+        var g = grid[f + ">" + t];
+        if (f === t) return h("span", {class: "cb-c self"}, "·");
+        return g ? h("span", {class: "cb-c " + g.w, style: "--a:" + (0.18 + 0.6 * g.n / max).toFixed(2)}, String(g.n)) : h("span", {class: "cb-c none"}, "");
+      }));
+    }));
+  var msgs = all.slice(-24), counts = {g: 0, y: 0, r: 0};
   msgs.forEach(function(m){ counts[msgColor(m)]++; });
-  var legend = h("div", {class: "ca-counts"},
-    h("span", null, h("b", {style: "color:var(--green)"}, String(counts.g)), "good"),
-    h("span", null, h("b", {style: "color:var(--amber)"}, String(counts.y)), "in progress"),
-    h("span", null, h("b", {style: "color:var(--red)"}, String(counts.r)), "blocked"));
-  return {msgs: msgs, n: n, svg: node, legend: legend, map: h("div", {class: "ca-scroll"}, node)};
-}
-function crewMapTile(){
-  var c = crewParts();
-  if (!c) return null;
-  return wtile("ws8", "Crew activity", "System", h("div", {style: "display:flex;flex-direction:column;gap:6px"}, c.legend, c.map));
-}
-function crewActivity(){
-  var c = crewParts();
-  if (!c) return null;
-  var feed = c.msgs.slice(-6).reverse().map(function(m){
+  var feed = all.slice(-8).reverse().map(function(m){
     var t = String(m.text || "").replace(/^(\uD83D[\uDFE2\uDFE1\uDD34])\s*/, ""); if (t.length > 150) t = t.slice(0, 147) + "...";
     return h("div", null, h("span", {class: "st " + msgColor(m)}),
-      h("span", null, h("span", {class: "who"}, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + ago(m.time)), h("br"), t));
+      h("span", null, h("span", {class: "who"}, nm(m.from) + " to " + nm(m.to) + " · " + ago(m.time)), h("br"), t));
   });
   return h("section", {class: "card mod"},
-    h("div", {class: "mhead"}, h("h3", null, "Crew activity"), h("span", {class: "mono"}, "last " + c.n + " messages, oldest to newest")),
-    c.legend, c.map,
+    h("div", {class: "mhead"}, h("h3", null, "Crew activity"), h("span", {class: "mono"}, "last " + msgs.length + " messages")),
+    h("div", {class: "ca-counts"},
+      h("span", null, h("b", {style: "color:var(--green)"}, String(counts.g)), "good"),
+      h("span", null, h("b", {style: "color:var(--amber)"}, String(counts.y)), "in progress"),
+      h("span", null, h("b", {style: "color:var(--red)"}, String(counts.r)), "blocked")),
+    h("div", {class: "cb"},
+      h("div", {class: "cb-rows"}, rows),
+      h("div", {class: "cb-side"}, h("div", {class: "mono"}, "Who talks to whom"), mx)),
     h("div", {class: "ca-feed"}, feed));
+}
+function crewActivity(){ return crewBoard(); }
+
+/* ---------- cover widgets: no embeds, they feed from data ---------- */
+var PULSE_STATE = "idle";
+var PULSE_URL = "https://julietdeltaone.github.io/business-pulse/";
+function loadPulse(){
+  if (PULSE_STATE !== "idle") return;
+  PULSE_STATE = "loading";
+  var sc = document.createElement("script");
+  sc.src = PULSE_URL + "data/data.js";
+  sc.onload = function(){ PULSE_STATE = window.PULSE_DATA ? "ready" : "failed"; if (DATA && (TAB === "Wall" || TAB === "Business")) render(); };
+  sc.onerror = function(){ PULSE_STATE = "failed"; if (DATA && (TAB === "Wall" || TAB === "Business")) render(); };
+  document.head.appendChild(sc);
+}
+function pulseStats(){
+  var d = window.PULSE_DATA; if (!d || !d.competitors) return null;
+  var tps = d.trendPoints || [], tp = tps.slice(-1)[0] || {};
+  var own = (d.ownAccounts || []).filter(function(a){ return a.account === "jdmeyersproductions"; });
+  var cutoff = nowMs() - 7 * 86400000, posted = 0;
+  d.competitors.forEach(function(c){ if (c.last_post_date && new Date(c.last_post_date + "T12:00:00").getTime() >= cutoff) posted++; });
+  var rec = ((d.recommendations || {}).items || []);
+  var l2 = own.slice(-2);
+  return {
+    tracked: d.competitors.length, posted: posted,
+    followers: own.length ? own[own.length - 1].follower_count : null,
+    fchg: l2.length > 1 ? l2[1].follower_count - l2[0].follower_count : null,
+    fser: own.slice(-14).map(function(a){ return a.follower_count; }),
+    wed: tp.medWed || null, wser: tps.slice(-14).map(function(t){ return t.medWed; }).filter(Boolean),
+    rser: tps.slice(-14).map(function(t){ return t.revTotal; }).filter(Boolean), reviews: tp.revTotal || null,
+    recs: rec.length, tops: rec.slice(0, 3).map(function(r){ return r.title; }), top: rec.length ? rec[0].title : "", built: d.builtAt || (d.meta || {}).generated_at
+  };
+}
+function spark(vals, w, hh){
+  if (!vals || vals.length < 2) return null;
+  var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), rg = (mx - mn) || 1;
+  var pts = vals.map(function(v, i){ return [i / (vals.length - 1) * w, hh - 3 - (v - mn) / rg * (hh - 6)]; });
+  var line = pts.map(function(q, i){ return (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1); }).join(" ");
+  return svgEl("svg", {viewBox: "0 0 " + w + " " + hh, "class": "spark", preserveAspectRatio: "none", "aria-hidden": "true"}, [
+    svgEl("path", {d: line + " L" + w + " " + hh + " L0 " + hh + " Z", "class": "sp-a"}),
+    svgEl("path", {d: line, "class": "sp-l"}),
+    svgEl("circle", {cx: pts[pts.length - 1][0], cy: pts[pts.length - 1][1], r: 2.6, "class": "sp-d"})]);
+}
+function kpi(label, val, note, sp){
+  return h("div", {class: "kpi"}, h("div", {class: "kv"}, val == null ? "n/a" : String(val)), h("div", {class: "kl"}, label), sp || null, note ? h("div", {class: "kn"}, note) : null);
+}
+function openLink(url, label){ return h("a", {class: "wopen", href: url, target: "_blank", rel: "noopener"}, label || "OPEN"); }
+function coverTile(span, label, url, body, st){
+  var t = wtile("ws" + span + " cover", label, null, body, st);
+  t.querySelector(".wh").appendChild(openLink(url));
+  return t;
+}
+function segbar(parts){
+  var tot = 0; parts.forEach(function(p){ tot += p.n; });
+  if (!tot) return h("div", {class: "seg empty"});
+  return h("div", {class: "seg"}, parts.filter(function(p){ return p.n > 0; }).map(function(p){
+    return h("i", {style: "flex:" + p.n + ";background:" + p.c, title: p.t || ""});
+  }));
+}
+function pulseCover(span){
+  loadPulse();
+  var p = pulseStats();
+  var body = p ? h("div", {class: "cvb"},
+      h("div", {class: "kgrid"},
+        kpi("businesses tracked", p.tracked, p.posted + " posted this week"),
+        kpi("median wedding price", p.wed ? "$" + p.wed.toLocaleString() : null, "across tracked studios", spark(p.wser, 100, 22)),
+        kpi("your Instagram followers", p.followers, p.fchg == null ? "" : (p.fchg >= 0 ? "+" : "") + p.fchg + " today", spark(p.fser, 100, 22)),
+        kpi("Google reviews tracked", p.reviews, "", spark(p.rser, 100, 22))),
+      h("div", {class: "kfoot"}, p.recs + " marketing ideas ready · updated " + ago(p.built)))
+    : h("div", {class: "wnote"}, PULSE_STATE === "failed" ? "Not available yet" : "Loading numbers");
+  return coverTile(span, "Business Pulse", PULSE_URL, body, p ? "good" : null);
+}
+function leadsCover(span){
+  var its = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Leads"; }).sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
+  var wait = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Waiting on others"; }).length;
+  var s = moduleStatus("Leads");
+  var body = h("div", {class: "cvb"},
+    h("div", {class: "kgrid"}, kpi("open leads", its.length), kpi("waiting on others", wait)),
+    segbar([{n: its.length, c: "var(--accent)", t: "open leads"}, {n: wait, c: "var(--amber)", t: "waiting"}]),
+    h("div", {class: "legend"}, h("span", null, h("i", {style: "background:var(--accent)"}), "open"), h("span", null, h("i", {style: "background:var(--amber)"}), "waiting")),
+    h("div", {class: "kwide"}, its.length ? h("span", null, h("b", null, "Newest: "), shortName(its[0].text) + " · " + ago(its[0].time)) : h("span", null, "No open leads")),
+    h("div", {class: "kfoot"}, "Leads " + s.text.toLowerCase()));
+  return coverTile(span, "Leads", "pages/leads.html", body, s.state === "fail" ? "alert" : s.state === "late" ? "watch" : "good");
+}
+function marketingCover(span){
+  loadPulse();
+  var p = pulseStats();
+  var body = h("div", {class: "cvb"}, p && p.tops.length ? h("ol", {class: "moves"}, p.tops.map(function(t, i){
+    return h("li", null, h("em", null, String(i + 1)), h("span", null, t));
+  })) : h("div", {class: "wnote"}, p ? "No ideas yet" : "Not available yet"),
+    p ? h("div", {class: "kfoot"}, p.recs + " ideas ready in total") : null);
+  return coverTile(span, "Marketing moves", "pages/marketing.html", body, p ? "good" : null);
+}
+function recapCover(span){
+  var secs = ["Today", "Business", "Local", "Private", "Work", "System"];
+  var due = DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).length;
+  var rows = summaryRows("Today");
+  var body = h("div", {class: "cvb"},
+    h("div", {class: "kgrid"}, kpi("due today", due), kpi("sections green", secs.filter(function(n){ return summaryStatus(n) === "good"; }).length + "/" + secs.length)),
+    h("div", {class: "shl"}, secs.map(function(n){
+      var st = summaryStatus(n);
+      return h("div", {class: "shi"}, h("span", {class: "dot " + (st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : "none")}), h("span", null, n));
+    })),
+    h("div", {class: "kwide"}, rows.length ? h("span", null, h("b", null, rows[0].headline + ". "), rows[0].text) : h("span", null, "No recap yet")));
+  return coverTile(span, "Recap", "pages/recap.html", body, summaryStatus("Today"));
+}
+
+/* ---------- wall tiles ---------- */
+function stat(label, tab, big, note, viz, st){
+  return wtile("ws2 stat", label, tab, h("div", {class: "sbody"}, h("div", {class: "sbig"}, big), viz ? h("div", {class: "sviz"}, viz) : h("div", {class: "sviz"}), note ? h("div", {class: "snote"}, note) : null), st);
+}
+function localInfo(){
+  var groups = {}, flat = [];
+  DATA.items.filter(function(i){ return i.tab === "Local" && i.module === "Events"; }).forEach(function(i){
+    var o = dayOffset(i.text); if (o == null) o = 99;
+    var e = {off: o, time: clock(i.text), label: shortName(i.text)};
+    (groups[o] = groups[o] || []).push(e); flat.push(e);
+  });
+  flat.sort(function(a, b){ return (a.off - b.off) || ((a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time)); });
+  return {groups: groups, flat: flat};
+}
+function fmtClock(x){ if (x == null) return ""; var hh = Math.floor(x), mm = Math.round((x - hh) * 60); return ((hh + 11) % 12 + 1) + (mm ? ":" + (mm < 10 ? "0" : "") + mm : "") + (hh >= 12 ? "P" : "A"); }
+function statsRow(){
+  var out = [];
+  var u = computeUsage();
+  if (u && !u.stale) {
+    var g = gaugeSvg(u); g.setAttribute("class", "mini-g");
+    out.push(stat("Weekly usage", "System", g, null, h("div", {class: "ugl"}, h("b", null, u.word), " · resets " + resetLabel(u.resetAt) + (u.change == null ? "" : " · " + (u.change >= 0 ? "+" : "") + u.change + " today")), u.pct >= 90 ? "alert" : u.pct >= 70 ? "watch" : "good"));
+  } else out.push(stat("Weekly usage", "System", "n/a", u ? "last read " + ago(u.read) : "no reading yet"));
+  var watchItems = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; });
+  var dots = h("div", {class: "dotrow"}, watchItems.slice(0, 10).map(function(){ return h("i", {class: "y"}); }));
+  out.push(stat("Watch today", "Today", String(watchItems.length), watchItems.length ? shortName(watchItems[0].text) : "nothing flagged", watchItems.length ? dots : h("div", {class: "dotrow"}, h("i", {class: "g"})), watchItems.length ? "watch" : "good"));
+  var rs = DATA.routines, ok = rs.filter(function(r){ return r.status === "ok"; }).length;
+  var cells = h("div", {class: "cells", style: "grid-template-columns:repeat(" + Math.max(1, rs.length) + ",minmax(0,1fr))", "aria-hidden": "true"}, rs.map(function(r){ return h("i", {class: r.status}); }));
+  out.push(stat("Routines", "System", [String(ok), h("small", null, "/" + rs.length)], rs.length - ok ? (rs.length - ok) + " late, failed or empty" : "all on time", cells, rs.length - ok ? "watch" : "good"));
+  var ps = DATA.problems || [], owners = {}, palette = ["var(--red)", "var(--amber)", "var(--accent)", "var(--violet)"];
+  ps.forEach(function(p){ var o = p.owner || "Unassigned"; owners[o] = (owners[o] || 0) + 1; });
+  var ok2 = Object.keys(owners);
+  out.push(stat("Problems", "System", String(ps.length), ps.length ? ok2.map(function(o){ return owners[o] + " " + o; }).join(" · ") : "none open",
+    segbar(ok2.map(function(o, i){ return {n: owners[o], c: palette[i % 4], t: o}; })), ps.length ? "alert" : "good"));
+  var sing = DATA.items.filter(function(i){ return i.grade === "Single source"; }).length, img = DATA.items.filter(function(i){ return i.grade === "Read from image"; }).length;
+  out.push(stat("Unconfirmed", "System", String(sing + img), sing + " single source · " + img + " from images", segbar([{n: sing, c: "var(--amber)", t: "single source"}, {n: img, c: "var(--violet)", t: "read from image"}])));
+  var li = localInfo(), nxt = li.flat.filter(function(e){ return e.off >= 0 && e.off < 99; })[0];
+  var days = []; for (var k = 0; k < 7; k++) days.push((li.groups[k] || []).length);
+  var mxd = Math.max.apply(null, days.concat([1]));
+  var bars = h("div", {class: "bars7"}, days.map(function(n, k){ return h("i", {style: "height:" + (14 + n / mxd * 86) + "%", class: (n ? "on" : "") + (k === 0 ? " today" : "")}); }));
+  out.push(stat("Local events", "Local", String(li.flat.length), nxt ? "next: " + nxt.label + (nxt.time != null ? " " + fmtClock(nxt.time) : "") : "none listed", bars, summaryStatus("Local")));
+  return out;
 }
 
 function todayTile(){
-  var due = DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).length;
-  var blocks = [];
+  var due = DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; });
+  var watch = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; }).length;
+  var blocks = [], next = [];
   DATA.items.forEach(function(i){
     var r = null, label = "";
     if (i.tab === "Today") { r = clockRange(i.text); label = shortName(i.text); }
     else if (i.tab === "Local" && i.module === "Events" && dayOffset(i.text) === 0) {
       var c = clock(i.text); if (c != null) { r = [c, c + 1.5]; label = shortName(i.text); }
     }
-    if (r && r[0] != null && r[1] != null) blocks.push({a: r[0], b: r[1], label: label});
+    if (r && r[0] != null && r[1] != null) { blocks.push({a: r[0], b: r[1], label: label}); next.push({t: r[0], label: label, kind: "y"}); }
   });
+  due.forEach(function(i){ var d0 = new Date(i.due); next.push({t: d0.getHours() + d0.getMinutes() / 60, label: shortName(i.text), kind: "r", due: true}); });
+  next.sort(function(a, b){ return a.t - b.t; });
   var A = 6, B = 22, span = B - A;
   var tl = h("div", {class: "tl", role: "img", "aria-label": "Today timeline, 6 AM to 10 PM"});
   for (var k = 0; k <= 8; k++) tl.appendChild(h("div", {class: "hr", style: "left:" + (k * 12.5) + "%"}, h("span", null, ["6A","8A","10A","12P","2P","4P","6P","8P","10P"][k])));
   blocks.forEach(function(b, idx){
     var a = Math.max(A, b.a), e = Math.min(B, b.b);
     if (e <= a) return;
-    tl.appendChild(h("div", {class: "blk", style: "left:" + ((a - A) / span * 100) + "%;width:" + ((e - a) / span * 100) + "%;top:" + (10 + (idx % 2) * 32) + "px"}, b.label));
+    tl.appendChild(h("div", {class: "blk", style: "left:" + ((a - A) / span * 100) + "%;width:" + ((e - a) / span * 100) + "%;top:" + (8 + (idx % 3) * 26) + "px"}, b.label));
   });
   var d = new Date(nowMs()), nh = d.getHours() + d.getMinutes() / 60;
   if (nh >= A && nh <= B) tl.appendChild(h("div", {class: "now", style: "left:" + ((nh - A) / span * 100) + "%"}, h("span", null, "NOW")));
-  return wtile("ws4", "Today", "Today", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
-    h("div", {class: "wbig"}, due + " due today", h("small", null, DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; }).length + " on the watch list")),
+  var list = next.slice(0, 5).map(function(n){ return h("div", {class: "dl"}, h("span", {class: "dd " + n.kind}), h("em", null, fmtClock(n.t)), h("span", {class: "dn2"}, n.label + (n.due ? " · due" : ""))); });
+  return wtile("ws3", "Today", "Today", h("div", {class: "tbody tdy"},
+    h("div", {class: "duo"},
+      h("div", null, h("div", {class: "wbig"}, String(due.length)), h("div", {class: "wl"}, "due today")),
+      h("div", null, h("div", {class: "wbig"}, String(watch)), h("div", {class: "wl"}, "on watch list"))),
+    list.length ? h("div", {class: "dls"}, list) : h("div", {class: "wnote"}, "Nothing scheduled."),
     tl, summaryNote("Today")), summaryStatus("Today"));
 }
 
-function systemTile(){
-  var rs = DATA.routines, ok = rs.filter(function(r){ return r.status === "ok"; }).length;
-  var cells = h("div", {class: "cells", style: "grid-template-columns:repeat(" + Math.max(1, rs.length) + ",minmax(0,1fr))", "aria-hidden": "true"},
-    rs.map(function(r){ return h("i", {class: r.status}); }));
-  var owners = {};
-  (DATA.problems || []).forEach(function(p){ var o = p.owner || "Unassigned"; owners[o] = (owners[o] || 0) + 1; });
-  var ownerText = Object.keys(owners).map(function(o){ return owners[o] + " " + o; }).join(" · ");
-  var u = computeUsage(), usage = null;
-  if (u && !u.stale) usage = h("div", {style: "display:flex;flex-direction:column;gap:6px"},
-    h("div", {class: "wnote", style: "display:flex;justify-content:space-between"}, h("span", null, "Weekly usage"), h("span", {class: "mono"}, u.pct + "%")),
-    h("div", {style: "height:5px;border-radius:3px;background:var(--line);overflow:hidden"}, h("div", {style: "width:" + Math.max(1, u.pct) + "%;height:100%;background:var(--accent)"})));
-  return wtile("ws4", "System", "System", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
-    h("div", {class: "wbig"}, ok, h("small", null, "of " + rs.length + " routines on time")),
-    cells,
-    h("div", {class: "wnote", style: "display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"}, h("span", null, (DATA.problems || []).length + " open problems"), h("span", {class: "mono"}, ownerText)),
-    usage), summaryStatus("System"));
-}
-
 function businessTile(){
+  var mods = DATA.modules.Business || [];
   var its = DATA.items.filter(function(i){ return i.tab === "Business"; }).sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
-  return wtile("ws4", "Business", "Business", h("div", {style: "display:flex;flex-direction:column;gap:10px"},
-    moduleRows("Business"),
-    summaryNote("Business") || (its.length ? h("div", {class: "wnote", style: "border-top:1px solid var(--line);padding-top:12px;line-height:1.5"}, its[0].text) : null)), summaryStatus("Business"));
+  var chips = h("div", {class: "chips"}, mods.slice(0, 4).map(function(m){
+    var st = moduleStatus(m.name), n = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === m.name; }).length;
+    return h("div", {class: "chip2"}, h("span", {class: "dot " + st.state}), h("b", null, String(n)), h("span", null, m.name));
+  }));
+  return wtile("ws2", "Business", "Business", h("div", {class: "tbody"},
+    chips,
+    summaryNote("Business") || (its.length ? h("div", {class: "wnote"}, its[0].text) : null)), summaryStatus("Business"));
 }
 
 function localTile(){
-  var groups = {};
-  DATA.items.filter(function(i){ return i.tab === "Local" && i.module === "Events"; }).forEach(function(i){
-    var o = dayOffset(i.text); if (o == null) o = 99;
-    (groups[o] = groups[o] || []).push({time: clock(i.text), label: shortName(i.text), raw: i.text});
-  });
-  var keys = Object.keys(groups).map(Number).sort(function(a, b){ return a - b; });
-  var total = 0; keys.forEach(function(k){ total += groups[k].length; });
-  var today = new Date(nowMs()).getDay();
-  var cols = keys.map(function(k){
-    var name = k === 99 ? "Soon" : k === 0 ? "Today" : k === 1 ? "Tomorrow" : DAYS[(today + k) % 7];
-    var evs = groups[k].sort(function(a, b){ return (a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time); });
-    return h("div", null, h("div", {class: "dn"}, name), evs.map(function(e){
-      var t = e.time == null ? "" : (function(x){ var hh = Math.floor(x), mm = Math.round((x - hh) * 60); return ((hh + 11) % 12 + 1) + (mm ? ":" + (mm < 10 ? "0" : "") + mm : "") + (hh >= 12 ? "P" : "A"); })(e.time);
-      return h("div", {class: "ev"}, h("em", null, t), h("span", null, e.label));
-    }));
-  });
+  var li = localInfo(), groups = li.groups, today = new Date(nowMs());
+  var cols = [];
+  for (var k = 0; k < 7; k++) {
+    var day = new Date(today.getTime() + k * 86400000), wd = day.getDay();
+    var evs = (groups[k] || []).slice().sort(function(a, b){ return (a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time); });
+    cols.push(h("div", {class: "wd" + (k === 0 ? " today" : "") + ((wd === 0 || wd === 6) ? " wkend" : "") + (evs.length ? "" : " idle")},
+      h("div", {class: "wdh"}, h("span", null, k === 0 ? "Today" : DAYS[wd]), h("b", null, String(day.getDate()))),
+      h("div", {class: "wde"}, evs.length ? evs.slice(0, 4).map(function(e){ return h("div", {class: "pill2"}, h("em", null, fmtClock(e.time)), h("span", null, e.label)); }) : h("div", {class: "none2"}, "Open")),
+      evs.length > 4 ? h("div", {class: "more"}, "+" + (evs.length - 4) + " more") : null));
+  }
+  var soon = (groups[99] || []).length;
   var scan = moduleStatus("Scanner");
-  return wtile("ws8", "Local · Potsdam", "Local", h("div", {style: "display:flex;flex-direction:column;gap:14px"},
-    h("div", {class: "wbig"}, total + (total === 1 ? " event" : " events"), h("small", null, "Scanner: " + scan.text.toLowerCase())),
-    cols.length ? h("div", {class: "wk"}, cols) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local")), summaryStatus("Local"));
+  return wtile("ws5", "Local · Potsdam", "Local", h("div", {class: "tbody"},
+    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events")), h("span", null, "Scanner " + scan.text.toLowerCase() + (soon ? " · " + soon + " undated" : ""))),
+    h("div", {class: "week7"}, cols), summaryNote("Local")), summaryStatus("Local"));
+}
+
+function latestTile(){
+  var msgs = (DATA.messages || []).slice().sort(function(a, b){ return new Date(b.time) - new Date(a.time); }).slice(0, 7);
+  var body = msgs.length ? h("div", {class: "lm"}, msgs.map(function(m){
+    var t = String(m.text || "").replace(/^(\uD83D[\uDFE2\uDFE1\uDD34])\s*/, "");
+    return h("div", {class: "lmr"}, h("span", {class: "av " + msgColor(m)}, cfgName(m.from, m.from).charAt(0)),
+      h("div", null, h("div", {class: "who"}, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + ago(m.time)), h("div", {class: "lt"}, t)));
+  })) : h("div", {class: "wnote"}, "No messages yet.");
+  return wtile("ws2", "Latest messages", "System", body, null);
+}
+
+function secTile(name){
+  var open = isUnlocked() || !tier2(name);
+  var rows = summaryRows(name), mods = DATA.modules[name] || [];
+  var body = !open ? lockBox() : h("div", {class: "tbody"},
+    rows.length ? rows.slice(0, 3).map(function(r){ return h("div", {class: "sh"}, h("b", null, r.headline), h("span", null, r.text)); }) : h("div", {class: "wnote"}, mods.length ? "No summary yet." : "No " + name + " feed is connected yet."),
+    mods.length ? h("div", {class: "chips c1"}, mods.slice(0, 3).map(function(m){
+      var st = moduleStatus(m.name), n = DATA.items.filter(function(i){ return i.tab === name && i.module === m.name; }).length;
+      return h("div", {class: "chip2"}, h("span", {class: "dot " + st.state}), h("span", null, m.name), h("b", null, n ? String(n) : "clear"));
+    })) : null);
+  return {label: name, body: body, st: open ? summaryStatus(name) : null};
+}
+function wpTile(){
+  var a = secTile("Work"), b = secTile("Private");
+  function half(x, tab){ return h("div", {class: "half"}, h("div", {class: "hh"}, x.st ? h("span", {class: "dot " + (x.st === "good" ? "ok" : x.st === "watch" ? "late" : "fail")}) : null, h("span", {class: "mono"}, x.label),
+    tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null), x.body); }
+  return h("section", {class: "wt ws3 wp", "aria-label": "Work and Private"}, half(a, null), half(b, "Private"));
 }
 
 function wall(){
-  var box = h("div", null);
+  var box = h("div", {class: "wallbox"});
   var bad = DATA.routines.filter(function(r){ return r.status === "fail"; });
   if (bad.length) box.appendChild(h("div", {class: "walert", role: "status"}, h("b", null, "ATTENTION"),
     h("span", null, bad.map(function(r){ return r.routine; }).join(", ") + (bad.length === 1 ? " is failing." : " are failing.")),
     h("button", {class: "wopen", type: "button", onclick: function(){ go("System"); }}, "VIEW IN SYSTEM")));
   var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work") : null;
   if (lockBtn) box.appendChild(h("div", {class: "wbar", style: "justify-content:center"}, lockBtn));
-  var em = EMBEDS.Business[0];
-  var list = tileList();
-  box.appendChild(h("div", {class: "stats"}, [gaugeCard()].concat(list.slice(0, 3))));
-  var hasCrew = !!(DATA.config || DATA.messages);
-  box.appendChild(h("div", {class: "wall"},
-    hasCrew ? crewMapTile() : null,
-    todayTile(), businessTile(), localTile(),
-    hasCrew ? messagesTile() : null,
-    systemTile(),
-    wtile("ws4", "Private", "Private", (isUnlocked() || !tier2("Private")) ? h("div", {style: "display:flex;flex-direction:column;gap:12px"}, moduleRows("Private"), summaryNote("Private")) : lockBox(), (isUnlocked() || !tier2("Private")) ? summaryStatus("Private") : null),
-    wtile("ws4", "Work", null, (isUnlocked() || !tier2("Work")) ? (summaryNote("Work") || h("div", {class: "wnote"}, "No Work feed is connected yet.")) : lockBox(), (isUnlocked() || !tier2("Work")) ? summaryStatus("Work") : null),
-    wtile("ws4", em.name, "Business", h("div", {class: "pv"},
-      h("iframe", {src: em.url, title: em.name + " preview", loading: "lazy", tabindex: "-1"}),
-      h("a", {href: em.url, target: "_blank", rel: "noopener"}, "OPEN FULL SCREEN")))));
+  box.appendChild(h("div", {class: "wall fit"},
+    statsRow(),
+    todayTile(), localTile(), businessTile(), (DATA.config || DATA.messages) ? latestTile() : null,
+    pulseCover(3), leadsCover(2), marketingCover(2), recapCover(2), wpTile()));
   return box;
 }
 
@@ -788,27 +949,25 @@ function render(){
   if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   if (TAB === "Wall") { app.appendChild(wall()); renderNav(); return; }
-  app.appendChild(h("div", {class: "hero"}, gaugeCard(), tiles()));
+  app.appendChild(h("div", {class: "wall stripe"}, statsRow()));
 
   app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
+  var mods = h("div", {class: "mods"});
   (DATA.modules[TAB] || []).forEach(function(m){
-    app.appendChild(
-      m.kind === "usage" ? usageModule(m) :
+    var card = m.kind === "usage" ? usageModule(m) :
       m.kind === "coverage" ? coverageModule(m) :
       m.kind === "problems" ? problemsModule(m) :
-      itemsModule(m, TAB));
+      itemsModule(m, TAB);
+    if (m.kind === "coverage" || m.kind === "problems") card.classList.add("all");
+    mods.appendChild(card);
   });
+  if (TAB === "System" && DATA.messages) { var ca = crewActivity(); if (ca) { ca.classList.add("all"); mods.insertBefore(ca, mods.firstChild); } }
+  app.appendChild(mods);
 
-  if (TAB === "System" && DATA.messages) { var ca = crewActivity(); if (ca) app.appendChild(ca); }
-
-  (EMBEDS[TAB] || []).forEach(function(em){
-    app.appendChild(h("section", {class: "card mod"},
-      h("div", {class: "mhead"}, h("h3", null, em.name),
-        h("a", {class: "btn link", href: embedUrl(em.url), target: "_blank", rel: "noopener"}, "Open full screen")),
-      h("iframe", {class: "embed", src: embedUrl(em.url), title: em.name, loading: "lazy"})));
-  });
+  var covers = TAB === "Business" ? [pulseCover(4), leadsCover(4), marketingCover(4)] : TAB === "Today" ? [recapCover(4)] : [];
+  if (covers.length) app.appendChild(h("div", {class: "wall"}, covers));
 
   renderNav();
 }

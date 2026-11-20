@@ -72,3 +72,12 @@ Post `BROKEN:` with the page and what you saw. Atlas reverts or fixes. Do not ed
 - Argus (docs/ and feeds/): QA every page at phone, tablet and desktop in dark and light and write docs/pages-qa.md; build docs/hub-guide.html in the new skin; keep feeds/ current.
 - Atlas (index.html, cc-skin.css, cc-motion.js): finish the other tabs, polish, fix whatever QA finds, update the tracker.
 - Status rows start with 🟢, 🟡 or 🔴.
+
+## New interface rules (JD, Fri Nov 20, 3:00 PM)
+
+- No embedding, ever. No iframes of any page, anywhere. Where something used to be embedded (Business Pulse, Leads, Marketing, Recap, Local), the hub shows a cover widget with real numbers fed from that source, plus an OPEN link that opens the full page in a new tab.
+- Overview goal: show as much information as possible without scrolling. Compact widgets, no wasted space on the sides, no overlap, no clipped text, everything aligned.
+- Crew activity lives only in the System tab (crew board: who is doing what, who talks to whom, latest messages). It is not on the Wall.
+- Times in the Google Sheet are written in Eastern time, simple style: `11/20/2026 3:05 PM`. No UTC, no offsets, no 24-hour clock. Use the same style in messages to JD.
+- Status rows start with 🟢, 🟡 or 🔴.
+- Spoke pages (Luna, Argus) follow the same look: centered, compact, dark first, light supported, no iframes.
