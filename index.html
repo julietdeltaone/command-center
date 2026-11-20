@@ -176,6 +176,27 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .pv a{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:10px;text-decoration:none;color:var(--accent);font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;background:linear-gradient(180deg,transparent 60%,rgba(7,9,13,.85))}
 @media (max-width:1000px){.ws3,.ws4,.ws5{grid-column:span 6}.ws6,.ws7,.ws8{grid-column:span 12}}
 @media (max-width:640px){.ws3,.ws4,.ws5,.ws6,.ws7,.ws8{grid-column:span 12}}
+
+/* ---------- crew activity map ---------- */
+.ca-lane{stroke:var(--line);stroke-width:1;stroke-dasharray:2 6}
+.ca-name{fill:var(--text);font-size:13px;font-weight:600}
+.ca-sub{fill:var(--muted);font-size:10px;letter-spacing:.08em}
+.ca-link{fill:none;stroke-width:1.4;opacity:.38}
+.ca-dot{transform-box:fill-box;transform-origin:center;animation:capop .5s var(--ease,ease) backwards;cursor:default}
+.ca-dot:hover{transform:scale(1.5);transition:transform .2s}
+@keyframes capop{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
+.ca-ring{fill:none;stroke-width:1.6;transform-box:fill-box;transform-origin:center;animation:caring 2.4s ease-out infinite}
+@keyframes caring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(3.2)}}
+.ca-g{fill:#4ade80;stroke:#4ade80} .ca-y{fill:var(--amber);stroke:var(--amber)} .ca-r{fill:var(--red);stroke:var(--red)}
+.ca-link.ca-g,.ca-link.ca-y,.ca-link.ca-r,.ca-ring{fill:none}
+.ca-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch} .ca-scroll svg{min-width:720px;display:block}
+.ca-counts{display:flex;gap:18px;flex-wrap:wrap;margin:4px 0 10px}
+.ca-counts span{font-size:13px;color:var(--muted)} .ca-counts b{font-size:22px;color:var(--text);margin-right:6px}
+.ca-feed{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.ca-feed div{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45}
+.ca-feed .st{flex:0 0 auto;width:10px;height:10px;border-radius:50%;margin-top:5px}
+.ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
+.ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
 <link rel="stylesheet" href="cc-design.css">
 </head>
@@ -581,6 +602,67 @@ function messagesTile(){
   return wtile("ws8", "Messages", "System", body);
 }
 
+
+function msgColor(m){
+  var t = String(m.text || "");
+  if (t.indexOf("\uD83D\uDD34") === 0) return "r";
+  if (t.indexOf("\uD83D\uDFE1") === 0) return "y";
+  if (t.indexOf("\uD83D\uDFE2") === 0) return "g";
+  if (m.type === "alert" || /^(BROKEN|BLOCKED)\b|rejected|could not|failed|blocked access|\bfatal\b/i.test(t)) return "r";
+  if (m.type === "request" || /unverified|waiting|in progress|PUSH CLAIM/i.test(t)) return "y";
+  return "g";
+}
+function svgEl(tag, attrs, kids){
+  var e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.keys(attrs || {}).forEach(function(k){ e.setAttribute(k, attrs[k]); });
+  (kids || []).forEach(function(c){ e.appendChild(c); });
+  return e;
+}
+function crewActivity(){
+  var all = (DATA.messages || []).slice().sort(function(a, b){ return new Date(a.time) - new Date(b.time); });
+  if (!all.length) return null;
+  var msgs = all.slice(-24);
+  var lanes = CREW.map(function(c){ return {id: c[0], name: cfgName(c[0], c[1]), role: c[2]}; });
+  var laneY = {}, W = 1000, LH = 54, TOP = 28, LEFT = 130, H = TOP + lanes.length * LH + 16;
+  var n = msgs.length, step = n > 1 ? (W - LEFT - 40) / (n - 1) : 0;
+  var svg = svgEl("svg", {viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "Crew activity, oldest to newest message from left to right"});
+  lanes.forEach(function(l, i){
+    var y = TOP + i * LH + LH / 2; laneY[l.id] = y;
+    svg.appendChild(svgEl("line", {x1: LEFT - 10, x2: W - 20, y1: y, y2: y, class: "ca-lane"}));
+    var t = svgEl("text", {x: 6, y: y - 2, class: "ca-name"}); t.textContent = l.name; svg.appendChild(t);
+    var r = svgEl("text", {x: 6, y: y + 12, class: "ca-sub"}); r.textContent = l.role.toUpperCase(); svg.appendChild(r);
+  });
+  var pos = msgs.map(function(m, i){ return {m: m, x: LEFT + i * step, y: laneY[m.from] != null ? laneY[m.from] : null, c: msgColor(m)}; });
+  pos.forEach(function(p){
+    if (p.y == null || laneY[p.m.to] == null || p.m.to === p.m.from) return;
+    var y2 = laneY[p.m.to], mid = (p.y + y2) / 2;
+    svg.appendChild(svgEl("path", {d: "M" + p.x + " " + p.y + " C " + (p.x + 26) + " " + mid + ", " + (p.x + 26) + " " + mid + ", " + (p.x + 10) + " " + y2, class: "ca-link ca-" + p.c, stroke: "currentColor"}));
+    svg.appendChild(svgEl("circle", {cx: p.x + 10, cy: y2, r: 2.5, class: "ca-" + p.c, opacity: ".6"}));
+  });
+  pos.forEach(function(p, i){
+    if (p.y == null) return;
+    var d = svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-dot ca-" + p.c, style: "animation-delay:" + (i * 45) + "ms"});
+    var tt = svgEl("title"); tt.textContent = cfgName(p.m.from, p.m.from) + " to " + cfgName(p.m.to, p.m.to) + " · " + ago(p.m.time) + " · " + String(p.m.text || "").slice(0, 160);
+    d.appendChild(tt); svg.appendChild(d);
+    if (i === pos.length - 1) svg.appendChild(svgEl("circle", {cx: p.x, cy: p.y, r: 7, class: "ca-ring ca-" + p.c}));
+  });
+  var counts = {g: 0, y: 0, r: 0};
+  msgs.forEach(function(m){ counts[msgColor(m)]++; });
+  var feed = msgs.slice(-6).reverse().map(function(m){
+    var t = String(m.text || "").replace(/^(\uD83D[\uDFE2\uDFE1\uDD34])\s*/, ""); if (t.length > 150) t = t.slice(0, 147) + "...";
+    return h("div", null, h("span", {class: "st " + msgColor(m)}),
+      h("span", null, h("span", {class: "who"}, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + ago(m.time)), h("br"), t));
+  });
+  return h("section", {class: "card mod"},
+    h("div", {class: "mhead"}, h("h3", null, "Crew activity"), h("span", {class: "mono"}, "last " + n + " messages, oldest to newest")),
+    h("div", {class: "ca-counts"},
+      h("span", null, h("b", {style: "color:#4ade80"}, String(counts.g)), "good"),
+      h("span", null, h("b", {style: "color:var(--amber)"}, String(counts.y)), "in progress or waiting"),
+      h("span", null, h("b", {style: "color:var(--red)"}, String(counts.r)), "broken or blocked")),
+    h("div", {class: "ca-scroll"}, svg),
+    h("div", {class: "ca-feed"}, feed));
+}
+
 function todayTile(){
   var due = DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).length;
   var blocks = [];
@@ -697,6 +779,8 @@ function render(){
       m.kind === "problems" ? problemsModule(m) :
       itemsModule(m, TAB));
   });
+
+  if (TAB === "System" && DATA.messages) { var ca = crewActivity(); if (ca) app.appendChild(ca); }
 
   (EMBEDS[TAB] || []).forEach(function(em){
     app.appendChild(h("section", {class: "card mod"},
@@ -859,10 +943,21 @@ function preview(){
     sections: [{section: "Private", tier: 2}, {section: "Work", tier: 2}],
     config: [{key: "name.claude", value: "Atlas"}, {key: "name.muse", value: "Luna"}, {key: "name.chatgpt", value: "Argus"}],
     messages: [
-      {id: "m1", from: "muse", to: "claude", type: "answer", text: "Summary rows written for all six sections.", status: "open", time: iso(20)},
-      {id: "m2", from: "chatgpt", to: "claude", type: "answer", text: "Write test worked.", status: "open", time: iso(4)}
-    ],
-    usage: [
+      {id: "m1", from: "claude", to: "muse", type: "handoff", text: "🟢 Hub serves Summary, Sections and Messages.", status: "open", time: iso(240)},
+      {id: "m2", from: "muse", to: "claude", type: "answer", text: "🟢 Summary rows written for all six sections.", status: "open", time: iso(220)},
+      {id: "m3", from: "chatgpt", to: "claude", type: "answer", text: "🟢 Write test worked.", status: "open", time: iso(205)},
+      {id: "m4", from: "claude", to: "chatgpt", type: "request", text: "🟡 Please design-check the hub.", status: "open", time: iso(190)},
+      {id: "m5", from: "muse", to: "claude", type: "alert", text: "🔴 Five jobs blocked by a safety check.", status: "open", time: iso(170)},
+      {id: "m6", from: "chatgpt", to: "claude", type: "answer", text: "🟡 QA: 7 pass, 1 fail, 2 unverified.", status: "open", time: iso(150)},
+      {id: "m7", from: "claude", to: "all", type: "alert", text: "🟢 Push rules are in the repo.", status: "open", time: iso(120)},
+      {id: "m8", from: "muse", to: "claude", type: "request", text: "🟡 PUSH CLAIM: four pages.", status: "open", time: iso(95)},
+      {id: "m9", from: "muse", to: "claude", type: "answer", text: "🔴 Push rejected for access.", status: "open", time: iso(80)},
+      {id: "m10", from: "claude", to: "muse", type: "handoff", text: "🟢 Use the API write route.", status: "open", time: iso(70)},
+      {id: "m11", from: "chatgpt", to: "claude", type: "answer", text: "🟢 PUSHED: four files.", status: "open", time: iso(55)},
+      {id: "m12", from: "muse", to: "claude", type: "answer", text: "🟢 PUSHED: four pages.", status: "open", time: iso(40)},
+      {id: "m13", from: "claude", to: "all", type: "alert", text: "🟢 Hub links are pushed.", status: "open", time: iso(20)},
+      {id: "m14", from: "muse", to: "claude", type: "answer", text: "🟡 Checking data names on live pages.", status: "open", time: iso(4)}
+    ],    usage: [
       {read_time: iso(1470), percent: 29, reset_time: reset, writer: "sample"},
       {read_time: iso(30), percent: 38, reset_time: reset, writer: "sample"}
     ],
