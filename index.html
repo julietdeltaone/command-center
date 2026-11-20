@@ -1233,7 +1233,7 @@ function render(){
   document.getElementById("hdate").textContent = new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"});
   if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
-  if (TAB === "Wall") { app.appendChild(wall()); renderNav(); return; }
+  if (TAB === "Wall") { app.appendChild(h("div", {class: "tabhead"}, h("h2", null, "Overview"))); app.appendChild(wall()); renderNav(); return; }
   app.appendChild(h("div", {class: "tabhead"}, h("h2", null, TAB)));
   app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
   app.appendChild(globalStrip());
