@@ -1141,7 +1141,7 @@ function todayView(){
   ["Weather and drone", "Watch"].forEach(function(n){ if (by[n]) { right.appendChild(by[n]); placed[n] = 1; } });
   mods.forEach(function(m){ if (!placed[m.name]) (right.children.length <= left.children.length ? right : left).appendChild(by[m.name]); });
   var box = h("div");
-  var tl = (window.CC && CC.timeline) ? CC.timeline(CCAPI) : todayTimeline(); if (tl) box.appendChild(tl);
+  var tl = (window.CC && CC.timeline) ? CC.timeline(CCAPI, {key: "today", span: "day", title: "Your day"}) : todayTimeline(); if (tl) box.appendChild(tl);
   var gust = todayGust(); if (gust) right.insertBefore(gust, right.firstChild);
   box.appendChild(h("div", {class: "todayz"}, left, right));
   return box;
@@ -1402,6 +1402,7 @@ function lAgenda(rows){
 function localView(){
   var wrap = h("div", {class: "ltwrap"}), rows = lrows(), al = lalerts(rows);
   if (al) wrap.appendChild(al);
+  if (window.CC && CC.timeline) wrap.appendChild(CC.timeline(CCAPI, {key: "local", span: "week", layers: ["local", "alert", "cal"], title: "Local timeline"}));
   wrap.appendChild(lDays(rows));
   wrap.appendChild(localTable());
   return wrap;
@@ -1924,7 +1925,7 @@ window.addEventListener("resize", function(){ clearTimeout(fitTimer); fitTimer =
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if (TAB === "Wall" && DATA) fitWall(); });
 
 /* ---------- view modules (views/*.js): see views/CONTRACT.md ---------- */
-var CCAPI = {lrows: function(){ return lrows(); }, ltier: function(r){ return ltier(r); }, dayOffset: dayOffset, clock: clock, clockRange: clockRange, sunDay: sunDay, shortName: shortName, pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
+var CCAPI = {unlocked: function(){ return !DATA.sample && isUnlocked() || !!DATA.sample; }, lrows: function(){ return lrows(); }, ltier: function(r){ return ltier(r); }, dayOffset: dayOffset, clock: clock, clockRange: clockRange, sunDay: sunDay, shortName: shortName, pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
   get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
   get data(){ return DATA; }, get tab(){ return TAB; }};

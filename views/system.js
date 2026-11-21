@@ -240,7 +240,7 @@
 
     var sync = syncSources();
     function overview() {
-      return h('div', {class: 'sys-col'}, usageHero(),
+      return h('div', {class: 'sys-col'}, usageHero(), window.CC && window.CC.timeline ? window.CC.timeline(api, {key: 'system', span: 'day', layers: ['phone', 'crew', 'routine'], title: 'Crew and routine timeline'}) : null,
         h('div', {class: 'sys-two'},
           h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Crew activity'), h('span', {class: 'sys-count'}, 'last 24 hours')), crewTimeline()),
           h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Departments'), h('span', {class: 'sys-count'}, 'head and status')), deptMap())));
