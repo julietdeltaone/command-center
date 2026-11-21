@@ -203,6 +203,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 </style>
 <link rel="stylesheet" href="cc-design.css">
 <link rel="stylesheet" href="cc-skin.css">
+<link rel="stylesheet" href="cc-widgets.css">
 <script src="cc-fresh.js"></script>
 <script src="cc-inbox.js"></script>
 <script src="cc-sources.js"></script>
@@ -269,8 +270,8 @@ function lockScreen(name){
     lockBox(),
     h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Personal and Work")));
 }
-var TABS = ["Wall", "Today", "Business", "Local", "Private", "System"];
-var TABLABEL = {Wall: "Overview", Private: "Personal"};
+var TABS = ["Wall", "Today", "Business", "Local", "Status", "Private", "System"];
+var TABLABEL = {Wall: "Overview", Private: "Personal", Status: "JD Status"};
 var PAGES = {
   Today: [{name: "Recap", url: "pages/recap.html"}],
   Business: [{name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}, {name: "Leads", url: "pages/leads.html"}, {name: "Marketing", url: "pages/marketing.html"}],
@@ -927,7 +928,7 @@ function todayTile(){
       h("div", null, h("div", {class: "wbig"}, String(due.length)), h("div", {class: "wl"}, due.length === 1 ? "deadline today" : "deadlines today")),
       h("div", null, h("div", {class: "wbig"}, String(watch)), h("div", {class: "wl"}, "on watch list"))),
     list.length ? h("div", {class: "dls"}, list) : h("div", {class: "wnote"}, "Nothing scheduled."),
-    tl, summaryNote("Today", true)), summaryStatus("Today"), freshOf("Today"));
+    summaryNote("Today", true)), summaryStatus("Today"), freshOf("Today"));
 }
 
 function businessTile(){
@@ -965,12 +966,17 @@ function agenda(max){
   return rows;
 }
 function localTile(){
-  var li = localInfo();
-  var scan = moduleStatus("Scanner");
-  var rows = agenda(0);
-  return wtile("ws5", "Local · Potsdam", "Local", h("div", {class: "tbody"},
-    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events")), scan.state === "ok" ? null : h("span", null, "Scanner " + (scan.state === "fail" ? "failed" : scan.state === "late" ? "is late" : "not linked"))),
-    rows.length ? h("div", {class: "agenda"}, rows) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local", true)), summaryStatus("Local"), freshOf("Local"));
+  var li = localInfo(), scan = moduleStatus("Scanner"), cnt = [], mxc = 1, now = new Date(nowMs());
+  for (var k = 0; k < 10; k++) { var c = (li.groups[k] || []).length; cnt.push(c); if (c > mxc) mxc = c; }
+  var strip = h("div", {class: "ltn"}, cnt.map(function(c, k){
+    var dt = new Date(nowMs() + k * 86400000);
+    return h("div", {class: "ltn-d" + (k === 0 ? " today" : "") + (c ? "" : " idle"), title: (k === 0 ? "Today" : DAYS[dt.getDay()] + " " + (dt.getMonth() + 1) + "/" + dt.getDate()) + ": " + c + (c === 1 ? " event" : " events")},
+      h("b", null, String(c)), h("i", {style: "height:" + (10 + c / mxc * 90) + "%"}), h("span", null, k === 0 ? "Now" : DAYS[dt.getDay()].slice(0, 1)));
+  }));
+  var nx = li.flat.filter(function(e){ return e.off >= 0 && e.off < 99; }).slice(0, 3).map(function(e){ return h("div", {class: "ag" + (e.off === 0 ? " today" : "")}, h("span", {class: "agd"}, dayName(e.off)), h("em", null, e.time == null ? "" : fmtClock(e.time)), h("span", {class: "agl"}, e.label)); });
+  return wtile("ws5", "Local \u00b7 Potsdam", "Local", h("div", {class: "tbody"},
+    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events") + " in 10 days"), scan.state === "ok" ? null : h("span", null, "Scanner " + (scan.state === "fail" ? "failed" : scan.state === "late" ? "is late" : "not linked"))),
+    strip, nx.length ? h("div", {class: "agenda"}, nx) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local", true)), summaryStatus("Local"), freshOf("Local"));
 }
 
 function inboxTile(){
@@ -995,11 +1001,11 @@ function secTile(name){
     })) : null);
   return {label: name === "Private" ? "Personal" : name, body: body, st: open ? summaryStatus(name) : null, fr: fr};
 }
-function wpTile(){
+function wpTile(span){
   var a = secTile("Work"), b = secTile("Private");
   function half(x, tab){ return h("div", {class: "half"}, h("div", {class: "hh"}, x.st ? h("span", {class: "dot " + (x.st === "good" ? "ok" : x.st === "watch" ? "late" : "fail")}) : null, h("span", {class: "mono"}, x.label),
     stampEl(x.fr), tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null), x.body); }
-  return h("section", {class: "wt ws3 wp", "aria-label": "Work and Personal"}, half(a, null), half(b, "Personal"));
+  return h("section", {class: "wt ws" + (span || 3) + " wp", "aria-label": "Work and Personal"}, half(a, null), half(b, "Personal"));
 }
 
 function leadItems(){ return DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Leads"; }); }
@@ -1103,7 +1109,7 @@ function needsBand(){
 function wall(){
   var box = h("div", {class: "wallbox"});
   var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Personal and Work" : "Unlock Personal and Work") : null;
-  var nb = needsBand(); if (nb) box.appendChild(nb);
+  var nb = (window.CC && CC.widgets && CC.widgets.pathToGreen) ? CC.widgets.pathToGreen(CCAPI) : needsBand(); if (nb) box.appendChild(nb);
   if (lockBtn) box.appendChild(h("div", {class: "wbar", style: "justify-content:center"}, lockBtn));
   loadPulse();
   var ps = pulseStats(), off = [];
@@ -1111,7 +1117,7 @@ function wall(){
   box.appendChild(h("div", {class: "wall fit"},
     statsRow(),
     todayTile(), localTile(), businessTile(), inboxTile(),
-    ps ? pulseCover(3) : null, leadsCover(ps ? 2 : 4), ps ? marketingCover(2) : null, recapCover(ps ? 2 : 4), wpTile()));
+    ps ? pulseCover(3) : null, leadsCover(ps ? 2 : 4), ps ? marketingCover(2) : null, recapCover(ps ? 2 : 4), wpTile(ps ? 3 : 4)));
   var sp = CC.sources && CC.sources.panel(CCAPI);
   if (sp) box.appendChild(sp);
   return box;
@@ -2147,7 +2153,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(function()
 var CCAPI = {unlocked: function(){ return !DATA.sample && isUnlocked() || !!DATA.sample; }, lrows: function(){ return lrows(); }, ltier: function(r){ return ltier(r); }, dayOffset: dayOffset, clock: clock, clockRange: clockRange, sunDay: sunDay, shortName: shortName, pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
   get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
-  get data(){ return DATA; }, get tab(){ return TAB; },
+  get data(){ return DATA; }, get tab(){ return TAB; }, localTable: function(){ return localTable(); }, openLeads: function(){ return openLeads(); }, leadAlert: function(i){ return leadAlert(i); }, doSee: function(x, how, el){ return doSee(x, how, el); }, summaryStatus: function(n){ return summaryStatus(n); }, freshOf: function(t, m){ return freshOf(t, m); },
   get connected(){ return !!getCfg(); }, get sheetAt(){ return SHEET_AT; },
   get pulse(){ var st = null; try { st = pulseStats(); } catch (e) {} return {state: PULSE_STATE, built: st ? st.built : null}; }};
 window.CC.api = CCAPI;
@@ -2191,7 +2197,7 @@ function render(){
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
   if (!(tier2(TAB) && !isUnlocked())) {
     app.appendChild(freshStrip(TAB));
-    if (TAB === "Business") app.appendChild(replyHero());
+    if (TAB === "Business") app.appendChild(window.CC && CC.widgets && CC.widgets.bizTop ? CC.widgets.bizTop(CCAPI) : replyHero());
   }
   var cv = (TAB === "Private" && PSUB) ? null : customView(TAB);
   if (cv) app.appendChild(cv);
@@ -2210,7 +2216,8 @@ var ICONS = {
   Business: [["path", "M5 20V10M12 20V4M19 20v-7"]],
   Local: [["path", "M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"], ["circle", {cx: 12, cy: 10, r: 2.5}]],
   Private: [["path", "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"]],
-  System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]]
+  System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]],
+  Status: [["circle", {cx: 12, cy: 8, r: 3.5}], ["path", "M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"]]
 };
 
 var PV = {
@@ -2408,6 +2415,10 @@ function preview(){
       W(I("s18", "Local", "Events", "Scholarship application deadline, Fri 11:59 PM, online, students only", "clarkson.edu financial aid", "Single source", 190), "chatgpt"),
       W(I("s19", "Local", "Events", "Holiday craft fair, Sat 4:30 PM to 8 PM, Potsdam Civic Center, $5 admission, public", "Instagram @potsdamchamber", "Single source", 120), "muse"),
       I("s12", "Private", "Health", "Sleep 7h 12m", "Orion", "Exact", 160),
+      I("s30", "Private", "Health", "Phone check 6:00 AM: battery 100%, charging no, Wi-Fi connected, Focus on, home", "Orion Beta", "Exact", 480),
+      I("s31", "Private", "Health", "Phone check 8:00 AM: battery 92%, charging no, Wi-Fi connected, Focus on, home", "Orion Beta", "Exact", 360),
+      I("s32", "Private", "Health", "Phone check 10:00 AM: battery 71%, charging no, Wi-Fi connected, Focus off, away", "Orion Beta", "Exact", 240),
+      I("s33", "Private", "Health", "Phone check 12:00 PM: battery 48%, charging no, Wi-Fi connected, Focus off, away", "Orion Beta", "Exact", 120),
       I("s24", "Private", "Health", "Workout: 4 exercises, 13 sets, 25 cardio min", "FitNotes", "Exact", 1500),
       I("s25", "Private", "Health", "Workout: 4 exercises, 10 sets", "FitNotes", "Exact", 2940),
       I("s26", "Private", "Health", "Workout: 3 exercises, 9 sets", "FitNotes", "Exact", 4380),
@@ -2528,6 +2539,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="views/timeline.js" onerror="void 0"></script>
 <script src="views/system.js" onerror="void 0"></script>
 <script src="views/shooting.js" onerror="void 0"></script>
+<script src="cc-widgets.js"></script>
 <link rel="stylesheet" href="views/views.css">
 </body>
 </html>

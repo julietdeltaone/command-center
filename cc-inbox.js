@@ -144,44 +144,72 @@
     btn.setAttribute("aria-label", "Inbox, " + n + " open");
   }
   function how(x) { return {seen: "Seen", replied: "Replied", dismissed: "Dismissed"}[x] || "Seen"; }
+  var UI = {tab: "open", q: "", cat: "all", exp: null};
+  var KIND = {lead: "Leads", failure: "Failures", deadline: "Deadlines", local: "Local", crew: "Crew"};
+  function tcolor(t) { return t >= 4 ? "var(--red)" : t === 3 ? "color-mix(in srgb,var(--red) 55%,var(--amber))" : t === 2 ? "var(--amber)" : "var(--accent)"; }
+  function tword(t) { return t >= 4 ? "Urgent" : t === 3 ? "Soon" : t === 2 ? "Heads up" : "New"; }
+  function jump(tab) { var m = {Today: "Today", Business: "Business", Local: "Local", System: "System", Private: "Private"}; togglePanel(false); try { if (window.CC.api && CC.api.go) CC.api.go(m[tab] || tab); } catch (e) {} }
   function row(a, isOpen) {
-    var stamp = window.CC.fresh ? CC.fresh.stamp(a.at) : "";
-    return h("div", {class: "ib-row t" + (a.t || 1)},
-      h("div", null, h("b", null, a.ti), h("div", {class: "ib-sub"}, (a.tab || "") + (isOpen ? (a.rt || a.at ? " · " + (a.rt || "arrived " + stamp) : "") : " · " + how(a.how) + " " + stamp))),
-      isOpen
-        ? h("div", {class: "ib-act"}, a.kind === "lead" ? h("button", {type: "button", onclick: function (e) { see(a, "replied", e.target.closest(".ib-row")); }}, "Replied") : null,
-            h("button", {type: "button", onclick: function (e) { see(a, a.kind === "lead" ? "dismissed" : "seen", e.target.closest(".ib-row")); }}, a.kind === "lead" ? "Dismiss" : "Seen"))
-        : h("div", {class: "ib-act"}, h("button", {type: "button", onclick: function () { restore(a.key); }}, "Bring back")));
+    var stamp = window.CC.fresh ? CC.fresh.stamp(a.at) : "", ex = UI.exp === a.key;
+    var el = h("div", {class: "ib-row t" + (a.t || 1) + (ex ? " ex" : ""), style: "--tc:" + tcolor(a.t || 1)},
+      h("div", {class: "ib-main", role: "button", tabindex: "0", onclick: function () { UI.exp = ex ? null : a.key; paintPanel(); }},
+        h("div", {class: "ib-top"}, isOpen ? h("span", {class: "ib-tag"}, tword(a.t || 1)) : h("span", {class: "ib-tag done"}, how(a.how)), h("span", {class: "ib-cat"}, KIND[a.kind] || a.tab || "")),
+        h("b", null, a.ti),
+        h("div", {class: "ib-sub"}, (a.tab || "") + (isOpen ? (a.rt || a.at ? " · " + (a.rt || "arrived " + stamp) : "") : " · " + how(a.how) + " " + stamp))),
+      h("div", {class: "ib-act"},
+        isOpen ? [a.kind === "lead" ? h("button", {type: "button", class: "pri", onclick: function (e) { see(a, "replied", e.target.closest(".ib-row")); }}, "Replied") : null,
+            h("button", {type: "button", onclick: function (e) { see(a, a.kind === "lead" ? "dismissed" : "seen", e.target.closest(".ib-row")); }}, a.kind === "lead" ? "Dismiss" : "Seen")]
+          : h("button", {type: "button", onclick: function () { restore(a.key); }}, "Bring back")),
+      ex ? h("div", {class: "ib-detail"}, h("div", null, a.ti), a.tab ? h("button", {type: "button", class: "ib-go", onclick: function () { jump(a.tab); }}, "Go to " + (a.tab === "Private" ? "Personal" : a.tab)) : null) : null);
+    return el;
+  }
+  function match(a) {
+    if (UI.cat !== "all" && (a.kind || "other") !== UI.cat) return false;
+    if (UI.q && String((a.ti || "") + " " + (a.tab || "") + " " + (KIND[a.kind] || "")).toLowerCase().indexOf(UI.q.toLowerCase()) < 0) return false;
+    return true;
   }
   function paintPanel() {
     if (!panel || !panel.classList.contains("open")) return;
-    var op = open(), cl = clearedList(), body = panel.querySelector(".ib-body");
+    var op = open(), cl = clearedList(), body = panel.querySelector(".ib-body"), top = panel.querySelector(".ib-tools");
+    cl.forEach(function (x) { var f = all().filter(function (p) { return p.key === x.key; })[0]; if (f && !x.kind) x.kind = f.kind; });
+    top.textContent = "";
+    var tabs = h("div", {class: "ib-tabs", role: "tablist"},
+      h("button", {type: "button", role: "tab", "aria-selected": String(UI.tab === "open"), onclick: function () { UI.tab = "open"; paintPanel(); }}, "Open ", h("em", null, String(op.length))),
+      h("button", {type: "button", role: "tab", "aria-selected": String(UI.tab === "done"), onclick: function () { UI.tab = "done"; paintPanel(); }}, "Cleared ", h("em", null, String(cl.length))));
+    var kinds = {}; (UI.tab === "open" ? op : cl).forEach(function (a) { var k = a.kind || "other"; kinds[k] = (kinds[k] || 0) + 1; });
+    var cats = h("div", {class: "ib-cats"}, h("button", {type: "button", class: UI.cat === "all" ? "on" : "", onclick: function () { UI.cat = "all"; paintPanel(); }}, "All"),
+      Object.keys(kinds).map(function (k) { return h("button", {type: "button", class: UI.cat === k ? "on" : "", onclick: function () { UI.cat = k; paintPanel(); }}, (KIND[k] || "Other") + " " + kinds[k]); }));
+    var q = h("input", {class: "ib-q", type: "search", placeholder: "Search the inbox", value: UI.q, "aria-label": "Search the inbox"});
+    q.addEventListener("input", function () { UI.q = q.value; var pos = q.selectionStart; paintPanel(); var n = panel.querySelector(".ib-q"); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } });
+    top.appendChild(tabs); top.appendChild(q); top.appendChild(cats);
     body.textContent = "";
-    body.appendChild(h("h4", null, "Open now · " + op.length));
-    if (op.length) op.forEach(function (a) { body.appendChild(row(a, true)); });
-    else body.appendChild(h("div", {class: "ib-empty"}, "Nothing open. Everything is cleared."));
-    body.appendChild(h("h4", null, "Cleared · " + cl.length));
-    if (cl.length) cl.slice(0, 60).forEach(function (x) { body.appendChild(row({key: x.key, ti: x.ti, tab: x.tab, t: x.t, at: x.at, how: x.how}, false)); });
-    else body.appendChild(h("div", {class: "ib-empty"}, "Nothing cleared yet."));
-    if (cl.length) body.appendChild(h("button", {type: "button", class: "ib-wipe", onclick: function (e) {
+    var list = (UI.tab === "open" ? op : cl.map(function (x) { return {key: x.key, ti: x.ti, tab: x.tab, t: x.t, at: x.at, how: x.how, kind: x.kind}; })).filter(match);
+    if (UI.tab === "open" && op.some(function (a) { return a.kind !== "lead"; })) {
+      body.appendChild(h("div", {class: "ib-bulk"}, h("button", {type: "button", onclick: function () { op.filter(function (a) { return a.kind !== "lead" && match(a); }).forEach(function (a) { mark(a, "seen"); }); emit(); if (typeof opts.rerender === "function") opts.rerender(); }}, "Mark all seen (not leads)")));
+    }
+    if (list.length) list.slice(0, 100).forEach(function (a) { body.appendChild(row(a, UI.tab === "open")); });
+    else body.appendChild(h("div", {class: "ib-empty"}, UI.q || UI.cat !== "all" ? "Nothing matches." : UI.tab === "open" ? "Nothing open. Everything is clear." : "Nothing cleared yet."));
+    if (UI.tab === "done" && cl.length) body.appendChild(h("button", {type: "button", class: "ib-wipe", onclick: function (e) {
       var b = e.target; if (!b.getAttribute("data-armed")) { b.setAttribute("data-armed", "1"); b.textContent = "Tap again to forget all cleared"; setTimeout(function () { b.removeAttribute("data-armed"); b.textContent = "Forget cleared history"; }, 3000); return; }
       clearHistory();
     }}, "Forget cleared history"));
+    var cnt = panel.querySelector(".ib-count"); if (cnt) cnt.textContent = op.length ? op.length + " open" : "All clear";
   }
   function togglePanel(force) {
     if (!panel) return;
     var on = force === undefined ? !panel.classList.contains("open") : !!force;
     panel.classList.toggle("open", on);
-    if (on) paintPanel();
+    document.body.classList.toggle("ib-on", on);
+    if (on) { UI.exp = null; paintPanel(); }
   }
   function build() {
     var hb = document.querySelector(".hbtns");
     btn = h("button", {class: "ibtn icon", id: "inboxbtn", type: "button", title: "Alert inbox", "aria-label": "Inbox", onclick: function () { togglePanel(); }});
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l2-8h12l2 8M4 13v6h16v-6M4 13h5l1 2h4l1-2h5"/></svg>';
     if (hb) hb.insertBefore(btn, hb.firstChild);
-    panel = h("div", {id: "ib-panel", role: "dialog", "aria-label": "Alert inbox"},
-      h("div", {class: "ib-card"}, h("div", {class: "ib-head"}, h("b", null, "Alert inbox"), h("button", {type: "button", "aria-label": "Close", onclick: function () { togglePanel(false); }}, "✕")), h("div", {class: "ib-body"})));
-    panel.addEventListener("click", function (e) { if (e.target === panel) togglePanel(false); });
+    panel = h("aside", {id: "ib-panel", role: "complementary", "aria-label": "Alert inbox"},
+      h("div", {class: "ib-scrim", onclick: function () { togglePanel(false); }}),
+      h("div", {class: "ib-card"}, h("div", {class: "ib-head"}, h("div", null, h("b", null, "Inbox"), h("span", {class: "ib-count"}, "")), h("button", {type: "button", "aria-label": "Close inbox", onclick: function () { togglePanel(false); }}, "✕")), h("div", {class: "ib-tools"}), h("div", {class: "ib-body"})));
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") togglePanel(false); });
     document.body.appendChild(panel);
     badge();

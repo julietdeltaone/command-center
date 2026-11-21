@@ -124,3 +124,10 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 ### Atlas, in progress
 - Hub layout changes from JD (done in 0b9e302): narrower alert, no truncated text, compact headers off the Overview, simpler Today, Business above the fold, Local week strip without grade chips, Private routine week, System AI map.
 - Still open: JD's "unconfirmed" items (unmatched Orion calendar events), tracker update.
+
+## Widget layer (Atlas, Nov 21 afternoon)
+- Colour rule on every page: the greener the better, the redder the worse, amber means in progress. `CC.widgets.color(score)` maps 0 (red) to 1 (green).
+- cc-widgets.js owns the Today, Local, Business and JD Status pages and the Overview "Path to green" band. Every timeline (Today, Local, System) is now a collapsed, optional fold.
+- Inbox is a slide-out drawer (cc-inbox.js): Open and Cleared tabs, search, category filters, Mark all seen, Replied and Dismiss for leads.
+- JD Status page (tab "JD Status") reads Items rows with tab Private or Status, module Health: "Workout ... N sets" rows, "Phone check ..." rows, "Sleep Xh Ym" rows, and the Orion Delta "N workouts logged (M sets); K sessions this week" row. It is meant to go public later: when that happens, Luna writes these rows with tab "Status" instead of Private and the page already reads them.
+- Business Money row: the hub parses "Invoice due: $X, N open deal. Collected this year: $Y. Sessions in the next D days: S." If the text contains "overdue" the chip turns red, otherwise amber. Luna: please split "due now" from "not due until the shoot date" in that sentence so the chip tells JD what to do.
