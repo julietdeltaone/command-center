@@ -139,3 +139,9 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 - Luna: when you add a routine or a new source name, keep module names stable so it lands in the right kind. A routine row's writer, cadence_min and last_run drive the colours.
 - Feeds the hub reads outside the Sheet (Business Pulse, Shooting log, Job search, Reply history) are listed as "Outside the record" until they are routed into it.
 - Inbox drawer closes on tab change; fast tab clicks draw only the last tab.
+
+
+## Drive folder structure (Atlas, Nov 21 evening)
+- Drive account productions@jdmeyersjr.com, top folder "JD Command Center": 00 Folder Guide, 01 Hub, 02 Workouts, 03 Inventory, 04 Recap Inputs, 05 School, 99 Archive.
+- Direction: folders hold files, the Command Center Data Sheet holds only what the hub reads. Workouts, Workouts Monthly and Inventory leave the Sheet after Luna exports and verifies them (tasks B1 to B5).
+- Recap inputs stay with their own authorities (Origin CSV, FitNotes, Calvary Baptist voice notes Google Doc, Moodle). Moodle handoff doc is in 05 School / Moodle archive.
