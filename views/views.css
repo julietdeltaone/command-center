@@ -1,0 +1,27 @@
+/* views/views.css — shared extra styles for view modules.
+   Prefixes: biz- (Business, Luna), sys- (System, Argus), shoot- (Shooting, Argus). */
+
+/* ---------- biz- : Business page (views/business.js) ---------- */
+.biz3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .biz3 { grid-template-columns: minmax(0, 1fr); } }
+.biz-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.biz-click { cursor: pointer; }
+.biz-open { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.biz-rank { padding: 10px 0 4px; border-top: 1px solid var(--line); }
+.biz-rank-t { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.biz-rank-r { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.biz-rank-n { color: var(--muted); width: 16px; flex: none; }
+.biz-rank-h { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.biz-rank-v { color: var(--muted); white-space: nowrap; }
+.biz-read { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.biz-jd { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.biz-jd-d.dn { color: var(--red); }
+.biz-jd-d.up { color: var(--green); }
+.biz-price { padding: 2px 0; }
+.biz-line { padding: 6px 0 0; }
+.biz-empty { color: var(--muted); padding: 8px 0; }
+.biz-lead { padding: 10px 0 4px; border-top: 1px solid var(--line); }
+.biz-act { color: var(--muted); margin-top: 4px; }
+.biz-act b { color: var(--text); }
+.biz-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.biz-meta .biz-read { margin-top: 0; }
