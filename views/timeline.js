@@ -63,6 +63,7 @@
     var h = api.h, key = opt.key || 'today', st = STORE[key];
     var now0 = api.nowMs(), nd = new Date(now0), mid = new Date(nd.getFullYear(), nd.getMonth(), nd.getDate()).getTime();
     var PRESETS = {now: ['Now', now0 - HR, now0 + 5 * HR], day: ['Day', mid, mid + DAY], week: ['Week', mid - 2 * DAY, mid + 5 * DAY], two: ['2 weeks', mid, mid + 14 * DAY]};
+    if (st && st.preset && PRESETS[st.preset]) { st.w0 = PRESETS[st.preset][1]; st.w1 = PRESETS[st.preset][2]; }
     if (!st) { st = STORE[key] = {hide: load(key).hide || {}, sel: null}; var p0 = PRESETS[opt.span] || PRESETS.day; st.w0 = p0[1]; st.w1 = p0[2]; st.preset = opt.span || 'day'; if (opt.layers) LAYERS.forEach(function (L) { if (opt.layers.indexOf(L[0]) < 0 && st.hide[L[0]] === undefined) st.hide[L[0]] = true; }); }
     var M = collect(api, mid), root = h('section', {class: 'pv-card tlz'}), bodyBox = h('div', {class: 'tlscroll'}), detail = h('div', {class: 'tldet'}), chipsBox = h('div', {class: 'tlchips'}), titleEl = h('span');
     var raf = 0, W = 900;
@@ -118,9 +119,9 @@
         tk.forEach(function (t) { var d = new Date(t); lane.appendChild(h('div', {class: 'tlgrid' + (d.getHours() === 0 && d.getMinutes() === 0 ? ' day' : ''), style: 'left:' + X(t) + 'px'})); });
         pk.items.forEach(function (it) {
           var m = it.m, c = col(m), top = 6 + it.ln * 28, tip = m.label + ' · ' + fmtD(m.t0) + ' ' + fmtT(m.t0), onc = function (e) { e.stopPropagation(); st.sel = m; showDetail(m); };
-          if (m.t1 && m.t1 - m.t0 > 20 * 60000 && m.kind !== 'expected') lane.appendChild(h('div', {class: 'tlb' + (st.sel === m ? ' sel' : ''), style: 'left:' + it.x0 + 'px;width:' + it.w + 'px;top:' + top + 'px;--c:' + c, title: tip, onclick: onc, 'data-m': '1'}, labels ? m.label : null));
+          if (m.t1 && m.t1 - m.t0 > 20 * 60000 && m.kind !== 'expected') lane.appendChild(h('div', {class: 'tlb' + (st.sel === m ? ' sel' : ''), style: 'left:' + it.x0 + 'px;width:' + it.w + 'px;top:' + top + 'px;--c:' + c, title: tip, onclick: onc, tabindex: '0', role: 'button', 'aria-label': tip, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onc(e); } }, 'data-m': '1'}, labels ? m.label : null));
           else {
-            lane.appendChild(h('i', {class: 'tlm ' + (m.kind === 'expected' ? 'exp' : m.kind === 'missed' ? 'mis' : '') + (st.sel === m ? ' sel' : ''), style: 'left:' + it.x0 + 'px;top:' + (top + 12) + 'px;--c:' + c, title: tip, onclick: onc, 'data-m': '1'}));
+            lane.appendChild(h('i', {class: 'tlm ' + (m.kind === 'expected' ? 'exp' : m.kind === 'missed' ? 'mis' : '') + (st.sel === m ? ' sel' : ''), style: 'left:' + it.x0 + 'px;top:' + (top + 12) + 'px;--c:' + c, title: tip, onclick: onc, tabindex: '0', role: 'button', 'aria-label': tip, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onc(e); } }, 'data-m': '1'}));
             if (labels) lane.appendChild(h('span', {class: 'tlt', style: 'left:' + (it.x0 + 10) + 'px;top:' + (top + 4) + 'px;--c:' + c, onclick: onc, 'data-m': '1'}, m.label.length > 34 ? m.label.slice(0, 33) + '…' : m.label));
           }
         });
@@ -166,7 +167,8 @@
     bodyBox.addEventListener('pointerup', up); bodyBox.addEventListener('pointercancel', up);
     bodyBox.style.touchAction = 'pan-y';
     paintBody(); requestAnimationFrame(function () { if (root.isConnected) paintBody(); });
-    window.addEventListener('resize', sched);
+    var onResize = function () { if (!root.isConnected) { window.removeEventListener('resize', onResize); return; } sched(); };
+    window.addEventListener('resize', onResize);
     return root;
   }
   window.CC = window.CC || {views: {}, subviews: {}};

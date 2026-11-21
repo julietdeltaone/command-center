@@ -847,3 +847,20 @@ html{background:var(--bg,#0b0e1a)}
 .pv-fold summary{cursor:pointer;display:flex;gap:8px;align-items:center;font-size:16px;font-weight:600;list-style:none}.pv-fold summary::-webkit-details-marker{display:none}.pv-fold summary small{margin-left:auto;font-weight:400;font-size:12px;color:var(--muted)}
 .pv-fold[open] summary{margin-bottom:12px}.pv-three{display:grid;grid-template-columns:2fr 1fr 1fr;gap:24px}@media(max-width:900px){.pv-three{grid-template-columns:1fr}}
 .pv-brow{display:grid;grid-template-columns:110px 1fr 24px;gap:8px;align-items:center;font-size:12px;padding:3px 0}.pv-brow span{display:flex;gap:6px;align-items:center;color:var(--muted)}.pv-track{height:6px;background:var(--line);border-radius:3px;overflow:hidden}.pv-track i{display:block;height:100%;background:var(--accent);border-radius:3px}
+
+/* audit: Local feed as cards on phones */
+@media(max-width:700px){
+.lscroll{overflow:visible;max-height:none!important}
+.ltbl,.ltbl:not(.full){min-width:0!important;display:block;width:100%}
+.ltbl thead{display:none}
+.ltbl tbody{display:grid;gap:8px;padding:12px}
+.ltbl tr{display:grid;grid-template-columns:1fr auto;gap:2px 12px;border-left:3px solid var(--c);border-radius:12px;padding:10px 12px;background:color-mix(in srgb,var(--c) 9%,transparent)}
+.ltbl td{display:block;border:0!important;background:transparent!important;padding:0!important;width:auto!important;box-shadow:none!important;font-size:13px}
+.ltbl td:empty,.ltbl td.dim{display:none}
+.ltbl .c-what{grid-column:1;grid-row:1;font-size:15px}.ltbl .c-type{grid-column:2;grid-row:1}
+.ltbl .c-when{grid-column:1;grid-row:2;color:var(--muted)}.ltbl .c-time{grid-column:1;grid-row:3;color:var(--muted)}
+.ltbl .c-where{grid-column:1;grid-row:4}.ltbl .c-price{grid-column:2;grid-row:2}.ltbl .c-src{grid-column:1;grid-row:5}.ltbl .c-link{grid-column:2;grid-row:4}
+.ltbl .c-light,.ltbl .c-aud,.ltbl .c-via,.ltbl .c-pulled,.ltbl .c-grade{display:none!important}
+.ltbl .lempty{display:block!important}
+}
+@media(max-width:700px){.ltbl:not(.full) td[class],.ltbl.full td[class]{width:auto!important;max-width:none!important;min-width:0}.ltbl td{overflow-wrap:break-word}}

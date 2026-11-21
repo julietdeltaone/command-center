@@ -97,3 +97,5 @@
 .sys-dh{font-size:12px;border:1px solid;border-radius:999px;padding:1px 10px;white-space:nowrap}
 .sys-diagw{grid-template-columns:minmax(0,1fr)!important}.sys-diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
 .sys-chip{white-space:normal!important;height:auto!important;line-height:1.35}
+
+.sys-shead{display:flex;gap:10px;align-items:center;font-size:18px;font-weight:600;margin-bottom:14px;line-height:1.3}.sys-shead.warn{color:var(--amber)}.sys-shead.good{color:var(--green)}

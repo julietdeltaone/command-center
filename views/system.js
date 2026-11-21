@@ -137,12 +137,17 @@
         ['Job search', js.at || NaN, 15, 60],
         ['Shooting log', sh.at || NaN, 15, 60]
       ];
-      var lates = 0;
-      var grid = h('div', {class: 'sys-sync'}, list.map(function (r) {
+      var lates = 0, ents = list.map(function (r) {
         var st = d.sample && !Number.isFinite(r[1]) ? 'none' : ageState(r[1], r[2], r[3]); if (st === 'late' || st === 'fail') lates++;
-        return h('div', {class: 'sys-src ' + st}, h('span', {class: 'dot ' + st}), h('b', null, r[0]), h('small', null, Number.isFinite(r[1]) ? fmt(r[1]) : 'No data yet'));
+        return {r: r, st: st, rank: st === 'fail' ? 0 : st === 'late' ? 1 : st === 'none' ? 2 : 3};
+      }).sort(function (a, b) { return a.rank - b.rank; });
+      var behind = ents.filter(function (e) { return e.rank < 2; });
+      var head = h('div', {class: 'sys-shead ' + (behind.length ? 'warn' : 'good')}, h('i', {class: 'dot ' + (behind.length ? (behind[0].st) : 'ok')}), behind.length ? behind.length + ' behind: ' + behind.map(function (e) { return e.r[0] + ' (' + (Number.isFinite(e.r[1]) ? Math.round((now - e.r[1]) / 60000) + ' min' : 'no data') + ')'; }).join(', ') : 'Everything is current');
+      var grid = h('div', {class: 'sys-sync'}, ents.map(function (e) {
+        var r = e.r;
+        return h('div', {class: 'sys-src ' + e.st}, h('span', {class: 'dot ' + e.st}), h('b', null, r[0]), h('small', null, Number.isFinite(r[1]) ? fmt(r[1]) : 'No data yet'));
       }));
-      return {grid: grid, lates: lates};
+      return {grid: h('div', null, head, grid), lates: lates};
     }
     function links() {
       var L = [

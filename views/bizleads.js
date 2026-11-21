@@ -60,10 +60,15 @@
       var b3 = root.querySelector ? root.querySelector('.biz3') : null;
       if (b3 && b3.children.length > 1) b3.removeChild(b3.children[1]);
       if (b3) b3.style.gridTemplateColumns = 'repeat(2,minmax(0,1fr))';
+      var gone = [];
+      if (b3) [].slice.call(b3.querySelectorAll('section.card')).forEach(function (c) {
+        if (c.querySelector('.biz-empty')) { var t = c.querySelector('h3'); if (t) gone.push(t.textContent); var par = c.parentNode; par.removeChild(c); if (par !== b3 && !par.children.length && par.parentNode) par.parentNode.removeChild(par); }
+      });
       var raw = (api.data.items || []).filter(function (i) { return i.tab === 'Business' && i.module === 'Leads'; });
       var L = raw.map(function (i) { return parse(api, i); });
       var top = !L.length ? h('section', {class: 'pv-card'}, h('h3', null, 'Leads'), h('div', {class: 'pv-empty'}, 'No leads read')) : panelA(api, L);
       var root2 = h('div', null, top, root);
+      if (gone.length) root2.appendChild(h('div', {class: 'pv-strip1'}, h('span', null, gone.length + ' not reporting yet:'), gone.map(function (n) { return h('span', {class: 'pv-chip'}, n); })));
       if (L.length) root2.appendChild(arrivals(api, L));
       return root2;
     };
