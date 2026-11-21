@@ -1468,7 +1468,8 @@ function jobsView(){
 }
 function privateView(){
   loadShots(); loadJobs();
-  if (PSUB === "shooting") return shotView();
+  var SV = window.CC && window.CC.subviews && window.CC.subviews.shooting;
+  if (PSUB === "shooting") { var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }
   if (PSUB === "jobs") return jobsView();
   var wrap = h("div", {class: "wall vgrid top"});
   ((DATA.modules || {})[TAB] || []).forEach(function(m){
@@ -1476,7 +1477,8 @@ function privateView(){
     card.classList.add("vs4");
     wrap.appendChild(card);
   });
-  wrap.appendChild(shotCard());
+  var sc = null; try { sc = SV && SV.card ? SV.card(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting card module failed", e); }
+  wrap.appendChild((sc && sc.nodeType) ? sc : shotCard());
   wrap.appendChild(jobsCard());
   var rw = routineWeek("Private"); rw.classList.remove("vs12"); rw.classList.add("vs4");
   wrap.appendChild(rw);
@@ -1722,6 +1724,8 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(function()
 
 /* ---------- view modules (views/*.js): see views/CONTRACT.md ---------- */
 var CCAPI = {h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
+  openSub: function(n){ PSUB = n; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSUB = null; render(); },
+  get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
   get data(){ return DATA; }, get tab(){ return TAB; }};
 function customView(tab){
   var fn = window.CC && window.CC.views && window.CC.views[tab];

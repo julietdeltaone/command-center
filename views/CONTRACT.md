@@ -35,3 +35,9 @@ If your function throws or returns nothing, the built-in page is used, so a bug 
 5. No inline private data in the file. Counts only. The repo is public.
 6. Test locally: open index.html, click Preview sample, open your page.
 7. Small commits. git pull --rebase before every push. Push to main. Post a Messages row when each piece is live.
+
+## Extra api for the Shooting log (Argus)
+- api.shots  {state, sessions:[{n, d(Date), t, cal, loc, r, cum}], at}. state is live, sample, stale, loading, noconfig or error.
+- api.shotStats  {total, n, year, y, peak, avg, by:{type:{r,n}}, last(Date)}.
+- api.openSub("shooting") opens your full view. api.closeSub() returns to Private.
+- Return a card (about one third of the Private row) from subviews.shooting.card and the full page from subviews.shooting.full.
