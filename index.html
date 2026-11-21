@@ -224,6 +224,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 <aside class="rail" id="rail" aria-label="Quick jump"></aside>
 <nav class="tabs" id="tabs" role="tablist" aria-label="Sections"></nav>
 
+<script>window.CC = window.CC || {views: {}, subviews: {}};</script>
 <script>
 (function(){
 "use strict";
@@ -1719,6 +1720,14 @@ var fitTimer = null;
 window.addEventListener("resize", function(){ clearTimeout(fitTimer); fitTimer = setTimeout(function(){ if (TAB === "Wall") { render(); } }, 150); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if (TAB === "Wall" && DATA) fitWall(); });
 
+/* ---------- view modules (views/*.js): see views/CONTRACT.md ---------- */
+var CCAPI = {h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
+  get data(){ return DATA; }, get tab(){ return TAB; }};
+function customView(tab){
+  var fn = window.CC && window.CC.views && window.CC.views[tab];
+  if (typeof fn !== "function") return null;
+  try { var el = fn(CCAPI); return el && el.nodeType ? el : null; } catch (e) { if (window.console) console.error("view module " + tab + " failed, using built-in", e); return null; }
+}
 function render(){
   var app = document.getElementById("app");
   app.textContent = "";
@@ -1733,7 +1742,9 @@ function render(){
   if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
-  if (TAB === "Business") app.appendChild(businessView());
+  var cv = (TAB === "Private" && PSUB) ? null : customView(TAB);
+  if (cv) app.appendChild(cv);
+  else if (TAB === "Business") app.appendChild(businessView());
   else if (TAB === "Local") app.appendChild(localView());
   else if (TAB === "Private") app.appendChild(privateView());
   else if (TAB === "System") app.appendChild(systemView());
@@ -1997,5 +2008,9 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <script src="cc-motion.js"></script>
+<script src="views/business.js" onerror="void 0"></script>
+<script src="views/system.js" onerror="void 0"></script>
+<script src="views/shooting.js" onerror="void 0"></script>
+<link rel="stylesheet" href="views/views.css">
 </body>
 </html>
