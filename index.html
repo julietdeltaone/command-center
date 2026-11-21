@@ -205,6 +205,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 <link rel="stylesheet" href="cc-skin.css">
 <script src="cc-fresh.js"></script>
 <script src="cc-inbox.js"></script>
+<script src="cc-sources.js"></script>
 <script src="cc-dev.js" onerror="void 0"></script>
 </head>
 <body>
@@ -1049,7 +1050,8 @@ function wall(){
     statsRow(),
     todayTile(), localTile(), businessTile(), inboxTile(),
     ps ? pulseCover(3) : null, leadsCover(ps ? 2 : 4), ps ? marketingCover(2) : null, recapCover(ps ? 2 : 4), wpTile()));
-  if (off.length) box.appendChild(h("div", {class: "pv-strip1"}, h("span", null, off.length + " feeds not connected yet:"), off.map(function(n){ return h("span", {class: "pv-chip"}, n); })));
+  var sp = CC.sources && CC.sources.panel(CCAPI);
+  if (sp) box.appendChild(sp);
   return box;
 }
 
@@ -1984,8 +1986,17 @@ function tileOver(t){
   }
   return false;
 }
+function sizeWall(){
+  var w = document.querySelector(".wall.fit"); if (!w) return;
+  if (window.matchMedia("(min-width:1200px) and (min-height:700px)").matches) {
+    w.style.height = "";
+    var top = w.getBoundingClientRect().top + window.scrollY;
+    w.style.height = Math.max(520, window.innerHeight - top - 14) + "px";
+  } else w.style.height = "";
+}
 function fitWall(){
   var w = document.querySelector(".wall.fit"); if (!w) return;
+  sizeWall();
   var tiles = w.children;
   for (var i = 0; i < tiles.length; i++) {
     var t = tiles[i];
@@ -2007,7 +2018,7 @@ var CCAPI = {unlocked: function(){ return !DATA.sample && isUnlocked() || !!DATA
   get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
   get data(){ return DATA; }, get tab(){ return TAB; },
-  get connected(){ return !!getCfg(); },
+  get connected(){ return !!getCfg(); }, get sheetAt(){ return SHEET_AT; },
   get pulse(){ var st = null; try { st = pulseStats(); } catch (e) {} return {state: PULSE_STATE, built: st ? st.built : null}; }};
 window.CC.api = CCAPI;
 function customView(tab){
@@ -2043,7 +2054,7 @@ function render(){
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   document.body.classList.toggle("onwall", TAB === "Wall");
   var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TABLABEL[TAB] || TAB);
-  if (TAB === "Wall") { app.appendChild(wall()); renderNav(); setTimeout(fitWall, 0); return; }
+  if (TAB === "Wall") { app.appendChild(wall()); renderNav(); fitWall(); return; }
   if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
