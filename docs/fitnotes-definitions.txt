@@ -1,0 +1,51 @@
+FITNOTES BACKUP GUIDE (for Luna, Atlas or any AI reading this email)
+
+ABOUT THE ATTACHMENT
+The attached .fitnotesdb file is JD's gym log from the FitNotes app. It is a zip file holding one SQLite database. It covers every logged set from October 2021 to now. Sets are in table ZWORKOUTSET, exercises in ZEXERCISE, categories in ZEXERCISECATEGORY, workouts in ZWORKOUT. The set date is ZDATE plus 978307200 seconds (Unix time). Weights and distances are stored times 100. ZWEIGHTLBS is pounds and ZWEIGHTKG is the same weight in kilograms. One row is one set.
+
+WHO AND WHAT
+JD lifts weights and does cardio about 5 days a week. Weights are in pounds unless stated. Kettle Bell Sprint is the exception: JD types the kilograms (for example 24 kg), so use the weight_kg value as the true number.
+
+WEIGHT FIELD ON CARDIO MACHINES (not a weight)
+Stairs: the weight field is the stair machine speed, usually 6 or 7. It is not pounds. Time is the duration in seconds. The set note holds floors climbed and heart rate, for example "74 floors AVG 138" means 74 floors, average heart rate 138 bpm.
+Stairs (Weighted): the weight is real weight carried, in pounds. This is the only stairs entry where the number is a load.
+Treadmill Sprint: the weight field is the treadmill speed.
+Incline Treadmill: the weight field is the incline.
+Vested Run, Vested Treadmill, Vested Walk: a 20 lb vest.
+Bodyweight exercises (Chin Up, Pull Up, Pushup, Situps, Hanging Leg Raise): weight 0 means bodyweight. A number above 0 is added weight.
+Timed exercises (Plank, L Hold, Dead Hang, Isometric holds): time is in seconds and reps are 0.
+
+FIELD MEANINGS
+reps: repetitions. 0 on a timed or cardio set.
+time_sec: seconds. 0 if not timed.
+distance and distance_unit: distance covered. Unit 1 is miles, 3 is km. Unit 2 is probably yards or meters (Sprint) and unit 7 is probably inches (Box Jumps height). The last two are not confirmed.
+completed: 1 means the set was marked done.
+
+JD'S NOTE SHORTHAND
+Slow: slow, strict, controlled form with a slow tempo (JD's most common note).
+Controlled, Ultra slow, Tap, Pause, Deep, Deep stretch: strict form details.
+Fast, Faster, Quick, Explosive, Fast tempo: fast tempo.
+Clean: good form. Dirty, Sloppy, Cheat: form broke down or momentum was used.
+FFML: JD's shorthand for a very hard set.
+RIR: reps in reserve, how many reps were left. "Few RIR" means close to failure.
+AVG, avg: average heart rate in bpm. "159avg" means average 159 bpm. "Speed 7 144 avg" means speed 7, average heart rate 144.
+BPM, Zone 2, Zone 3: heart rate and training zones. Zone 2 is easy aerobic, zone 3 is harder.
+Speed N, Incline N: treadmill or stair machine setting.
+Level N, Seat N, Wheel N, Calf N, Bar N, Notch N, Position N, Elv or Elevate N, Showing N, Vert seat: the machine or bench setting used, so the same setup can be repeated. These are not weights.
+Chalk: chalk used on hands. Wraps, Beltless, Padded, Flat shoes: gear.
+Wide, Close grip, Neutral, Knuckles, W grip, V grip, D handles: grip or handle used.
+Superset: done back to back with another exercise.
+Partials, Pause: partial range or paused reps.
+Right weaker: right side was weaker.
+Warm-up: 0.5 mi @ 6.0: warm-up distance and speed. "Rest: 1-3 min @ 5.0" is an interval rest at speed 5.
+SF, PAT, Precore: JD's private labels for a style or order of exercises. Meaning not confirmed.
+Pain or tiredness comments (for example knee pain) are real symptoms JD typed. Report them plainly and do not diagnose.
+
+EXERCISE NAME SUFFIXES
+Potsdam: done on the machine at the Potsdam gym (Lat Pulldown Potsdam, Tricep Cable Potsdam).
+Lower Mobility, Upper Mobility: a mobility routine, not a strength lift.
+Split: one side at a time.
+Slow, Isometric: slow tempo or a held position.
+
+WHEN YOU REPORT ON IT
+Use the most recent 7 days, or the last workout day if none. Give: workout days, exercises, top weight per lift, total sets, cardio time and any heart rate notes. Do not call a stairs speed of 6 or 7 a weight. If a note or number does not match these definitions, say what you could not tell instead of guessing.
