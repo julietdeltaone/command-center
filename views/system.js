@@ -207,7 +207,7 @@
       var last = rs.map(function (r) { return time(r.last_run); }).filter(Number.isFinite).sort(function (a, b) { return b - a; })[0];
       return {st: worst === 'nodata' ? 'none' : worst, at: last == null ? NaN : last, owner: id(rs[0].writer) && crew.some(function (c) { return c[0] === id(rs[0].writer); }) ? id(rs[0].writer) : row[3]};
     }
-    function agoTxt(ms) { if (!Number.isFinite(ms)) return 'no reading'; var m = Math.max(0, Math.round((now - ms) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' hr ago' : Math.round(m / 1440) + ' d ago'; }
+    function agoTxt(ms) { if (!Number.isFinite(ms)) return 'no reading'; var m = Math.max(0, Math.round((now - ms) / 60000)); var rel = m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' hr ago' : Math.round(m / 1440) + ' d ago'; return (window.CC && CC.fresh ? CC.fresh.clock(ms) + ' · ' : '') + rel; }
     function stCol(st) { return st === 'ok' ? 'var(--green)' : st === 'late' ? 'var(--amber)' : st === 'fail' ? 'var(--red)' : 'var(--muted)'; }
     function pipeline() {
       var rowsS = SRC.map(function (r) { return {label: r[0], group: r[1], s: srcState(r)}; });

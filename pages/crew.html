@@ -74,10 +74,11 @@ function ago(iso){
   if (!iso) return "not yet";
   var s = (Date.now() - new Date(iso)) / 1000;
   if (isNaN(s)) return "not yet";
-  if (s < 90) return "just now";
-  if (s < 3600) return Math.round(s / 60) + " min ago";
-  if (s < 86400) return Math.round(s / 3600) + " h ago";
-  return Math.round(s / 86400) + " d ago";
+  var t = new Date(iso), et = {timeZone: "America/New_York"};
+  var clock = t.toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "America/New_York"});
+  var day = t.toLocaleDateString("en-US", et) === new Date().toLocaleDateString("en-US", et) ? "" : t.toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"}) + ", ";
+  var rel = s < 90 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " d ago";
+  return day + clock + " ET \u00b7 " + rel;
 }
 function render(data){
   var stamp = document.getElementById("stamp");
