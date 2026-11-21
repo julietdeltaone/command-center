@@ -180,6 +180,70 @@
       return h('div', {class: 'sys-diagw'}, wrap, pr);
     }
 
+
+    /* ---- source map: where every input comes from, who pulls it, how fresh it is ---- */
+    var SRC = [
+      ['315 Signal Feed (Instagram)', 'Social', /315|signal/i, 'muse'],
+      ['Facebook groups', 'Social', /chatter/i, 'muse'],
+      ['Your Instagrams', 'Social', /instagram|unfollow/i, 'muse'],
+      ['Facebook friends', 'Social', /friend/i, 'muse'],
+      ['Competitor pages and sites', 'Web', /competitor|pulse/i, 'muse'],
+      ['jdmeyersjr.com forms', 'Web', /form|inquiry/i, 'muse'],
+      ['County scanner', 'Local', /scanner/i, 'muse'],
+      ['Local events', 'Local', /local events|events pull/i, 'muse'],
+      ['Business Gmail and Square', 'Money', /client|square|payment/i, 'muse'],
+      ['Bank accounts', 'Money', /finance/i, 'muse'],
+      ['Calendar and weather', 'Daily', /calendar|forecast|brief/i, 'muse'],
+      ['iPhone reports', 'Device', /orion|iphone/i, 'iphone'],
+      ['Job search repo', 'Direct', null, 'claude'],
+      ['Shooting log', 'Direct', null, 'chatgpt']
+    ];
+    function srcState(row) {
+      if (row[0] === 'Job search repo') { var j = api.jobs || {}; var t = j.at; return {st: d.sample ? 'ok' : (Number.isFinite(t) ? ageState(t, 15, 60) : 'none'), at: t, owner: row[3]}; }
+      if (row[0] === 'Shooting log') { var sh = api.shots || {}; var t2 = sh.at; return {st: d.sample ? 'ok' : (Number.isFinite(t2) ? ageState(t2, 15, 60) : 'none'), at: t2, owner: row[3]}; }
+      if (row[0] === 'iPhone reports') { var o = orionState(messages, rows, now); return {st: o.ok ? 'ok' : o.late ? 'fail' : 'late', at: o.last, owner: 'iphone'}; }
+      var rs = routines.filter(function (r) { return row[2].test(r.routine + ' ' + (r.module || '')); });
+      if (!rs.length) return {st: 'none', at: NaN, owner: row[3]};
+      var worst = rs.some(function (r) { return r.status === 'fail'; }) ? 'fail' : rs.some(function (r) { return r.status === 'late'; }) ? 'late' : rs.some(function (r) { return r.status === 'nodata'; }) ? 'nodata' : 'ok';
+      var last = rs.map(function (r) { return time(r.last_run); }).filter(Number.isFinite).sort(function (a, b) { return b - a; })[0];
+      return {st: worst === 'nodata' ? 'none' : worst, at: last == null ? NaN : last, owner: id(rs[0].writer) && crew.some(function (c) { return c[0] === id(rs[0].writer); }) ? id(rs[0].writer) : row[3]};
+    }
+    function agoTxt(ms) { if (!Number.isFinite(ms)) return 'no reading'; var m = Math.max(0, Math.round((now - ms) / 60000)); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' hr ago' : Math.round(m / 1440) + ' d ago'; }
+    function stCol(st) { return st === 'ok' ? 'var(--green)' : st === 'late' ? 'var(--amber)' : st === 'fail' ? 'var(--red)' : 'var(--muted)'; }
+    function pipeline() {
+      var rowsS = SRC.map(function (r) { return {label: r[0], group: r[1], s: srcState(r)}; });
+      var W = 940, rh = 44, top = 14, H = top * 2 + rh * rowsS.length, xs = 250, xc = 520, xe = 760;
+      var svg = S('svg', {viewBox: '0 0 ' + W + ' ' + H, class: 'sys-pipe-d', role: 'img', 'aria-label': 'Where information comes from, who collects it, and how fresh it is'});
+      var cy = {}; crew.forEach(function (c, i) { cy[c[0]] = top + 36 + i * ((H - top * 2 - 72) / (crew.length - 1)); });
+      rowsS.forEach(function (r, i) {
+        var y = top + i * rh + rh / 2, o = r.s.owner, col = colorOf(o);
+        svg.appendChild(S('path', {d: 'M' + xs + ' ' + y + 'C' + (xs + 110) + ' ' + y + ' ' + (xc - 110) + ' ' + cy[o] + ' ' + (xc - 62) + ' ' + cy[o], fill: 'none', stroke: col, 'stroke-width': 2, opacity: r.s.st === 'none' ? .22 : .6, 'stroke-dasharray': r.s.st === 'none' ? '3 5' : ''}));
+        svg.appendChild(S('rect', {x: 0, y: y - 19, width: xs, height: 38, rx: 19, fill: 'var(--bg)', stroke: stCol(r.s.st), 'stroke-width': 1.6}));
+        svg.appendChild(S('circle', {cx: 17, cy: y, r: 5.5, fill: stCol(r.s.st)}));
+        svg.appendChild(T(32, y - 2, r.label, {class: 'sys-node', 'font-size': 13}));
+        svg.appendChild(T(32, y + 13, r.group + ' · ' + agoTxt(r.s.at), {class: 'sys-axis'}));
+      });
+      crew.forEach(function (c) {
+        var y = cy[c[0]], n = rowsS.filter(function (r) { return r.s.owner === c[0]; }).length;
+        svg.appendChild(S('rect', {x: xc - 62, y: y - 22, width: 124, height: 44, rx: 14, fill: 'var(--bg)', stroke: c[2], 'stroke-width': 2}));
+        svg.appendChild(T(xc, y - 2, c[1], {'text-anchor': 'middle', class: 'sys-node', fill: c[2]}));
+        svg.appendChild(T(xc, y + 14, n + (n === 1 ? ' source' : ' sources'), {'text-anchor': 'middle', class: 'sys-axis'}));
+        svg.appendChild(S('path', {d: 'M' + (xc + 62) + ' ' + y + 'C' + (xc + 120) + ' ' + y + ' ' + (xe - 100) + ' ' + (H / 2) + ' ' + (xe - 42) + ' ' + (H / 2), fill: 'none', stroke: c[2], 'stroke-width': 2, opacity: n ? .5 : .15}));
+      });
+      svg.appendChild(S('rect', {x: xe - 42, y: H / 2 - 34, width: 84, height: 68, rx: 18, fill: 'var(--bg)', stroke: 'var(--accent)', 'stroke-width': 2}));
+      svg.appendChild(T(xe, H / 2 - 2, 'Sheet', {'text-anchor': 'middle', class: 'sys-node'}));
+      svg.appendChild(T(xe, H / 2 + 14, 'the record', {'text-anchor': 'middle', class: 'sys-axis'}));
+      svg.appendChild(S('path', {d: 'M' + (xe + 42) + ' ' + H / 2 + 'L' + (xe + 96) + ' ' + H / 2, stroke: 'var(--accent)', 'stroke-width': 2, fill: 'none'}));
+      svg.appendChild(S('rect', {x: xe + 96, y: H / 2 - 34, width: 84, height: 68, rx: 18, fill: 'var(--accent)', opacity: .16}));
+      svg.appendChild(S('rect', {x: xe + 96, y: H / 2 - 34, width: 84, height: 68, rx: 18, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2}));
+      svg.appendChild(T(xe + 138, H / 2 - 2, 'Hub', {'text-anchor': 'middle', class: 'sys-node'}));
+      svg.appendChild(T(xe + 138, H / 2 + 14, 'this page', {'text-anchor': 'middle', class: 'sys-axis'}));
+      var list = h('div', {class: 'sys-pipe-l'}, rowsS.map(function (r) { return h('div', {class: 'sys-src ' + (r.s.st === 'none' ? '' : r.s.st)}, h('span', {class: 'dot ' + (r.s.st === 'none' ? 'none' : r.s.st)}), h('b', null, r.label), h('small', null, nameOf(r.s.owner) + ' · ' + agoTxt(r.s.at))); }));
+      var bad = rowsS.filter(function (r) { return r.s.st === 'late' || r.s.st === 'fail'; }).length, none = rowsS.filter(function (r) { return r.s.st === 'none'; }).length;
+      pipeline.bad = bad;
+      return h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Where information comes from'), h('span', {class: 'sys-count ' + (bad ? 'warn' : 'good')}, bad ? bad + ' late' : 'all current' + (none ? ' · ' + none + ' not linked' : ''))), svg, list);
+    }
+
     var sync = syncSources();
     function overview() {
       return h('div', {class: 'sys-col'}, usageHero(),
@@ -191,7 +255,7 @@
       return h('div', {class: 'sys-col'}, h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Is everything synced'), h('span', {class: 'sys-count ' + (sync.lates ? 'warn' : 'good')}, sync.lates ? sync.lates + ' behind' : 'All current')), sync.grid),
         h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Links')), links()));
     }
-    var secs = [['overview', 'Overview', overview, 0], ['sync', 'Sync and links', syncView, sync.lates], ['routines', 'Routines', function () { return api.routineWeek(); }, 0], ['diag', 'Diagnostics', diagnostics, (d.problems || []).length]];
+    var pipeEl = null; function pipeView() { pipeEl = pipeline(); return h('div', {class: 'sys-col'}, pipeEl); } pipeView(); var secs = [['overview', 'Overview', overview, 0], ['pipe', 'Sources', pipeView, pipeline.bad || 0], ['sync', 'Sync and links', syncView, sync.lates], ['routines', 'Routines', function () { return api.routineWeek(); }, 0], ['diag', 'Diagnostics', diagnostics, (d.problems || []).length]];
     var body = h('div', {class: 'sys-body'}, (secs.filter(function (x) { return x[0] === SEC; })[0] || secs[0])[2]());
     var nav = h('nav', {class: 'pnav', 'aria-label': 'System sections'}, secs.map(function (x) {
       return h('button', {type: 'button', class: 'pn' + (x[3] ? ' alert' : ''), 'data-k': x[0], 'aria-current': String(x[0] === SEC), onclick: function () {
