@@ -203,6 +203,8 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 </style>
 <link rel="stylesheet" href="cc-design.css">
 <link rel="stylesheet" href="cc-skin.css">
+<script src="cc-fresh.js"></script>
+<script src="cc-inbox.js"></script>
 <script src="cc-dev.js" onerror="void 0"></script>
 </head>
 <body>
@@ -297,27 +299,50 @@ function svg(tag, attrs){
 }
 
 /* ---------- time ---------- */
-function nowMs(){ return DATA ? new Date(DATA.now).getTime() : Date.now(); }
+/* The page clock keeps moving between reads: real time plus the gap between this computer and the Sheet's clock. */
+var SKEW = 0, SHEET_AT = Date.now(), LAST_RENDER = 0;
+function nowMs(){ return Date.now() + SKEW; }
+if (window.CC && CC.fresh) CC.fresh.setNow(nowMs);
+function useData(d){
+  DATA = d;
+  SKEW = (d.sample || !d.now) ? 0 : (new Date(d.now).getTime() - Date.now());
+  if (Math.abs(SKEW) < 5000) SKEW = 0;
+  SHEET_AT = nowMs();
+  return d;
+}
+/* A relative time never shows without the clock time it counts from. */
 function ago(iso){
   if (!iso) return "never";
-  var m = Math.round((nowMs() - new Date(iso).getTime()) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return m + " min ago";
-  var hr = Math.round(m / 60);
-  if (hr < 48) return hr + " hr ago";
-  return Math.round(hr / 24) + " days ago";
+  var t = new Date(iso).getTime();
+  return isNaN(t) ? "never" : CC.fresh.full(t);
+}
+function msOf(iso){ var t = iso ? new Date(iso).getTime() : NaN; return isNaN(t) ? null : t; }
+/* When was this tile's data last pulled? The feeding routine with the worst lateness decides. */
+function freshOf(tab, mods){
+  var rs = ((DATA && DATA.routines) || []).filter(function(r){ return r.tab === tab && (!mods || mods.indexOf(r.module) > -1); });
+  if (!rs.length) return {at: SHEET_AT, rhythm: 5, what: "Sheet read"};
+  var w = CC.fresh.worst(rs.map(function(r){ return {at: msOf(r.last_run), rhythm: Number(r.cadence_min) || 1440, label: r.routine}; }));
+  w.what = w.label || "Routine";
+  return w;
+}
+function freshAt(ms, rhythm, what){ return {at: ms, rhythm: rhythm, what: what}; }
+function ownerLabel(o){
+  var k = String(o || "").toLowerCase();
+  if (k === "jd") return "you";
+  if (k === "muse") return cfgName("muse", "Luna");
+  if (k === "claude") return cfgName("claude", "Atlas");
+  if (k === "chatgpt") return cfgName("chatgpt", "Argus");
+  return o || "unassigned";
 }
 function dueLabel(iso){
   if (!iso) return "";
   var d = new Date(iso);
-  var t = d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
-  var today = new Date(nowMs()); today.setHours(0,0,0,0);
-  var dd = new Date(d); dd.setHours(0,0,0,0);
-  var diff = Math.round((dd - today) / 86400000);
+  var t = CC.fresh.clock(d.getTime());
+  var diff = -CC.fresh.dayDiff(d.getTime());
   if (diff === 0) return "due today " + t;
   if (diff === 1) return "due tomorrow " + t;
   if (diff < 0) return "overdue";
-  return "due " + d.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"});
+  return "due " + d.toLocaleDateString("en-US", {timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric"});
 }
 function cadenceLabel(min){
   min = Number(min);
@@ -350,10 +375,8 @@ function computeUsage(){
 }
 function resetLabel(ms){
   var d = new Date(ms);
-  var t = d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
-  var a = new Date(nowMs()); a.setHours(0,0,0,0);
-  var b = new Date(d); b.setHours(0,0,0,0);
-  return a.getTime() === b.getTime() ? "today " + t : d.toLocaleDateString([], {weekday: "short"}) + " " + t;
+  var t = CC.fresh.clock(ms);
+  return CC.fresh.dayDiff(ms) === 0 ? "today " + t : d.toLocaleDateString("en-US", {timeZone: "America/New_York", weekday: "short"}) + " " + t;
 }
 function pt(f, r){ return [110 - r * Math.cos(Math.PI * f), 110 - r * Math.sin(Math.PI * f)]; }
 
@@ -540,10 +563,11 @@ function dayOffset(text){
   return idx < 0 ? null : (idx - today + 7) % 7;
 }
 function shortName(text){ return String(text).split(/,| tonight| today| Sat | Sun | Fri | Mon | Tue | Wed | Thu /)[0].trim(); }
-function wtile(cls, label, tab, body, st){
+function stampEl(fr){ return fr ? h("span", {class: "wf"}, CC.fresh.pill(fr.at, fr.rhythm, {what: fr.what})) : null; }
+function wtile(cls, label, tab, body, st, fr){
   var dotCls = st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : null;
   return h("section", {class: "wt " + cls, "aria-label": label},
-    h("div", {class: "wh"}, h("span", {class: "mono", style: "display:flex;align-items:center;gap:8px"}, dotCls ? h("span", {class: "dot " + dotCls}) : null, label),
+    h("div", {class: "wh"}, stampEl(fr), h("span", {class: "mono", style: "display:flex;align-items:center;gap:8px"}, dotCls ? h("span", {class: "dot " + dotCls}) : null, label),
       tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null),
     body);
 }
@@ -573,9 +597,20 @@ function summaryStatus(section){
   rows.forEach(function(r){ if (!best || (rank[r.status] || 0) > (rank[best] || 0)) best = r.status; });
   return best;
 }
-function summaryNote(section){
+function brief(t, max){
+  t = String(t || "").replace(/\s+/g, " ").trim();
+  var m = /^(.+?[.!?])(\s|$)/.exec(t), x = m ? m[1] : t;
+  max = max || 90;
+  if (x.length > max) x = x.slice(0, max).replace(/\s+\S*$/, "") + "…";
+  return x;
+}
+function summaryNote(section, compact){
   var rows = summaryRows(section);
   if (!rows.length) return null;
+  if (compact) {
+    var r0 = rows.slice().sort(function(a, b){ var k = {alert: 3, watch: 2, good: 1}; return (k[b.status] || 0) - (k[a.status] || 0); })[0];
+    return h("div", {class: "sumnote cmp"}, h("b", null, r0.headline), h("span", null, brief(r0.text, 95)));
+  }
   return h("div", {class: "sumnote", style: "display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px"}, rows.map(function(r){
     return h("div", {style: "display:flex;flex-direction:column;gap:3px"},
       h("div", {style: "font-weight:600;font-size:15px"}, r.headline),
@@ -733,8 +768,8 @@ function kpi(label, val, note, sp){
   return h("div", {class: "kpi"}, h("div", {class: "kv"}, val == null ? "n/a" : String(val)), h("div", {class: "kl"}, label), sp || null, note ? h("div", {class: "kn"}, note) : null);
 }
 function openLink(url, label){ return h("a", {class: "wopen", href: url, target: "_blank", rel: "noopener"}, label || "OPEN"); }
-function coverTile(span, label, url, body, st){
-  var t = wtile("ws" + span + " cover", label, null, body, st);
+function coverTile(span, label, url, body, st, fr){
+  var t = wtile("ws" + span + " cover", label, null, body, st, fr);
   t.querySelector(".wh").appendChild(openLink(url));
   return t;
 }
@@ -754,21 +789,19 @@ function pulseCover(span){
         kpi("median wedding price", p.wed ? "$" + p.wed.toLocaleString() : null, "across tracked studios", spark(p.wser, 100, 22)),
         kpi("your Instagram followers", p.followers, p.fchg == null ? "" : (p.fchg >= 0 ? "+" : "") + p.fchg + " today", spark(p.fser, 100, 22)),
         kpi("Google reviews tracked", p.reviews, "", spark(p.rser, 100, 22))),
-      h("div", {class: "kfoot"}, p.recs + " marketing ideas ready · updated " + ago(p.built)))
+      h("div", {class: "kfoot"}, p.recs + " marketing ideas ready"))
     : h("div", {class: "wnote"}, PULSE_STATE === "failed" ? "Not available yet" : "Loading numbers");
-  return coverTile(span, "Business Pulse", PULSE_URL, body, p ? "good" : null);
+  return coverTile(span, "Business Pulse", PULSE_URL, body, p ? "good" : null, p ? freshAt(msOf(p.built), 1440, "Pulse data built") : null);
 }
 function leadsCover(span){
-  var its = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Leads"; }).sort(function(a, b){ return new Date(b.time) - new Date(a.time); });
-  var wait = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Waiting on others"; }).length;
-  var s = moduleStatus("Leads");
+  var ol = openLeads(), wait = DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Waiting on others"; }).length;
+  var s = moduleStatus("Leads"), oldest = ol[0], wt = oldest ? nowMs() - msOf(oldest.time) : 0;
   var body = h("div", {class: "cvb"},
-    h("div", {class: "kgrid"}, kpi("open leads", its.length), kpi("waiting on others", wait)),
-    segbar([{n: its.length, c: "var(--accent)", t: "open leads"}, {n: wait, c: "var(--amber)", t: "waiting"}]),
-    h("div", {class: "legend"}, h("span", null, h("i", {style: "background:var(--accent)"}), "open"), h("span", null, h("i", {style: "background:var(--amber)"}), "waiting")),
-    h("div", {class: "kwide"}, its.length ? h("span", null, h("b", null, "Newest: "), shortName(its[0].text) + " · " + ago(its[0].time)) : h("span", null, "No open leads")),
-    h("div", {class: "kfoot"}, "Leads " + s.text.toLowerCase()));
-  return coverTile(span, "Leads", "pages/leads.html", body, s.state === "fail" ? "alert" : s.state === "late" ? "watch" : "good");
+    h("div", {class: "kgrid"}, kpi("leads to answer", ol.length), kpi("waiting on others", wait)),
+    segbar([{n: ol.length, c: "var(--accent)", t: "leads to answer"}, {n: wait, c: "var(--amber)", t: "waiting on others"}]),
+    h("div", {class: "legend"}, h("span", null, h("i", {style: "background:var(--accent)"}), "to answer"), h("span", null, h("i", {style: "background:var(--amber)"}), "waiting on others")),
+    h("div", {class: "kwide"}, oldest ? h("span", null, h("b", null, "Longest wait: "), CC.inbox.waitText(wt) + ", since " + CC.fresh.stamp(msOf(oldest.time))) : h("span", null, "Every lead is answered")));
+  return coverTile(span, "Leads", "pages/leads.html", body, s.state === "fail" ? "alert" : ol.length && wt > 4 * 3600000 ? "alert" : ol.length || s.state === "late" ? "watch" : "good", freshOf("Business", ["Leads"]));
 }
 function marketingCover(span){
   loadPulse();
@@ -777,25 +810,25 @@ function marketingCover(span){
     return h("li", null, h("em", null, String(i + 1)), h("span", null, t));
   })) : h("div", {class: "wnote"}, p ? "No ideas yet" : "Not available yet"),
     p ? h("div", {class: "kfoot"}, p.recs + " ideas ready in total") : null);
-  return coverTile(span, "Marketing moves", "pages/marketing.html", body, p ? "good" : null);
+  return coverTile(span, "Marketing moves", "pages/marketing.html", body, p ? "good" : null, p ? freshAt(msOf(p.built), 1440, "Pulse data built") : null);
 }
 function recapCover(span){
   var secs = ["Today", "Business", "Local", "Private", "Work", "System"];
   var due = DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).length;
-  var rows = summaryRows("Today");
+  var rows = summaryRows("Today"), good = secs.filter(function(n){ return summaryStatus(n) === "good"; }).length;
   var body = h("div", {class: "cvb"},
-    h("div", {class: "kgrid"}, kpi("due today", due), kpi("sections green", secs.filter(function(n){ return summaryStatus(n) === "good"; }).length + "/" + secs.length)),
+    h("div", {class: "kgrid"}, kpi("deadlines today", due), kpi("sections healthy", good + " of " + secs.length)),
     h("div", {class: "shl"}, secs.map(function(n){
       var st = summaryStatus(n);
-      return h("div", {class: "shi"}, h("span", {class: "dot " + (st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : "none")}), h("span", null, n));
+      return h("div", {class: "shi"}, h("span", {class: "dot " + (st === "good" ? "ok" : st === "watch" ? "late" : st === "alert" ? "fail" : "none")}), h("span", null, n === "Private" ? "Personal" : n));
     })),
-    h("div", {class: "kwide"}, rows.length ? h("span", null, h("b", null, rows[0].headline + ". "), rows[0].text) : h("span", null, "No recap yet")));
-  return coverTile(span, "Recap", "pages/recap.html", body, summaryStatus("Today"));
+    h("div", {class: "kwide"}, rows.length ? h("span", null, h("b", null, rows[0].headline + ". "), brief(rows[0].text, 80)) : h("span", null, "No recap yet")));
+  return coverTile(span, "Recap", "pages/recap.html", body, summaryStatus("Today"), freshAt(SHEET_AT, 5, "Sheet read"));
 }
 
 /* ---------- wall tiles ---------- */
-function stat(label, tab, big, note, viz, st){
-  return wtile("ws2 stat", label, tab, h("div", {class: "sbody"}, h("div", {class: "sbig"}, big), viz ? h("div", {class: "sviz"}, viz) : h("div", {class: "sviz"}), note ? h("div", {class: "snote"}, note) : null), st);
+function stat(label, tab, big, note, viz, st, fr){
+  return wtile("ws2 stat", label, tab, h("div", {class: "sbody"}, h("div", {class: "sbig"}, big), viz ? h("div", {class: "sviz"}, viz) : h("div", {class: "sviz"}), note ? h("div", {class: "snote"}, note) : null), st, fr);
 }
 function localInfo(){
   var groups = {}, flat = [];
@@ -807,32 +840,46 @@ function localInfo(){
   flat.sort(function(a, b){ return (a.off - b.off) || ((a.time == null ? 99 : a.time) - (b.time == null ? 99 : b.time)); });
   return {groups: groups, flat: flat};
 }
-function fmtClock(x){ if (x == null) return ""; var hh = Math.floor(x), mm = Math.round((x - hh) * 60); return ((hh + 11) % 12 + 1) + (mm ? ":" + (mm < 10 ? "0" : "") + mm : "") + (hh >= 12 ? "P" : "A"); }
+function fmtClock(x){ if (x == null) return ""; var hh = Math.floor(x), mm = Math.round((x - hh) * 60); if (mm === 60) { hh++; mm = 0; } return ((hh + 11) % 12 + 1) + (mm ? ":" + (mm < 10 ? "0" : "") + mm : "") + (hh % 24 >= 12 ? " PM" : " AM"); }
+function waitShort(ms){
+  var m = Math.round(ms / 60000);
+  if (m < 1) return "<1m";
+  if (m < 60) return m + "m";
+  var hr = Math.floor(m / 60), mm = m % 60;
+  if (hr < 24) return hr + "h" + (mm ? " " + mm + "m" : "");
+  return Math.floor(hr / 24) + "d" + (hr % 24 ? " " + (hr % 24) + "h" : "");
+}
 function statsRow(){
   var out = [];
   var u = computeUsage();
   if (u && !u.stale) {
     var g = gaugeSvg(u); g.setAttribute("class", "mini-g");
-    out.push(stat("Weekly usage", "System", g, null, h("div", {class: "ugl"}, h("b", null, u.word), " · resets " + resetLabel(u.resetAt) + (u.change == null ? "" : " · " + (u.change >= 0 ? "+" : "") + u.change + " today")), u.pct >= 90 ? "alert" : u.pct >= 70 ? "watch" : "good"));
-  } else out.push(stat("Weekly usage", "System", "n/a", u ? "last read " + ago(u.read) : "no reading yet"));
+    out.push(stat("AI usage", "System", g, null, h("div", {class: "ugl"}, h("b", null, u.word), " · resets " + resetLabel(u.resetAt)), u.pct >= 90 ? "alert" : u.pct >= 70 ? "watch" : "good", freshAt(msOf(u.read), 1440, "Usage read")));
+  } else out.push(stat("AI usage", "System", "n/a", u ? "no reading since " + CC.fresh.stamp(msOf(u.read)) : "no reading yet", null, null, u ? freshAt(msOf(u.read), 1440, "Usage read") : null));
   var watchItems = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Watch"; });
   var dots = h("div", {class: "dotrow"}, watchItems.slice(0, 10).map(function(){ return h("i", {class: "y"}); }));
-  out.push(stat("Watch today", "Today", String(watchItems.length), watchItems.length ? shortName(watchItems[0].text) : "nothing flagged", watchItems.length ? dots : h("div", {class: "dotrow"}, h("i", {class: "g"})), watchItems.length ? "watch" : "good"));
+  out.push(stat("Watch list", "Today", String(watchItems.length), watchItems.length ? shortName(watchItems[0].text) : "nothing flagged", watchItems.length ? dots : h("div", {class: "dotrow"}, h("i", {class: "g"})), watchItems.length ? "watch" : "good", freshOf("Today", ["Watch"])));
   var rs = DATA.routines, ok = rs.filter(function(r){ return r.status === "ok"; }).length;
   var cells = h("div", {class: "cells", style: "grid-template-columns:repeat(" + Math.max(1, rs.length) + ",minmax(0,1fr))", "aria-hidden": "true"}, rs.map(function(r){ return h("i", {class: r.status}); }));
-  out.push(stat("Routines", "System", [String(ok), h("small", null, "/" + rs.length)], rs.length - ok ? (rs.length - ok) + " late, failed or empty" : "all on time", cells, rs.length - ok ? "watch" : "good"));
+  out.push(stat("Routines", "System", [String(ok), h("small", null, "/" + rs.length)], rs.length - ok ? (rs.length - ok) + " need attention" : "all on schedule", cells, rs.length - ok ? "watch" : "good", freshAt(SHEET_AT, 5, "Sheet read")));
   var ps = DATA.problems || [], owners = {}, palette = ["var(--red)", "var(--amber)", "var(--accent)", "var(--violet)"];
   ps.forEach(function(p){ var o = p.owner || "Unassigned"; owners[o] = (owners[o] || 0) + 1; });
   var ok2 = Object.keys(owners);
-  out.push(stat("Problems", "System", String(ps.length), ps.length ? ok2.map(function(o){ return owners[o] + " " + o; }).join(" · ") : "none open",
-    segbar(ok2.map(function(o, i){ return {n: owners[o], c: palette[i % 4], t: o}; })), ps.length ? "alert" : "good"));
-  var sing = DATA.items.filter(function(i){ return i.grade === "Single source"; }).length, img = DATA.items.filter(function(i){ return i.grade === "Read from image"; }).length;
-  out.push(stat("Unconfirmed", "System", String(sing + img), sing + " single source · " + img + " from images", segbar([{n: sing, c: "var(--amber)", t: "single source"}, {n: img, c: "var(--violet)", t: "read from image"}])));
+  out.push(stat("Open problems", "System", String(ps.length), ps.length ? "Waiting on " + ok2.map(function(o){ return ownerLabel(o) + " " + owners[o]; }).join(" · ") : "none open",
+    segbar(ok2.map(function(o, i){ return {n: owners[o], c: palette[i % 4], t: ownerLabel(o)}; })), ps.length ? "alert" : "good", freshOf("System", ["Open problems"])));
+  var ol = openLeads(), rst = CC.inbox.stats(), lbig, lnote, lst = "good";
+  if (ol.length) {
+    var wt = nowMs() - msOf(ol[0].time);
+    lbig = waitShort(wt); lnote = "longest of " + ol.length + " waiting, since " + CC.fresh.stamp(msOf(ol[0].time));
+    lst = wt > 4 * 3600000 ? "alert" : wt > 3600000 ? "watch" : "good";
+  } else if (rst.n) { lbig = waitShort(rst.median30 != null ? rst.median30 : rst.median); lnote = "typical reply time, none waiting"; }
+  else { lbig = "None"; lnote = "no leads waiting"; }
+  out.push(stat("Reply time", "Business", lbig, lnote, null, lst, freshOf("Business", ["Leads"])));
   var li = localInfo(), nxt = li.flat.filter(function(e){ return e.off >= 0 && e.off < 99; })[0];
   var days = []; for (var k = 0; k < 7; k++) days.push((li.groups[k] || []).length);
   var mxd = Math.max.apply(null, days.concat([1]));
   var bars = h("div", {class: "bars7"}, days.map(function(n, k){ return h("i", {style: "height:" + (14 + n / mxd * 86) + "%", class: (n ? "on" : "") + (k === 0 ? " today" : "")}); }));
-  out.push(stat("Local events", "Local", String(li.flat.length), nxt ? "next: " + nxt.label + (nxt.time != null ? " " + fmtClock(nxt.time) : "") : "none listed", bars, summaryStatus("Local")));
+  out.push(stat("Events, 7 days", "Local", String(li.flat.length), nxt ? "next: " + nxt.label + (nxt.time != null ? " " + fmtClock(nxt.time) : "") : "none listed", bars, summaryStatus("Local"), freshOf("Local", ["Events"])));
   return out;
 }
 
@@ -863,10 +910,10 @@ function todayTile(){
   var list = next.slice(0, 5).map(function(n){ return h("div", {class: "dl"}, h("span", {class: "dd " + n.kind}), h("em", null, fmtClock(n.t)), h("span", {class: "dn2"}, n.label + (n.due ? " · due" : ""))); });
   return wtile("ws3", "Today", "Today", h("div", {class: "tbody tdy"},
     h("div", {class: "duo"},
-      h("div", null, h("div", {class: "wbig"}, String(due.length)), h("div", {class: "wl"}, "due today")),
+      h("div", null, h("div", {class: "wbig"}, String(due.length)), h("div", {class: "wl"}, due.length === 1 ? "deadline today" : "deadlines today")),
       h("div", null, h("div", {class: "wbig"}, String(watch)), h("div", {class: "wl"}, "on watch list"))),
     list.length ? h("div", {class: "dls"}, list) : h("div", {class: "wnote"}, "Nothing scheduled."),
-    tl, summaryNote("Today")), summaryStatus("Today"));
+    tl, summaryNote("Today", true)), summaryStatus("Today"), freshOf("Today"));
 }
 
 function businessTile(){
@@ -878,7 +925,7 @@ function businessTile(){
   }));
   return wtile("ws2", "Business", "Business", h("div", {class: "tbody"},
     chips,
-    summaryNote("Business") || (its.length ? h("div", {class: "wnote"}, its[0].text) : null)), summaryStatus("Business"));
+    summaryNote("Business", true) || (its.length ? h("div", {class: "wnote"}, brief(its[0].text, 90)) : null)), summaryStatus("Business"), freshOf("Business"));
 }
 
 function dayName(off){
@@ -908,57 +955,87 @@ function localTile(){
   var scan = moduleStatus("Scanner");
   var rows = agenda(0);
   return wtile("ws5", "Local · Potsdam", "Local", h("div", {class: "tbody"},
-    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events")), h("span", null, "Scanner " + scan.text.toLowerCase())),
-    rows.length ? h("div", {class: "agenda"}, rows) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local")), summaryStatus("Local"));
+    h("div", {class: "lochead"}, h("b", null, li.flat.length + (li.flat.length === 1 ? " event" : " events")), scan.state === "ok" ? null : h("span", null, "Scanner " + (scan.state === "fail" ? "failed" : scan.state === "late" ? "is late" : "not linked"))),
+    rows.length ? h("div", {class: "agenda"}, rows) : h("div", {class: "wnote"}, "No events listed."), summaryNote("Local", true)), summaryStatus("Local"), freshOf("Local"));
 }
 
-function latestTile(){
-  var msgs = (DATA.messages || []).slice().sort(function(a, b){ return new Date(b.time) - new Date(a.time); }).slice(0, 7);
-  var body = msgs.length ? h("div", {class: "lm"}, msgs.map(function(m){
-    var t = String(m.text || "").replace(/^(\uD83D[\uDFE2\uDFE1\uDD34])\s*/, "");
-    return h("div", {class: "lmr"}, h("span", {class: "av " + msgColor(m)}, cfgName(m.from, m.from).charAt(0)),
-      h("div", null, h("div", {class: "who"}, cfgName(m.from, m.from) + " to " + cfgName(m.to, m.to) + " · " + ago(m.time)), h("div", {class: "lt"}, t)));
-  })) : h("div", {class: "wnote"}, "No messages yet.");
-  return wtile("ws2", "Latest messages", "System", body, null);
+function inboxTile(){
+  var op = CC.inbox.open(), cl = CC.inbox.cleared(), today = cl.filter(function(x){ return CC.fresh.dayDiff(x.at) === 0; }).length;
+  var col = {4: "var(--red)", 3: "var(--amber)", 2: "var(--accent)", 1: "var(--violet)"};
+  var parts = [4, 3, 2, 1].map(function(t){ return {n: op.filter(function(x){ return x.t === t; }).length, c: col[t], t: "priority " + t}; });
+  var t = wtile("ws2 stat", "Alert inbox", null, h("div", {class: "sbody"}, h("div", {class: "sbig"}, String(op.length)), h("div", {class: "sviz"}, segbar(parts)),
+    h("div", {class: "snote"}, (op.length ? "open" : "all clear") + " · " + today + " cleared today")), op.length ? "watch" : "good", freshAt(SHEET_AT, 5, "Sheet read"));
+  t.querySelector(".wh").appendChild(h("button", {class: "wopen", type: "button", onclick: function(){ CC.inbox.panel(true); }}, "OPEN"));
+  return t;
 }
 
 function secTile(name){
   var open = isUnlocked() || !tier2(name);
   var rows = summaryRows(name), mods = DATA.modules[name] || [];
+  var fr = open ? freshOf(name) : null;
   var body = !open ? lockBox() : h("div", {class: "tbody"},
     rows.length ? rows.slice(0, 3).map(function(r){ return h("div", {class: "sh"}, h("b", null, r.headline), h("span", null, r.text)); }) : h("div", {class: "wnote"}, mods.length ? "No summary yet." : "No " + name + " feed is connected yet."),
     mods.length ? h("div", {class: "chips c1"}, mods.slice(0, 3).map(function(m){
       var st = moduleStatus(m.name), n = DATA.items.filter(function(i){ return i.tab === name && i.module === m.name; }).length;
       return h("div", {class: "chip2"}, h("span", {class: "dot " + st.state}), h("span", null, m.name), h("b", null, n ? String(n) : "clear"));
     })) : null);
-  return {label: name, body: body, st: open ? summaryStatus(name) : null};
+  return {label: name === "Private" ? "Personal" : name, body: body, st: open ? summaryStatus(name) : null, fr: fr};
 }
 function wpTile(){
   var a = secTile("Work"), b = secTile("Private");
   function half(x, tab){ return h("div", {class: "half"}, h("div", {class: "hh"}, x.st ? h("span", {class: "dot " + (x.st === "good" ? "ok" : x.st === "watch" ? "late" : "fail")}) : null, h("span", {class: "mono"}, x.label),
-    tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null), x.body); }
+    stampEl(x.fr), tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null), x.body); }
   return h("section", {class: "wt ws3 wp", "aria-label": "Work and Personal"}, half(a, null), half(b, "Personal"));
 }
 
-function needsNow(){
+function leadItems(){ return DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Leads"; }); }
+function leadKey(i){ return "lead:" + i.id; }
+function leadHandled(i){ return /\b(booked|replied|won|lost|closed|handled)\b/i.test(i.text || "") || CC.inbox.isSeen(leadKey(i)); }
+function openLeads(){
+  return leadItems().filter(function(i){ return !leadHandled(i); }).sort(function(a, b){ return new Date(a.time) - new Date(b.time); });
+}
+function needsAll(){
   var out = [], now = nowMs();
-  DATA.routines.filter(function(r){ return r.status === "fail"; }).forEach(function(r){ out.push({t: 4, ic: "alert", ti: r.routine + " is failing", rt: "System", tab: "System"}); });
-  DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Leads"; }).forEach(function(i){
-    var age = now - new Date(i.time).getTime(), t = pvTier(age, /\b(booked|replied|won|lost|closed|handled)\b/i.test(i.text || ""));
-    if (t >= 2) out.push({t: t, ic: t >= 4 ? "bell" : "wait", ti: String(i.text || "").split("Recommended action:")[0].replace(/\s+$/, ""), rt: ago(i.time), tab: "Business"});
+  DATA.routines.filter(function(r){ return r.status === "fail"; }).forEach(function(r){
+    out.push({key: "routine:" + r.routine + ":" + (r.last_run || ""), kind: "failure", t: 4, ic: "alert", ti: r.routine + " is failing", at: msOf(r.last_run), rt: r.last_run ? "last ran " + CC.fresh.stamp(msOf(r.last_run)) : "never ran", tab: "System"});
   });
-  DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).forEach(function(i){ out.push({t: 3, ic: "flag", ti: shortName(i.text), rt: dueLabel(i.due), tab: "Today"}); });
-  lrows().filter(function(r){ return r.type === "Alert" || (r.type === "Closure" && r.whenKey < 200); }).forEach(function(r){ out.push({t: ltier(r), ic: LICON[r.type], ti: r.what, rt: r.date || "", tab: "Local"}); });
+  leadItems().forEach(function(i){
+    var at = msOf(i.time), age = now - at, t = pvTier(age, /\b(booked|replied|won|lost|closed|handled)\b/i.test(i.text || ""));
+    if (t >= 2) out.push({key: leadKey(i), kind: "lead", id: i.id, t: t, ic: t >= 4 ? "bell" : "wait", ti: brief(String(i.text || "").split("Recommended action:")[0], 80), at: at, rt: "arrived " + CC.fresh.full(at), tab: "Business"});
+  });
+  DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).forEach(function(i){
+    out.push({key: "due:" + i.id, kind: "deadline", id: i.id, t: 3, ic: "flag", ti: shortName(i.text), at: msOf(i.due), rt: dueLabel(i.due), tab: "Today"});
+  });
+  lrows().filter(function(r){ return r.type === "Alert" || (r.type === "Closure" && r.whenKey < 200); }).forEach(function(r){
+    out.push({key: "local:" + (r.what || "") + "|" + (r.date || ""), kind: "local", t: ltier(r), ic: LICON[r.type], ti: r.what, at: null, rt: r.date || "", tab: "Local"});
+  });
+  (DATA.messages || []).forEach(function(m){
+    var at = msOf(m.time);
+    if (at && now - at < 24 * 3600000 && /^\uD83D\uDD34/.test(String(m.text || "")) && m.status === "open")
+      out.push({key: "crew:" + m.id, kind: "crew", t: 3, ic: "alert", ti: brief(String(m.text).replace(/^\uD83D\uDD34\s*/, ""), 70) + " (" + cfgName(m.from, m.from) + ")", at: at, rt: CC.fresh.full(at), tab: "System"});
+  });
   var seen = {}; out = out.filter(function(x){ var k = x.ti; if (seen[k]) return false; seen[k] = 1; return true; });
-  return out.sort(function(a, b){ return b.t - a.t; }).slice(0, 6);
+  return out.sort(function(a, b){ return b.t - a.t; });
+}
+function needsNow(){ return CC.inbox.open().slice(0, 6); }
+function settle(){ CC.inbox.flipRender(render); }
+function doSee(x, how, el){ CC.inbox.see(x, how, el, settle); }
+function alertCard(x){
+  var card = h("div", {class: "pv-lead t" + x.t, role: "button", tabindex: "0", onclick: function(e){ if (!e.target.closest(".al-act")) go(x.tab); }},
+    h("div", {class: "pv-tile"}, pvIcon(x.ic)),
+    h("div", null, h("div", {class: "pv-ti", style: "font-size:13px"}, x.ti), h("div", {class: "al-t"}, x.rt)),
+    h("div", {class: "al-act"},
+      x.kind === "lead" ? h("button", {type: "button", title: "I replied to this lead", onclick: function(e){ e.stopPropagation(); doSee(x, "replied", card); }}, "Replied") : null,
+      h("button", {type: "button", title: x.kind === "lead" ? "Dismiss" : "I saw it", onclick: function(e){ e.stopPropagation(); doSee(x, x.kind === "lead" ? "dismissed" : "seen", card); }}, x.kind === "lead" ? "Dismiss" : "Seen")));
+  return card;
 }
 function needsBand(){
-  var L = needsNow();
-  if (!L.length) return null;
-  return h("section", {class: "pv-card pv-need", "aria-label": "Needs action now"}, h("h3", null, pvIcon("bell", true), "Needs action now", h("small", null, L.length + (L.length === 1 ? " item" : " items"))),
-    h("div", {class: "pv-alerts"}, L.map(function(x){
-      return h("div", {class: "pv-lead t" + x.t, role: "button", tabindex: "0", onclick: function(){ go(x.tab); }}, h("div", {class: "pv-tile"}, pvIcon(x.ic)), h("div", null, h("div", {class: "pv-ti", style: "font-size:13px"}, x.ti)), h("div", {class: "pv-age"}, h("b", {style: "font-size:12px"}, x.rt)));
-    })));
+  var all = CC.inbox.open();
+  if (!all.length) return null;
+  var L = all.slice(0, 6);
+  return h("section", {class: "pv-card pv-need", "aria-label": "Needs action now"},
+    h("h3", null, pvIcon("bell", true), "Needs action now", h("small", null, all.length + (all.length === 1 ? " item" : " items") + (all.length > 6 ? ", 6 shown" : ""))),
+    h("div", {class: "pv-alerts"}, L.map(alertCard)));
 }
 function wall(){
   var box = h("div", {class: "wallbox"});
@@ -970,7 +1047,7 @@ function wall(){
   if (!ps) { off.push("Business Pulse"); off.push("Marketing moves"); }
   box.appendChild(h("div", {class: "wall fit"},
     statsRow(),
-    todayTile(), localTile(), businessTile(), (DATA.config || DATA.messages) ? latestTile() : null,
+    todayTile(), localTile(), businessTile(), inboxTile(),
     ps ? pulseCover(3) : null, leadsCover(ps ? 2 : 4), ps ? marketingCover(2) : null, recapCover(ps ? 2 : 4), wpTile()));
   if (off.length) box.appendChild(h("div", {class: "pv-strip1"}, h("span", null, off.length + " feeds not connected yet:"), off.map(function(n){ return h("span", {class: "pv-chip"}, n); })));
   return box;
@@ -1946,15 +2023,23 @@ function softRender(){
     setTimeout(function(){ document.body.classList.remove("soft"); }, 500);
   }, 80);
 }
+function paintPill(){
+  if (!DATA) return;
+  var lv = CC.fresh.level(SHEET_AT, 5), pill = document.getElementById("livepill");
+  pill.className = "pill lv-" + lv;
+  document.getElementById("refreshed").textContent = (DATA.sample ? "Sample " : "Live ") + CC.fresh.stamp(SHEET_AT);
+  pill.title = CC.fresh.tip(SHEET_AT, 5, "Sheet read");
+}
 function render(){
   var app = document.getElementById("app");
   if (!NEXT_ANIM) { document.body.classList.add("soft"); clearTimeout(render.t); render.t = setTimeout(function(){ document.body.classList.remove("soft"); }, 700); }
   NEXT_ANIM = false;
   var keepY = window.scrollY;
   app.textContent = "";
-  document.getElementById("refreshed").textContent = (DATA.sample ? "Sample " : "Live ") + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
-  document.getElementById("livepill").classList.remove("off");
-  document.getElementById("hdate").textContent = new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"});
+  LAST_RENDER = Date.now();
+  paintPill();
+  document.getElementById("hdate").textContent = new Date(nowMs()).toLocaleDateString("en-US", {timeZone: "America/New_York", weekday: "long", month: "short", day: "numeric"});
+  CC.inbox.loadHistory();
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   document.body.classList.toggle("onwall", TAB === "Wall");
   var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TABLABEL[TAB] || TAB);
@@ -2019,6 +2104,7 @@ function icon(name){
 }
 function renderNav(){
   loadJobs();
+  CC.inbox.badge();
   var nav = document.getElementById("tabs");
   var rail = document.getElementById("rail");
   nav.textContent = "";
@@ -2084,7 +2170,7 @@ function connectScreen(note){
     url, key, msg,
     h("div", {class: "acts"},
       h("button", {class: "btn link", type: "button", onclick: go}, "Connect"),
-      h("button", {class: "btn", type: "button", onclick: function(){ DATA = preview(); render(); }}, "Preview sample"))));
+      h("button", {class: "btn", type: "button", onclick: function(){ useData(preview()); render(); }}, "Preview sample"))));
 }
 
 /* ---------- data ---------- */
@@ -2109,7 +2195,7 @@ function load(fromUnlock){
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j.ok) throw new Error(j.error);
-      DATA = fixData(j.data);
+      useData(fixData(j.data));
       if (KEY2 && !DATA.tier2) { KEY2 = null; render(); unlockPrompt("That key was not accepted."); return; }
       render(); armIdle();
     })
@@ -2261,8 +2347,18 @@ document.getElementById("disconnect").addEventListener("click", function(){
   b.appendChild(s);
   dcTimer = setTimeout(dcDisarm, 3000);
 });
+CC.inbox.setProvider(needsAll);
+CC.inbox.configure({rerender: function(){ if (DATA) CC.inbox.flipRender(render); }});
 load();
 setInterval(function(){ if (getCfg()) load(); }, 5 * 60000);
+/* Keep ages and the header stamp moving between reads, without redrawing while someone is typing. */
+setInterval(function(){
+  if (!DATA || document.hidden) return;
+  paintPill();
+  var a = document.activeElement;
+  if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
+  if (Date.now() - LAST_RENDER > 58000) softRender();
+}, 30000);
 ["pointerdown", "keydown", "scroll"].forEach(function(ev){ window.addEventListener(ev, armIdle, {passive: true}); });
 document.addEventListener("visibilitychange", function(){
   clearTimeout(hideTimer);
