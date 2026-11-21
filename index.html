@@ -309,7 +309,13 @@ function useData(d){
   SKEW = (d.sample || !d.now) ? 0 : (new Date(d.now).getTime() - Date.now());
   if (Math.abs(SKEW) < 5000) SKEW = 0;
   SHEET_AT = nowMs();
+  d.allItems = (d.items || []).slice();
   return d;
+}
+/* Leads you cleared stay gone from every view until you bring them back from the Inbox. */
+function applySeen(){
+  if (!DATA || !DATA.allItems) return;
+  DATA.items = DATA.allItems.filter(function(i){ return !(i.tab === "Business" && i.module === "Leads" && CC.inbox.isSeen("lead:" + i.id)); });
 }
 /* A relative time never shows without the clock time it counts from. */
 function ago(iso){
@@ -1019,6 +1025,55 @@ function needsAll(){
   return out.sort(function(a, b){ return b.t - a.t; });
 }
 function needsNow(){ return CC.inbox.open().slice(0, 6); }
+function leadAlert(i){
+  return {key: leadKey(i), kind: "lead", id: i.id, t: 1, ti: brief(String(i.text || "").split("Recommended action:")[0], 80), at: msOf(i.time), tab: "Business"};
+}
+function waitColor(ms){ return ms > 4 * 3600000 ? "var(--red)" : ms > 3600000 ? "var(--amber)" : "var(--green)"; }
+function replyHero(){
+  var ol = openLeads(), st = CC.inbox.stats(), now = nowMs();
+  var longest = ol.length ? now - msOf(ol[0].time) : null;
+  var A = h("div", {class: "rh-col"}, h("h4", null, "Waiting for your reply"),
+    ol.length
+      ? [h("div", {class: "rh-big", style: "color:" + waitColor(longest)}, waitShort(longest)),
+         h("div", {class: "rh-sub"}, ol.length + (ol.length === 1 ? " lead" : " leads") + " waiting, longest since " + CC.fresh.stamp(msOf(ol[0].time))),
+         h("div", {class: "rh-list"}, ol.map(function(i){
+           var w = now - msOf(i.time), row = h("div", {class: "rh-lead"},
+             h("div", null, h("b", null, brief(String(i.text || "").split("Recommended action:")[0], 60)), h("div", {class: "rh-sub"}, "arrived " + CC.fresh.stamp(msOf(i.time)) + " · waiting " + CC.inbox.waitText(w))),
+             h("div", {class: "al-act"},
+               h("button", {type: "button", onclick: function(){ doSee(leadAlert(i), "replied", row); }}, "Replied"),
+               h("button", {type: "button", onclick: function(){ doSee(leadAlert(i), "dismissed", row); }}, "Dismiss")));
+           return row;
+         }))]
+      : [h("div", {class: "rh-big", style: "color:var(--green)"}, "None"), h("div", {class: "rh-sub"}, "Every lead is answered")]);
+  var typ = st.median30 != null ? st.median30 : st.median;
+  var B = h("div", {class: "rh-col"}, h("h4", null, "Typical reply time"),
+    st.n
+      ? [h("div", {class: "rh-big"}, waitShort(typ)),
+         h("div", {class: "rh-sub"}, "median of " + (st.median30 != null ? st.n30 + " replies in 30 days" : st.n + " replies")),
+         st.under1h != null ? h("div", {class: "rh-sub"}, Math.round(st.under1h * 100) + "% answered within 1 hour") : null]
+      : [h("div", {class: "rh-big rh-na"}, "Not available yet"), h("div", {class: "rh-sub"}, "Tap Replied on a lead and every reply is recorded from now on. Past replies load from the business inbox history when it is added.")]);
+  var C = h("div", {class: "rh-col"}, h("h4", null, "Recent replies"));
+  if (st.n) {
+    var mx = Math.max.apply(null, st.series.map(function(x){ return x.wait; }).concat([3600000]));
+    C.appendChild(h("div", {class: "rh-bars", role: "img", "aria-label": "Wait before each recent reply"}, st.series.map(function(x){
+      return h("i", {style: "height:" + (10 + Math.sqrt(x.wait / mx) * 90) + "%;background:" + waitColor(x.wait), title: CC.fresh.stamp(x.replied) + ": " + CC.inbox.waitText(x.wait)});
+    })));
+    var b = st.buckets;
+    C.appendChild(segbar([{n: b.u1, c: "var(--green)", t: "under 1 hour"}, {n: b.h4, c: "var(--amber)", t: "1 to 4 hours"}, {n: b.d1, c: "var(--red)", t: "4 to 24 hours"}, {n: b.over, c: "var(--violet)", t: "over a day"}]));
+    C.appendChild(h("div", {class: "legend"}, h("span", null, h("i", {style: "background:var(--green)"}), "under 1 hr " + b.u1), h("span", null, h("i", {style: "background:var(--amber)"}), "1 to 4 hr " + b.h4), h("span", null, h("i", {style: "background:var(--red)"}), "4 to 24 hr " + b.d1), h("span", null, h("i", {style: "background:var(--violet)"}), "over a day " + b.over)));
+  } else C.appendChild(h("div", {class: "rh-sub"}, "Nothing recorded yet."));
+  var fr = freshOf("Business", ["Leads"]);
+  var sec = h("section", {class: "wt rh-hero", "aria-label": "Lead reply time"},
+    h("div", {class: "wh"}, h("span", {class: "mono"}, "Lead reply time"), stampEl(fr)),
+    h("div", {class: "rh-grid"}, A, B, C));
+  return sec;
+}
+function freshStrip(tab){
+  var mods = (DATA.modules && DATA.modules[tab]) || [];
+  var chips = mods.map(function(m){ var f = freshOf(tab, [m.name]); return h("span", {class: "fs-chip"}, h("b", null, m.name), CC.fresh.pill(f.at, f.rhythm, {what: f.what})); });
+  if (!chips.length) chips = [h("span", {class: "fs-chip"}, h("b", null, "Sheet"), CC.fresh.pill(SHEET_AT, 5, {what: "Sheet read"}))];
+  return h("div", {class: "fstrip", "aria-label": "When this page's data was last read"}, chips);
+}
 function settle(){ CC.inbox.flipRender(render); }
 function doSee(x, how, el){ CC.inbox.see(x, how, el, settle); }
 function alertCard(x){
@@ -2043,6 +2098,7 @@ function paintPill(){
 }
 function render(){
   var app = document.getElementById("app");
+  applySeen();
   if (!NEXT_ANIM) { document.body.classList.add("soft"); clearTimeout(render.t); render.t = setTimeout(function(){ document.body.classList.remove("soft"); }, 700); }
   NEXT_ANIM = false;
   var keepY = window.scrollY;
@@ -2058,6 +2114,10 @@ function render(){
   if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
+  if (!(tier2(TAB) && !isUnlocked())) {
+    app.appendChild(freshStrip(TAB));
+    if (TAB === "Business") app.appendChild(replyHero());
+  }
   var cv = (TAB === "Private" && PSUB) ? null : customView(TAB);
   if (cv) app.appendChild(cv);
   else if (TAB === "Business") app.appendChild(businessView());
