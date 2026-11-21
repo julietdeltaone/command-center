@@ -1256,8 +1256,8 @@ function localTable(){
         h("td", {class: "c-link"}, r.it.link ? h("a", {href: r.it.link, target: "_blank", rel: "noopener"}, "↗") : ""));
     });
     card.innerHTML = "";
-    card.appendChild(h("div", {class: "lbar"}, h("h3", null, "Local feed"), h("div", {class: "lchips"}, chips), sunBadge(), h("span", {class: "lcount"}, shown.length + " of " + rows.length)));
-    card.appendChild(h("div", {class: "lscroll"}, h("table", {class: "ltbl"}, h("thead", null, head), h("tbody", null, shown.length ? body : h("tr", null, h("td", {colspan: String(cols.length), class: "lempty"}, "Nothing listed."))))));
+    card.appendChild(h("div", {class: "lbar"}, h("h3", null, "Local feed"), h("div", {class: "lchips"}, chips), sunBadge(), h("button", {type: "button", class: "lmore", onclick: function(){ LFULL = !LFULL; paint(); }}, LFULL ? "Fewer columns" : "All columns"), h("span", {class: "lcount"}, shown.length + " of " + rows.length)));
+    card.appendChild(h("div", {class: "lscroll"}, h("table", {class: "ltbl" + (LFULL ? " full" : "")}, h("thead", null, head), h("tbody", null, shown.length ? body : h("tr", null, h("td", {colspan: String(cols.length), class: "lempty"}, "Nothing listed."))))));
   }
   paint();
   return card;
@@ -1282,9 +1282,80 @@ function localDiagram(){
   }
   return h("section", {class: "card mod ldiac"}, h("div", {class: "lbar"}, h("h3", null, "Next " + N + " days"), h("span", {class: "lcount"}, "dot = event · amber band = daylight")), svg);
 }
+var LVAR = null, LFULL = false;
+var LICON = {Alert: "alert", Closure: "closure", Deadline: "flag", Meeting: "meet", Event: "cal", Chatter: "cal"};
+function ltier(r){
+  var o = r.whenKey === 9999 ? null : Math.floor(r.whenKey / 100);
+  if (r.type === "Alert") return 4;
+  if (r.type === "Closure") return o != null && o <= 1 ? 3 : 2;
+  if (r.type === "Deadline") return o === 0 ? 3 : o === 1 ? 2 : 1;
+  if (r.type === "Chatter") return 0;
+  return 1;
+}
+function lshort(r){ return r.time ? r.time.split(" to ")[0].replace(":00", "").replace(" AM", "A").replace(" PM", "P") : ""; }
+function lalerts(rows){
+  var pin = rows.filter(function(r){ return r.type === "Alert" || r.type === "Closure" || (r.type === "Deadline" && ltier(r) >= 3); });
+  if (!pin.length) return null;
+  return h("div", {class: "pv-alerts"}, pin.map(function(r){
+    var t = ltier(r);
+    return h("a", {class: "pv-lead t" + t, href: r.it.link || "#", target: r.it.link ? "_blank" : null, rel: "noopener", style: r.it.link ? "" : "cursor:default"},
+      h("div", {class: "pv-tile"}, pvIcon(LICON[r.type] || "cal")), h("div", null, h("div", {class: "pv-ti", style: "font-size:13px"}, r.what)),
+      h("div", {class: "pv-age"}, h("b", {style: "font-size:12px"}, (r.date && r.date !== "Today" ? r.date + " " : "") + lshort(r))));
+  }));
+}
+function lsunNote(d){ var s = sunDay(d); return s && s.rise != null ? fh(s.rise) + " – " + fh(s.set) : ""; }
+function lDays(rows){
+  var N = 10, strip = h("div", {class: "pv-strip"});
+  for (var d = 0; d < N; d++) (function(d){
+    var dt = new Date(nowMs() + d * 86400000), ev = rows.filter(function(r){ return r.whenKey !== 9999 && Math.floor(r.whenKey / 100) === d; }).sort(function(a, b){ return a.whenKey - b.whenKey; });
+    strip.appendChild(h("div", {class: "pv-day" + (d === 0 ? " today" : "")}, h("div", {class: "dn"}, d === 0 ? "Today" : DAYS[dt.getDay()] + " " + (dt.getMonth() + 1) + "/" + dt.getDate()),
+      h("div", {class: "sun"}, pvIcon("sun"), lsunNote(dt)),
+      ev.slice(0, 3).map(function(r){ return h("span", {class: "pv-ev t" + ltier(r), title: r.what + (r.time ? " · " + r.time : "")}, lshort(r) + " " + r.what); }),
+      ev.length > 3 ? h("span", {style: "color:var(--muted)"}, "+" + (ev.length - 3)) : null, ev.length ? null : h("span", {style: "color:var(--muted);opacity:.5"}, "nothing")));
+  })(d);
+  return h("section", {class: "pv-card"}, h("h3", null, "Next 10 days", h("small", null, "sunrise to sunset under each day")), strip);
+}
+function lLanes(rows){
+  var N = 10, tl = h("div", {class: "pv-tl"});
+  tl.appendChild(h("div", {class: "pv-hours"}, h("div"), h("div", null, h("span", null, "12a"), h("span", null, "6a"), h("span", null, "12p"), h("span", null, "6p"), h("span", null, "12a"))));
+  for (var d = 0; d < N; d++) (function(d){
+    var dt = new Date(nowMs() + d * 86400000), sd = sunDay(dt), lane = h("div", {class: "pv-lane"});
+    if (sd && sd.rise != null) { lane.appendChild(h("div", {class: "band", style: "left:" + (sd.rise / 24 * 100) + "%;width:" + ((sd.set - sd.rise) / 24 * 100) + "%"})); lane.appendChild(h("div", {class: "gold", style: "left:" + ((sd.set - 1) / 24 * 100) + "%;width:" + (100 / 24) + "%"})); }
+    if (d === 0) { var nd = new Date(nowMs()); lane.appendChild(h("div", {class: "now", style: "left:" + ((nd.getHours() + nd.getMinutes() / 60) / 24 * 100) + "%"})); }
+    rows.filter(function(r){ return r.whenKey !== 9999 && Math.floor(r.whenKey / 100) === d; }).forEach(function(r){
+      var st = r.hr == null ? 9 : r.hr, rng = clockRange(r.it.text), en = rng ? rng[1] : st + 2;
+      lane.appendChild(h("div", {class: "pv-blk t" + ltier(r), style: "left:" + Math.min(st / 24 * 100, 88) + "%;width:" + Math.max((en - st) / 24 * 100, 12) + "%", title: r.what + (r.time ? " · " + r.time : "")}, r.what));
+    });
+    tl.appendChild(h("div", {class: "pv-tlr"}, h("div", {class: "dlab"}, h("b", null, d === 0 ? "Today" : DAYS[dt.getDay()]), (dt.getMonth() + 1) + "/" + dt.getDate()), lane));
+  })(d);
+  return h("section", {class: "pv-card"}, h("h3", null, "Next 10 days", h("small", null, "amber band is daylight, brighter edge is the golden hour")), tl);
+}
+function lAgenda(rows){
+  var N = 10, ag = h("div", {class: "pv-ag"}), any = false;
+  var heat = h("div", {class: "pv-heat", style: "grid-template-columns:repeat(10,minmax(0,1fr));margin-bottom:8px"}), cnt = [];
+  for (var d = 0; d < N; d++) cnt.push(rows.filter(function(r){ return r.whenKey !== 9999 && Math.floor(r.whenKey / 100) === d; }).length);
+  var mx = Math.max(1, Math.max.apply(null, cnt)); cnt.forEach(function(c){ heat.appendChild(h("i", {style: "--v:" + Math.round(c / mx * 90) + ";height:26px"})); });
+  for (var d2 = 0; d2 < N; d2++) (function(d){
+    var dt = new Date(nowMs() + d * 86400000), ev = rows.filter(function(r){ return r.whenKey !== 9999 && Math.floor(r.whenKey / 100) === d; }).sort(function(a, b){ return a.whenKey - b.whenKey; });
+    if (!ev.length) return; any = true;
+    ag.appendChild(h("div", {class: "dayh"}, h("b", null, d === 0 ? "Today" : DAYS[dt.getDay()] + " " + (dt.getMonth() + 1) + "/" + dt.getDate()), h("span", null, pvIcon("sun"), lsunNote(dt))));
+    ev.forEach(function(r){ ag.appendChild(h("a", {class: "pv-agr t" + ltier(r), href: r.it.link || "#", target: r.it.link ? "_blank" : null, rel: "noopener", style: r.it.link ? "" : "cursor:default"},
+      h("span", {class: "tm"}, r.time ? r.time.replace(/:00/g, "").replace(/ (AM|PM)/g, function(m, a){ return a[0]; }) : "Time n/a"), h("span", {class: "ic"}, pvIcon(LICON[r.type] || "cal")), h("span", {style: "font-weight:600"}, r.what), r.where ? h("span", {class: "pv-chip"}, r.where) : null)); });
+  })(d2);
+  return h("section", {class: "pv-card"}, h("h3", null, "Next 10 days", h("small", null, "darker squares are quiet days")), heat, any ? ag : h("div", {class: "pv-empty"}, "Nothing dated in the next 10 days."));
+}
 function localView(){
-  var wrap = h("div", {class: "ltwrap"});
-  wrap.appendChild(localDiagram());
+  var wrap = h("div", {class: "ltwrap"}), rows = lrows();
+  LVAR = LVAR || pvGet("cc_local_layout");
+  var top = h("div");
+  function paint(){
+    top.textContent = "";
+    top.appendChild(pvSwitch("cc_local_layout", LVAR, function(v){ LVAR = v; paint(); }));
+    var al = lalerts(rows); if (al) top.appendChild(al);
+    top.appendChild(LVAR === "B" ? lLanes(rows) : LVAR === "C" ? lAgenda(rows) : lDays(rows));
+  }
+  paint();
+  wrap.appendChild(top);
   wrap.appendChild(localTable());
   return wrap;
 }
@@ -1792,7 +1863,7 @@ window.addEventListener("resize", function(){ clearTimeout(fitTimer); fitTimer =
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if (TAB === "Wall" && DATA) fitWall(); });
 
 /* ---------- view modules (views/*.js): see views/CONTRACT.md ---------- */
-var CCAPI = {h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
+var CCAPI = {pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
   get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
   get data(){ return DATA; }, get tab(){ return TAB; }};
@@ -1845,6 +1916,36 @@ var ICONS = {
   Private: [["path", "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"]],
   System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]]
 };
+
+var PV = {
+  bell:"M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4", "new":"M12 3v4M12 17v4M3 12h4M17 12h4M7 7l2 2M15 15l2 2M17 7l-2 2M9 15l-2 2",
+  wait:"M7 3h10M7 21h10M8 3v3l4 4 4-4V3M8 21v-3l4-4 4 4v3", ok:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12l3 3 5-6",
+  book:"M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M9 15l2 2 4-4", clock:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+  alert:"M12 4l9 16H3zM12 10v4M12 17h.01", flag:"M5 21V4M5 4h11l-2 4 2 4H5", cal:"M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M12 14h.01",
+  closure:"M3 9h18v6H3zM7 9l4 6M13 9l4 6M5 15v5M19 15v5", meet:"M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 6a3 3 0 0 1 0 6M18 14c2 .8 3 3 3 6",
+  ig:"M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM17 7h.01",
+  fb:"M14 21v-8h3l.5-3.5H14V7.5c0-1 .5-1.5 1.5-1.5h2V3h-3C12 3 10.5 4.7 10.5 7v2.5H8V13h2.5v8", mail:"M3 6h18v12H3zM3 7l9 7 9-7",
+  web:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18",
+  sun:"M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"
+};
+function pvIcon(n, big){
+  var e = svgEl("svg", {viewBox: "0 0 24 24", "class": "pv-ic" + (big ? " l" : ""), "aria-hidden": "true"});
+  e.appendChild(svgEl("path", {d: PV[n] || PV.cal})); return e;
+}
+function pvTier(ageMs, handled){
+  if (handled) return 0;
+  var hr = new Date(nowMs()).getHours(), quiet = hr >= 22 || hr < 7, hrs = ageMs / 3600000;
+  var t = hrs < 1 ? 1 : hrs < 4 ? 2 : hrs < 24 ? 3 : 4;
+  return quiet && t > 2 ? 2 : t;
+}
+function pvSwitch(key, cur, onpick){
+  var box = h("div", {class: "pv-sw"}, h("span", null, "Layout"));
+  ["A", "B", "C"].forEach(function(v){
+    box.appendChild(h("button", {type: "button", class: v === cur ? "on" : "", onclick: function(){ try { localStorage.setItem(key, v); } catch(e){} onpick(v); }}, v));
+  });
+  return box;
+}
+function pvGet(key){ try { var v = localStorage.getItem(key); return v === "B" || v === "C" ? v : "A"; } catch(e){ return "A"; } }
 function embedUrl(u){ return u.indexOf("pages/") === 0 ? u + (u.indexOf("?") > -1 ? "&" : "?") + "theme=" + themeIs() : u; }
 function icon(name){
   var e = svgEl("svg", {viewBox: "0 0 24 24", "class": "ic", "aria-hidden": "true"});
@@ -2108,6 +2209,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="cc-motion.js"></script>
 <script src="views/business.js" onerror="void 0"></script>
 <script src="views/bizcharts.js" onerror="void 0"></script>
+<script src="views/bizleads.js" onerror="void 0"></script>
 <script src="views/system.js" onerror="void 0"></script>
 <script src="views/shooting.js" onerror="void 0"></script>
 <link rel="stylesheet" href="views/views.css">
