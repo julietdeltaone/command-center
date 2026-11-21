@@ -74,9 +74,15 @@
   var PLANNED = [
     {n: "Mail watcher", w: "An Apps Script on a timer reads the report emails and writes them straight into the record", g: "mail"},
     {n: "Sheet to Sheet link", w: "Other Google Sheets feed the record directly, with no crew member refreshing by hand", g: "sys"},
-    {n: "Monthly recap store", w: "The record becomes the authority for the finance, physical, banking, spiritual and career inputs the recap reads", g: "money"}
+    {n: "Workouts and Inventory in Drive", w: "Both leave the Sheet for files in the Drive folders once their row counts are checked", g: "body"},
+    {n: "Recap inputs store", w: "Raw recap inputs get a Drive folder each; the record keeps a last-stored time per input", g: "money"}
   ];
-
+  var AUTH = [
+    {n: "Origin", w: "Bank and card export, a new CSV at month end", g: "money", copy: "04 Recap Inputs / Money"},
+    {n: "FitNotes", w: "Workout database, sent from iCloud by shortcut to Gmail", g: "body", copy: "02 Workouts / FitNotes backups"},
+    {n: "Calvary Baptist voice notes", w: "JD's own transcripts in a Google Doc, the only source", g: "other", copy: "Stays in its own Doc"},
+    {n: "Moodle", w: "Grades and course material, copied at the end of each term", g: "other", copy: "05 School / Moodle archive"}
+  ];
   function ico(path, cls) {
     var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "so-ic" + (cls ? " " + cls : "")); s.setAttribute("aria-hidden", "true");
@@ -199,6 +205,10 @@
     var g = G[p.g];
     return h("div", {class: "so-plan"}, h("div", {class: "so-sid"}, h("b", null, p.n), h("span", {class: "so-tag soft"}, "Planned")), h("p", null, p.w), h("div", {class: "so-sf"}, h("span", {class: "so-k"}, g.n)));
   }
+  function authCard(a) {
+    var g = G[a.g];
+    return h("div", {class: "so-side so-auth"}, h("div", {class: "so-sid"}, h("b", null, a.n), h("span", {class: "so-tag good"}, "Authority")), h("p", null, a.w), h("div", {class: "so-sf"}, h("span", {class: "so-k"}, g.n), h("span", {class: "so-copy"}, a.copy)));
+  }
   function section(title, sub, body) { return h("section", {class: "so-sec"}, h("div", {class: "so-sh2"}, h("h3", null, title), sub ? h("p", null, sub) : null), body); }
 
   function routineTable(M) {
@@ -217,6 +227,7 @@
     page.appendChild(section("Origins, by kind", "Each card is one kind of place information starts. The colour is how current its routines are.",
       h("div", {class: "so-grid"}, M.order.map(function (g) { return groupCard(api, M, g.id); }))));
     page.appendChild(section("Crew", "Who carries information into the record, and when each last wrote.", h("div", {class: "so-crews"}, M.writers.map(function (w) { return crewCard(api, w); }))));
+    page.appendChild(section("Authoritative sources", "Where the original lives. A copy goes in the Drive folder named on each card, and the record keeps only a summary and a last-stored time.", h("div", {class: "so-sides"}, AUTH.map(authCard))));
     page.appendChild(section("Outside the record", "These feeds are read by the hub directly. Pointing them at the record is the next step.", h("div", {class: "so-sides"}, sideFeeds(api).map(function (x) { return sideCard(api, x); }))));
     page.appendChild(section("Planned connections", "Not built yet. Shown so the shape of the whole system is visible.", h("div", {class: "so-sides"}, PLANNED.map(plannedCard))));
     if (CC.widgets && CC.widgets.fold) page.appendChild(CC.widgets.fold("so-routines", "Every routine", "furthest behind first", function () { return routineTable(M); }, false));

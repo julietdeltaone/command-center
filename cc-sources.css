@@ -55,3 +55,6 @@
 
 /* eight tabs fit on a phone */
 @media (max-width:760px){nav.tabs{gap:2px;padding-left:4px;padding-right:4px}nav.tabs .tab{min-width:0;padding:0 1px;font-size:10px;letter-spacing:-.01em;overflow:hidden}nav.tabs .tab .ic{width:18px;height:18px}}
+
+.so-tag.good{color:var(--green);border-color:color-mix(in srgb,var(--green) 50%,transparent)}
+.so-copy{font:500 10.5px var(--tnum);color:var(--muted);text-align:right}
