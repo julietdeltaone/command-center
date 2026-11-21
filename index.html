@@ -1815,6 +1815,37 @@ function sleepCard(){
     })))));
   return sec;
 }
+/* ---------- fitness (Luna reads the emailed FitNotes backup each morning and writes one Items row per workout day:
+   Private / Health, text "Workout: 4 exercises, 13 sets, 25 cardio min", time = that workout's date) ---------- */
+function workoutDays(){
+  var by = {};
+  DATA.items.forEach(function(i){
+    if (i.tab !== "Private" || i.module !== "Health" || !/^workout\b/i.test(i.text || "")) return;
+    var t = msOf(i.time), m = String(i.text).match(/(\d+)\s*sets?\b/i);
+    if (!t || !m) return;
+    var ex = String(i.text).match(/(\d+)\s*exercises?/i), cd = String(i.text).match(/(\d+)\s*(?:cardio\s*)?min/i), k = CC.fresh.ymd(t);
+    by[k] = {t: t, k: k, sets: parseInt(m[1], 10), ex: ex ? parseInt(ex[1], 10) : null, cardio: cd ? parseInt(cd[1], 10) : null};
+  });
+  return Object.keys(by).sort().map(function(k){ return by[k]; });
+}
+function fitnessCard(){
+  var w = workoutDays(), now = nowMs();
+  var fr = w.length ? freshAt(w[w.length - 1].t, 2880, "Newest workout day") : freshOf("Private", ["Health"]);
+  var sec = h("section", {class: "wt slp"}, h("div", {class: "wh"}, h("span", {class: "mono"}, "Training"), stampEl(fr)));
+  if (!w.length) { sec.appendChild(h("div", {class: "rh-sub", style: "text-align:center;padding:8px 0"}, "No workouts yet. They arrive from the FitNotes email each morning.")); return sec; }
+  var last = w[w.length - 1], gap = CC.fresh.dayDiff(last.t);
+  var wk = w.filter(function(x){ return now - x.t < 7 * 86400000; }), sets7 = wk.reduce(function(a, x){ return a + x.sets; }, 0);
+  var days = [], today = CC.fresh.ymd(now);
+  for (var d = 13; d >= 0; d--) { var k = CC.fresh.ymd(now - d * 86400000), f = w.filter(function(x){ return x.k === k; })[0]; days.push({k: k, sets: f ? f.sets : 0}); }
+  var mx = Math.max.apply(null, days.map(function(x){ return x.sets; }).concat([10]));
+  sec.appendChild(h("div", {class: "slp-grid"},
+    h("div", null, h("h4", null, "Last 7 days"), h("div", {class: "rh-big"}, String(wk.length)), h("div", {class: "rh-sub"}, (wk.length === 1 ? "workout day" : "workout days") + " · " + sets7 + " sets")),
+    h("div", null, h("h4", null, "Last workout"), h("div", {class: "rh-big"}, gap <= 0 ? "Today" : gap === 1 ? "Yesterday" : gap + " days ago"), h("div", {class: "rh-sub"}, new Date(last.t).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric", timeZone: "America/New_York"}) + " · " + last.sets + " sets" + (last.ex ? ", " + last.ex + " exercises" : ""))),
+    h("div", null, h("h4", null, "Sets per day, 14 days"), h("div", {class: "rh-bars", role: "img", "aria-label": "Sets logged per day"}, days.map(function(x){
+      return h("i", {style: "height:" + (x.sets ? 10 + x.sets / mx * 90 : 4) + "%;background:" + (x.sets ? "var(--accent)" : "var(--line)"), title: x.k + ": " + x.sets + " sets"});
+    })))));
+  return sec;
+}
 function listCard(title, items, modName){
   var s = modName ? moduleStatus(modName) : null;
   var card = h("section", {class: "card mod"}, h("div", {class: "mhead"}, h("h3", null, title), s ? h("div", {class: "status"}, h("span", {class: "dot " + s.state}), s.text) : null));
@@ -1830,7 +1861,7 @@ function privSections(){
   out.push({k: "guard", label: "Guard", n: g.Guard.length, body: function(){ return listCard("Guard", g.Guard, "Guard, OTS, MBA"); }});
   out.push({k: "ots", label: "OTS", n: g.OTS.length, body: function(){ return listCard("Air Force OTS", g.OTS, "Guard, OTS, MBA"); }});
   out.push({k: "mba", label: "MBA", n: g.MBA.length, body: function(){ return listCard("MBA", g.MBA, "Guard, OTS, MBA"); }});
-  out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null; }); if (rest.length) w.appendChild(listCard("Health", rest, "Health")); return w; }});
+  out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); w.appendChild(fitnessCard()); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null && !/^workout\b/i.test(i.text || ""); }); if (rest.length) w.appendChild(listCard("Health", rest, "Health")); return w; }});
   out.push({k: "jobs", label: "Job search", always: true, n: jobsNeeds(), alert: true, body: jobsView});
   out.push({k: "shoot", label: "Shooting log", always: true, n: 0, body: function(){ var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }});
   return out.filter(function(x){ return x.always || x.n > 0; });
@@ -2377,6 +2408,10 @@ function preview(){
       W(I("s18", "Local", "Events", "Scholarship application deadline, Fri 11:59 PM, online, students only", "clarkson.edu financial aid", "Single source", 190), "chatgpt"),
       W(I("s19", "Local", "Events", "Holiday craft fair, Sat 4:30 PM to 8 PM, Potsdam Civic Center, $5 admission, public", "Instagram @potsdamchamber", "Single source", 120), "muse"),
       I("s12", "Private", "Health", "Sleep 7h 12m", "Orion", "Exact", 160),
+      I("s24", "Private", "Health", "Workout: 4 exercises, 13 sets, 25 cardio min", "FitNotes", "Exact", 1500),
+      I("s25", "Private", "Health", "Workout: 4 exercises, 10 sets", "FitNotes", "Exact", 2940),
+      I("s26", "Private", "Health", "Workout: 3 exercises, 9 sets", "FitNotes", "Exact", 4380),
+      I("s27", "Private", "Health", "Workout: 4 exercises, 10 sets", "FitNotes", "Exact", 5820),
       I("s20", "Private", "Health", "Sleep 6h 31m", "Orion", "Exact", 1600),
       I("s21", "Private", "Health", "Sleep 7h 48m", "Orion", "Exact", 3040),
       I("s22", "Private", "Health", "Sleep 5h 55m", "Orion", "Exact", 4480),

@@ -45,6 +45,13 @@ Never edit a file you do not own. To change one, post a request row in the Comma
 - Hub gets short status and counts only (workout days this week, sets, last workout date). Set-by-set rows stay in the email. Never commit a backup file or the script's output.
 - Luna and Atlas: if no Orion Delta email arrives by 7 AM, post a 🟡 row.
 
+## Fitness rows (from the Orion Delta email)
+
+- Owner: Luna. Every morning after 5:30 AM, find the newest email with subject starting "Orion Delta FitNotes backup" in JD's personal Gmail. Open the attached .fitnotesdb (the email body has the field guide). Run tools/fitnotes_last7.py or the same query.
+- Write one Items row per workout day for the last 7 days: Tab Private, Module Health, Text "Workout: 4 exercises, 13 sets, 25 cardio min" (cardio part only if there was cardio), Source FitNotes, Grade Exact, Time = that workout's date. One row per date; the newest write wins.
+- Counts only. No exercise names, weights or notes in the Sheet. The full detail stays in the email.
+- No new email by 7 AM: post a 🟡 row "FitNotes backup has not arrived".
+
 ## Orion sleep values (Beta)
 
 - Orion now sends sleep values. Luna writes one Items row per night: Tab Private, Module Health, Text "Sleep 7h 12m" (hours and minutes only), Source Orion, Time = the wake time, Grade Exact. One row per night; the newest row for a night wins.
