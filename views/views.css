@@ -91,3 +91,9 @@
 
 .sys-pipe-d{width:100%;height:auto;display:block}.sys-pipe-l{display:none;flex-direction:column;gap:8px}
 @media (max-width:760px){.sys-pipe-d{display:none}.sys-pipe-l{display:flex}}
+
+/* council pass: system */
+.sys-dl{display:grid;gap:2px}.sys-dr{display:grid;grid-template-columns:14px 1fr auto;gap:10px;align-items:center;padding:8px 4px;border-top:1px solid var(--line)}.sys-dr:first-child{border-top:0}
+.sys-dh{font-size:12px;border:1px solid;border-radius:999px;padding:1px 10px;white-space:nowrap}
+.sys-diagw{grid-template-columns:minmax(0,1fr)!important}.sys-diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.sys-chip{white-space:normal!important;height:auto!important;line-height:1.35}

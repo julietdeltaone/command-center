@@ -99,7 +99,7 @@
 
     /* ---- crew timeline: last 24h of reports per AI ---- */
     function crewTimeline() {
-      var W = 640, rowH = 34, L = 74, H = crew.length * rowH + 28, t0 = now - 24 * 3600000, X = function (t) { return L + (W - L - 12) * (t - t0) / (now - t0); };
+      var W = 640, rowH = 28, L = 74, H = crew.length * rowH + 28, t0 = now - 24 * 3600000, X = function (t) { return L + (W - L - 12) * (t - t0) / (now - t0); };
       var svg = S('svg', {viewBox: '0 0 ' + W + ' ' + H, class: 'sys-tl', role: 'img', 'aria-label': 'Reports from each crew member in the last 24 hours'});
       for (var k = 0; k <= 4; k++) { var tt = t0 + (now - t0) * k / 4, x = X(tt); svg.appendChild(S('line', {x1: x, x2: x, y1: 4, y2: H - 22, stroke: 'var(--line)', 'stroke-dasharray': '2 4'})); svg.appendChild(T(x, H - 6, k === 4 ? 'now' : new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', hour: 'numeric'}).format(new Date(tt)), {'text-anchor': k === 0 ? 'start' : k === 4 ? 'end' : 'middle', class: 'sys-axis'})); }
       crew.forEach(function (c, i) {
@@ -111,22 +111,16 @@
       return svg;
     }
 
-    /* ---- departments map ---- */
+    /* ---- departments: ranked list, failing first ---- */
     function deptMap() {
-      var depts = api.depts || [], W = 640, H = 300, cx = W / 2, cy = H / 2, svg = S('svg', {viewBox: '0 0 ' + W + ' ' + H, class: 'sys-dm', role: 'img', 'aria-label': 'Departments and their heads'});
-      var n = depts.length || 1;
-      svg.appendChild(S('circle', {cx: cx, cy: cy, r: 34, fill: 'var(--panel2,var(--card))', stroke: 'var(--line)', 'stroke-width': 2}));
-      svg.appendChild(T(cx, cy + 5, 'JD', {'text-anchor': 'middle', class: 'sys-ring-sm', fill: 'var(--text)', style: 'font-size:16px;font-weight:700'}));
-      depts.forEach(function (dp, i) {
-        var a = -Math.PI / 2 + i * 2 * Math.PI / n, rx = 230, ry = 104, x = cx + rx * Math.cos(a), y = cy + ry * Math.sin(a), own = api.cfgVal('dept.' + dp[0]), col = own ? colorOf(own) : 'var(--muted)', sg = (api.deptSignal ? api.deptSignal(dp[0]) : {st: 'none'}).st;
-        var sc = sg === 'ok' ? 'var(--green)' : sg === 'late' ? 'var(--amber)' : sg === 'fail' ? 'var(--red)' : 'var(--muted)';
-        svg.appendChild(S('line', {x1: cx, y1: cy, x2: x, y2: y, stroke: col, 'stroke-width': 2, 'stroke-dasharray': own ? '' : '4 5', opacity: .7}));
-        svg.appendChild(S('rect', {x: x - 72, y: y - 28, width: 144, height: 56, rx: 14, fill: 'var(--bg)', stroke: col, 'stroke-width': 2}));
-        svg.appendChild(S('circle', {cx: x + 58, cy: y - 15, r: 5, fill: sc}));
-        svg.appendChild(T(x, y - 4, dp[0].length > 18 ? dp[0].replace(' and ', ' & ') : dp[0], {'text-anchor': 'middle', class: 'sys-node'}));
-        svg.appendChild(T(x, y + 14, own ? nameOf(own) : 'Unassigned', {'text-anchor': 'middle', class: 'sys-node-o', fill: col}));
-      });
-      return svg;
+      var depts = (api.depts || []).map(function (dp) {
+        var own = api.cfgVal('dept.' + dp[0]), sg = (api.deptSignal ? api.deptSignal(dp[0]) : {st: 'none'}).st;
+        return {n: dp[0], own: own, sg: sg, rank: sg === 'fail' ? 0 : sg === 'late' ? 1 : sg === 'ok' ? 2 : 3};
+      }).sort(function (a, b) { return a.rank - b.rank; });
+      return h('div', {class: 'sys-dl'}, depts.map(function (x) {
+        var col = x.own ? colorOf(x.own) : 'var(--muted)', st = x.sg === 'ok' ? 'ok' : x.sg === 'late' ? 'late' : x.sg === 'fail' ? 'fail' : 'none';
+        return h('div', {class: 'sys-dr'}, h('i', {class: 'dot ' + st}), h('b', null, x.n), h('span', {class: 'sys-dh', style: 'color:' + col + ';border-color:' + col}, x.own ? nameOf(x.own) : 'Unassigned'));
+      }));
     }
 
     /* ---- sync ---- */
@@ -176,8 +170,8 @@
           cnt.ok === rs.length && rs.length ? h('div', {class: 'sys-meta'}, 'All on time') : h('div', {class: 'sys-meta'}, (cnt.late || 0) + ' late · ' + (cnt.fail || 0) + ' failed · ' + (cnt.nodata || 0) + ' waiting'));
       }));
       var pr = h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Open problems'), h('span', {class: 'sys-count'}, String(probs.length))),
-        probs.length ? h('div', {class: 'sys-chips'}, probs.map(function (p) { return h('span', {class: 'sys-chip', style: 'border-color:' + colorOf(p.owner)}, h('i', {style: 'background:' + colorOf(p.owner)}), (p.problem || 'Issue').slice(0, 56), h('small', null, nameOf(p.owner))); })) : h('div', {class: 'sys-meta'}, 'None open'));
-      return h('div', {class: 'sys-diagw'}, wrap, pr);
+        probs.length ? h('div', {class: 'sys-chips'}, probs.map(function (p) { return h('span', {class: 'sys-chip', style: 'border-color:' + colorOf(p.owner)}, h('i', {style: 'background:' + colorOf(p.owner)}), (p.problem || 'Issue'), h('small', null, nameOf(p.owner))); })) : h('div', {class: 'sys-meta'}, 'None open'));
+      return h('div', {class: 'sys-diagw'}, pr, wrap);
     }
 
 

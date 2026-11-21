@@ -939,18 +939,39 @@ function wpTile(){
   return h("section", {class: "wt ws3 wp", "aria-label": "Work and Personal"}, half(a, null), half(b, "Personal"));
 }
 
+function needsNow(){
+  var out = [], now = nowMs();
+  DATA.routines.filter(function(r){ return r.status === "fail"; }).forEach(function(r){ out.push({t: 4, ic: "alert", ti: r.routine + " is failing", rt: "System", tab: "System"}); });
+  DATA.items.filter(function(i){ return i.tab === "Business" && i.module === "Leads"; }).forEach(function(i){
+    var age = now - new Date(i.time).getTime(), t = pvTier(age, /\b(booked|replied|won|lost|closed|handled)\b/i.test(i.text || ""));
+    if (t >= 2) out.push({t: t, ic: t >= 4 ? "bell" : "wait", ti: String(i.text || "").split("Recommended action:")[0].replace(/\s+$/, ""), rt: ago(i.time), tab: "Business"});
+  });
+  DATA.items.filter(function(i){ return i.tab === "Today" && i.due && dueLabel(i.due).indexOf("due today") === 0; }).forEach(function(i){ out.push({t: 3, ic: "flag", ti: shortName(i.text), rt: dueLabel(i.due), tab: "Today"}); });
+  lrows().filter(function(r){ return r.type === "Alert" || (r.type === "Closure" && r.whenKey < 200); }).forEach(function(r){ out.push({t: ltier(r), ic: LICON[r.type], ti: r.what, rt: r.date || "", tab: "Local"}); });
+  var seen = {}; out = out.filter(function(x){ var k = x.ti; if (seen[k]) return false; seen[k] = 1; return true; });
+  return out.sort(function(a, b){ return b.t - a.t; }).slice(0, 6);
+}
+function needsBand(){
+  var L = needsNow();
+  if (!L.length) return null;
+  return h("section", {class: "pv-card pv-need", "aria-label": "Needs action now"}, h("h3", null, pvIcon("bell", true), "Needs action now", h("small", null, L.length + (L.length === 1 ? " item" : " items"))),
+    h("div", {class: "pv-alerts"}, L.map(function(x){
+      return h("div", {class: "pv-lead t" + x.t, role: "button", tabindex: "0", onclick: function(){ go(x.tab); }}, h("div", {class: "pv-tile"}, pvIcon(x.ic)), h("div", null, h("div", {class: "pv-ti", style: "font-size:13px"}, x.ti)), h("div", {class: "pv-age"}, h("b", {style: "font-size:12px"}, x.rt)));
+    })));
+}
 function wall(){
   var box = h("div", {class: "wallbox"});
-  var bad = DATA.routines.filter(function(r){ return r.status === "fail"; });
-  if (bad.length) box.appendChild(h("div", {class: "walert", role: "status"}, h("b", null, "ATTENTION"),
-    h("span", null, bad.map(function(r){ return r.routine; }).join(", ") + (bad.length === 1 ? " is failing." : " are failing.")),
-    h("button", {class: "wopen", type: "button", onclick: function(){ go("System"); }}, "VIEW IN SYSTEM")));
   var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Personal and Work" : "Unlock Personal and Work") : null;
+  var nb = needsBand(); if (nb) box.appendChild(nb);
   if (lockBtn) box.appendChild(h("div", {class: "wbar", style: "justify-content:center"}, lockBtn));
+  loadPulse();
+  var ps = pulseStats(), off = [];
+  if (!ps) { off.push("Business Pulse"); off.push("Marketing moves"); }
   box.appendChild(h("div", {class: "wall fit"},
     statsRow(),
     todayTile(), localTile(), businessTile(), (DATA.config || DATA.messages) ? latestTile() : null,
-    pulseCover(3), leadsCover(2), marketingCover(2), recapCover(2), wpTile()));
+    ps ? pulseCover(3) : null, leadsCover(ps ? 2 : 4), ps ? marketingCover(2) : null, recapCover(ps ? 2 : 4), wpTile()));
+  if (off.length) box.appendChild(h("div", {class: "pv-strip1"}, h("span", null, off.length + " feeds not connected yet:"), off.map(function(n){ return h("span", {class: "pv-chip"}, n); })));
   return box;
 }
 
@@ -1082,14 +1103,48 @@ function guardModule(m, tab){
 }
 
 /* ---------- per-view layouts ---------- */
-function todayView(){
-  var wrap = h("div", {class: "wall vgrid"});
-  ((DATA.modules || {})[TAB] || []).forEach(function(m){
-    var card = itemsModule(m, TAB);
-    card.classList.add("vs4");
-    wrap.appendChild(card);
+function todayGust(){
+  var it = DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Weather and drone"; })[0];
+  if (!it) return null;
+  var m = /(\d+)\s*mph/i.exec(it.text || ""), g = m ? Number(m[1]) : null, no = /not flyable|no[- ]fly|grounded|unsafe/i.test(it.text || "") || (g != null && g >= 25), tier = no ? 4 : (g != null && g >= 18) ? 2 : 1;
+  return h("section", {class: "pv-card t" + tier, style: "margin:0;border-top:3px solid var(--t)"}, h("div", {class: "lbl", style: "font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)"}, "Drone today"),
+    h("div", {style: "display:flex;align-items:baseline;gap:12px;margin-top:6px"}, h("b", {style: "font-size:30px;color:var(--t)"}, no ? "No-go" : "Go"), g != null ? h("span", {style: "font-size:20px;font-weight:700"}, "gusts " + g + " mph") : null),
+    h("div", {class: "pv-fine"}, String(it.text || "")));
+}
+function todayTimeline(){
+  var rows = [];
+  DATA.items.filter(function(i){ return i.tab === "Today" && i.module === "Calendar and deadlines"; }).forEach(function(i){
+    var r = clockRange(i.text), c = clock(i.text), dueH = null;
+    if (!r && i.due && dueLabel(i.due).indexOf("due today") === 0) { var dd = new Date(i.due); dueH = dd.getHours() + dd.getMinutes() / 60; }
+    var st = r ? r[0] : c != null ? c : dueH;
+    if (st == null) return;
+    rows.push({t: dueH != null ? 3 : 1, ic: dueH != null ? "flag" : "cal", ti: shortName(i.text), st: st, en: r ? r[1] : st + 0.75});
   });
-  return wrap;
+  ((localInfo().groups[0]) || []).forEach(function(e){ if (e.time != null) rows.push({t: 1, ic: "cal", ti: e.label, st: e.time, en: e.time + 1.5}); });
+  if (!rows.length) return null;
+  rows.sort(function(a, b){ return a.st - b.st; });
+  var A = 6, B = 24, X = function(x){ return Math.max(0, Math.min(100, (x - A) / (B - A) * 100)); }, nd = new Date(nowMs()), nh = nd.getHours() + nd.getMinutes() / 60;
+  var axis = h("div", {class: "pv-hours", style: "grid-template-columns:200px 1fr"}, h("div"), h("div", null, [6, 9, 12, 15, 18, 21, 24].map(function(x){ return h("span", null, ((x + 11) % 12 + 1) + (x < 12 || x === 24 ? "a" : "p")); })));
+  var card = h("section", {class: "pv-card"}, h("h3", null, pvIcon("clock", true), "Your day", h("small", null, rows.length + " on the clock")), axis);
+  rows.forEach(function(r){
+    var lane = h("div", {class: "pv-lane"}, nh >= A && nh <= B ? h("div", {class: "now", style: "left:" + X(nh) + "%"}) : null,
+      h("div", {class: "pv-blk t" + r.t, style: "left:" + X(r.st) + "%;width:" + Math.max(X(r.en) - X(r.st), 4) + "%"}, r.ti));
+    card.appendChild(h("div", {class: "pv-tlr", style: "grid-template-columns:200px 1fr"}, h("div", {class: "dlab", style: "padding:6px 8px;font-size:13px;color:var(--text);display:flex;gap:8px;align-items:center"}, pvIcon(r.ic), h("span", {style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap"}, r.ti)), lane));
+  });
+  return card;
+}
+function todayView(){
+  var mods = ((DATA.modules || {})[TAB] || []), by = {};
+  mods.forEach(function(m){ by[m.name] = itemsModule(m, TAB); });
+  var left = h("div", {class: "zl"}), right = h("div", {class: "zr"}), placed = {};
+  if (by["Calendar and deadlines"]) { left.appendChild(by["Calendar and deadlines"]); placed["Calendar and deadlines"] = 1; }
+  ["Weather and drone", "Watch"].forEach(function(n){ if (by[n]) { right.appendChild(by[n]); placed[n] = 1; } });
+  mods.forEach(function(m){ if (!placed[m.name]) (right.children.length <= left.children.length ? right : left).appendChild(by[m.name]); });
+  var box = h("div");
+  var tl = todayTimeline(); if (tl) box.appendChild(tl);
+  var gust = todayGust(); if (gust) right.insertBefore(gust, right.firstChild);
+  box.appendChild(h("div", {class: "todayz"}, left, right));
+  return box;
 }
 function businessView(){
   var box = h("div", {class: "bizview"});
@@ -1598,6 +1653,7 @@ function listCard(title, items, modName){
 function privSections(){
   var items = DATA.items.filter(function(i){ return i.tab === "Private"; }), by = function(m){ return items.filter(function(i){ return i.module === m; }); };
   var g = guardSplit(by("Guard, OTS, MBA")), SV = window.CC && window.CC.subviews && window.CC.subviews.shooting, out = [];
+  out.push({k: "over", label: "Overview", always: true, n: 0, body: privOverview});
   out.push({k: "money", label: "Money", n: by("Money").length, body: function(){ return listCard("Money", by("Money"), "Money"); }});
   out.push({k: "guard", label: "Guard", n: g.Guard.length, body: function(){ return listCard("Guard", g.Guard, "Guard, OTS, MBA"); }});
   out.push({k: "ots", label: "OTS", n: g.OTS.length, body: function(){ return listCard("Air Force OTS", g.OTS, "Guard, OTS, MBA"); }});
@@ -1606,6 +1662,19 @@ function privSections(){
   out.push({k: "jobs", label: "Job search", always: true, n: jobsNeeds(), alert: true, body: jobsView});
   out.push({k: "shoot", label: "Shooting log", always: true, n: 0, body: function(){ var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }});
   return out.filter(function(x){ return x.always || x.n > 0; });
+}
+function privOverview(){
+  var secs = privSections().filter(function(x){ return x.k !== "over"; }), items = DATA.items.filter(function(i){ return i.tab === "Private"; });
+  var textFor = {money: "Money", guard: "Guard, OTS, MBA", ots: "Guard, OTS, MBA", mba: "Guard, OTS, MBA", health: "Health"};
+  return h("div", {class: "pov"}, secs.map(function(x){
+    var first = (x.k === "jobs" ? "Open job search" : x.k === "shoot" ? "Open shooting log" : ""), tier = x.k === "jobs" ? (x.n ? 3 : 0) : x.k === "shoot" ? 0 : (x.n ? 2 : 0);
+    if (x.k === "health" || x.k === "guard" || x.k === "money" || x.k === "ots" || x.k === "mba") {
+      var m = textFor[x.k], list = items.filter(function(i){ return i.module === m; });
+      if (x.k === "guard" || x.k === "ots" || x.k === "mba") list = guardSplit(list)[x.k === "guard" ? "Guard" : x.k === "ots" ? "OTS" : "MBA"];
+      first = list.length ? shortName(list[0].text) : "";
+    }
+    return h("button", {type: "button", class: "pc t" + tier, onclick: function(){ PSEC = x.k; render(); }}, h("div", {class: "k"}, x.label), h("b", null, x.k === "shoot" ? "Log" : String(x.n)), h("span", {class: "s"}, first));
+  }));
 }
 function privateView(){
   loadShots(); loadJobs();
@@ -1886,10 +1955,9 @@ function render(){
   NEXT_ANIM = false;
   var keepY = window.scrollY;
   app.textContent = "";
-  document.getElementById("refreshed").textContent = "Live " + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  document.getElementById("refreshed").textContent = (DATA.sample ? "Sample " : "Live ") + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
   document.getElementById("livepill").classList.remove("off");
   document.getElementById("hdate").textContent = new Date(DATA.now).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"});
-  if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   document.body.classList.toggle("onwall", TAB === "Wall");
   var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TABLABEL[TAB] || TAB);
