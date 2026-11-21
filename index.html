@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#090b14">
 <script>try{if(localStorage.getItem("cc_theme")==="light")document.documentElement.setAttribute("data-theme","light")}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <title>Command Center</title>
 <style>
 :root{
@@ -204,6 +204,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 <link rel="stylesheet" href="cc-design.css">
 <link rel="stylesheet" href="cc-skin.css">
 <link rel="stylesheet" href="cc-widgets.css">
+<link rel="stylesheet" href="cc-sources.css">
 <script src="cc-fresh.js"></script>
 <script src="cc-inbox.js"></script>
 <script src="cc-sources.js"></script>
@@ -270,7 +271,7 @@ function lockScreen(name){
     lockBox(),
     h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Personal and Work")));
 }
-var TABS = ["Wall", "Today", "Business", "Local", "Status", "Private", "System"];
+var TABS = ["Wall", "Today", "Business", "Local", "Status", "Private", "System", "Sources"];
 var TABLABEL = {Wall: "Overview", Private: "Personal", Status: "JD Status"};
 var PAGES = {
   Today: [{name: "Recap", url: "pages/recap.html"}],
@@ -555,8 +556,22 @@ function swap(fn){
   /* No cross-fade snapshot: it re-rasterized the whole page and made navigation stutter. The page content fades in by itself. */
   fn();
 }
-var NEXT_ANIM = false;
-function go(tab){ document.body.classList.add("navving"); setTimeout(function(){ document.body.classList.remove("navving"); }, 500); NEXT_ANIM = true; swap(function(){ TAB = tab; PSUB = null; render(); window.scrollTo(0, 0); }); }
+var NEXT_ANIM = false, LAST_GO = 0, GO_PENDING = null;
+/* Fast clicking: only the last tab clicked is drawn, the drawer is closed first, and the page fade-in only plays when the clicks are not rapid. */
+function go(tab){
+  try { CC.inbox.panel(false); } catch(e){}
+  if (tab === TAB && !PSUB) { window.scrollTo(0, 0); return; }
+  GO_PENDING = tab;
+  if (go.raf) return;
+  go.raf = requestAnimationFrame(function(){
+    go.raf = 0;
+    var t = GO_PENDING; GO_PENDING = null;
+    var calm = Date.now() - LAST_GO > 600; LAST_GO = Date.now();
+    NEXT_ANIM = calm;
+    if (calm) { document.body.classList.add("navving"); setTimeout(function(){ document.body.classList.remove("navving"); }, 500); }
+    TAB = t; PSUB = null; render(); window.scrollTo(0, 0);
+  });
+}
 function clock(txt){
   var m = /(\d{1,2})(?::(\d{2}))?\s?([AP])M/i.exec(txt || "");
   if (!m) return null;
@@ -2217,6 +2232,7 @@ var ICONS = {
   Local: [["path", "M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"], ["circle", {cx: 12, cy: 10, r: 2.5}]],
   Private: [["path", "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"]],
   System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]],
+  Sources: [["circle", {cx: 12, cy: 12, r: 2.5}], ["path", "M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M17.7 6.3l-2.1 2.1M8.4 15.6l-2.1 2.1"]],
   Status: [["circle", {cx: 12, cy: 8, r: 3.5}], ["path", "M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"]]
 };
 

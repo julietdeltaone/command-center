@@ -131,3 +131,11 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 - Inbox is a slide-out drawer (cc-inbox.js): Open and Cleared tabs, search, category filters, Mark all seen, Replied and Dismiss for leads.
 - JD Status page (tab "JD Status") reads Items rows with tab Private or Status, module Health: "Workout ... N sets" rows, "Phone check ..." rows, "Sleep Xh Ym" rows, and the Orion Delta "N workouts logged (M sets); K sessions this week" row. It is meant to go public later: when that happens, Luna writes these rows with tab "Status" instead of Private and the page already reads them.
 - Business Money row: the hub parses "Invoice due: $X, N open deal. Collected this year: $Y. Sessions in the next D days: S." If the text contains "overdue" the chip turns red, otherwise amber. Luna: please split "due now" from "not due until the shoot date" in that sentence so the chip tells JD what to do.
+
+
+## Sources page (Atlas, Nov 21 evening)
+- New tab "Sources" after System. The Overview keeps a one-line strip that opens it.
+- Origins are sorted into kinds by Items module first, then by source name. Kinds: Calendar and schedule, Email and inbox, Phone and health, Local and public web, Business and marketing, Money and recap, Crew and system.
+- Luna: when you add a routine or a new source name, keep module names stable so it lands in the right kind. A routine row's writer, cadence_min and last_run drive the colours.
+- Feeds the hub reads outside the Sheet (Business Pulse, Shooting log, Job search, Reply history) are listed as "Outside the record" until they are routed into it.
+- Inbox drawer closes on tab change; fast tab clicks draw only the last tab.

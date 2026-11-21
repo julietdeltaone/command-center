@@ -161,3 +161,11 @@ body.ib-on{overflow-x:hidden}
 .ltn-d i{width:100%;border-radius:3px;background:var(--accent);opacity:.85;min-height:3px}.ltn-d.idle i{background:var(--line);opacity:1}.ltn-d.today i{box-shadow:0 0 0 1px var(--text)}
 .pg{padding:14px 18px}.pg-l{align-self:center}.pg-r{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media (max-width:700px){.pg-r{grid-template-columns:minmax(0,1fr)}}
+
+/* Inbox drawer keeps its own slide when the page does a soft redraw or a fast tab change */
+body.soft #ib-panel .ib-card{transition:transform .32s cubic-bezier(.2,.8,.2,1)!important}
+body.soft #ib-panel .ib-scrim{transition:opacity .25s ease!important}
+#ib-panel:not(.open) .ib-card{box-shadow:none;visibility:hidden;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s}
+#ib-panel.open .ib-card{visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s}
+body.soft #ib-panel:not(.open) .ib-card{transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s!important}
+body.soft #ib-panel.open .ib-card{transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s!important}

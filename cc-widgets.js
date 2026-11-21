@@ -78,7 +78,7 @@
     paint();
     return h("section", {class: "fold"}, head, body);
   }
-  W.fold = fold;
+  W.fold = fold; W.ring = ring; W.chip = chip; W.meter = meter;
 
   /* ---------- time helpers ---------- */
   function hrNow(api) { var d = new Date(api.nowMs()); return d.getHours() + d.getMinutes() / 60; }
