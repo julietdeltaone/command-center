@@ -86,8 +86,8 @@ body::after{
 @keyframes shimmer{to{background-position:-120% 0}}
 @media (max-width:1000px){.sk>div,.sk>div:nth-child(1),.sk>div:nth-child(2){grid-column:span 12}}
 
-#app>*,.wall>*,.tiles>*,.hero>*{animation:rise var(--dur) var(--ease) backwards;animation-delay:calc(var(--i,0) * 55ms)}
-@keyframes rise{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
+#app>*,.wall>*,.tiles>*,.hero>*{animation:rise .22s ease-out backwards;animation-delay:calc(var(--i,0) * 18ms)}
+@keyframes rise{from{opacity:0}to{opacity:1}}
 
 /* ---------- charts draw in ---------- */
 .g-fill{animation:gdraw 1.3s var(--ease) .15s both}
@@ -99,10 +99,10 @@ body::after{
 .bar-fill{transform-origin:left center;animation:blkin .9s var(--ease) both}
 
 /* ---------- page transitions ---------- */
-::view-transition-old(root){animation:vt-out .22s var(--ease) both}
-::view-transition-new(root){animation:vt-in .38s var(--ease) both}
-@keyframes vt-out{to{opacity:0;transform:translateY(-6px)}}
-@keyframes vt-in{from{opacity:0;transform:translateY(10px)}}
+::view-transition-old(root){animation:vt-out .12s ease-out both}
+::view-transition-new(root){animation:vt-in .18s ease-out both}
+@keyframes vt-out{to{opacity:0}}
+@keyframes vt-in{from{opacity:0}}
 
 /* ---------- side rail (wide screens) ---------- */
 .rail{

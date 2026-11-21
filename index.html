@@ -516,7 +516,8 @@ function swap(fn){
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (document.startViewTransition && !reduce) document.startViewTransition(function(){ fn(); }); else fn();
 }
-function go(tab){ swap(function(){ TAB = tab; PSUB = null; render(); window.scrollTo(0, 0); }); }
+var NEXT_ANIM = false;
+function go(tab){ NEXT_ANIM = true; swap(function(){ TAB = tab; PSUB = null; render(); window.scrollTo(0, 0); }); }
 function clock(txt){
   var m = /(\d{1,2})(?::(\d{2}))?\s?([AP])M/i.exec(txt || "");
   if (!m) return null;
@@ -1430,15 +1431,15 @@ function loadJobs(){
   if (JOBS.state === "loading") return;
   if (DATA.sample) { if (JOBS.state !== "sample") JOBS = {state: "sample", jobs: JOBS_SAMPLE.jobs, model: JOBS_SAMPLE.model, goal: JOBS_SAMPLE.goal, needs: JOBS_SAMPLE.needs, at: nowMs()}; return; }
   if ((JOBS.state === "live") && nowMs() - JOBS.at < 600000) return;
-  var prev = JOBS.state; JOBS.state = "loading";
+  var prev = JOBS.state; JOBS.state = "loading"; document.body.classList.add("loading");
   Promise.all([
     fetch(JOBS_URL, {cache: "no-store"}).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }),
     fetch(BLOCK_URL, {cache: "no-store"}).then(function(r){ return r.ok ? r.text() : ""; }).catch(function(){ return ""; })
   ]).then(function(res){
     var j = res[0], g = j.goal; if (typeof g === "number") g = {target: g}; else if (g && typeof g === "object") g = {target: Number(g.target || g.count || g.applications) || null, by: g.by || g.deadline || null};
     JOBS = {state: "live", jobs: (j.jobs || []), model: j.model || null, goal: g || null, needs: parseBlockers(res[1]), at: nowMs()};
-    renderNav(); if (TAB === "Private" && PSEC === "jobs") softRender();
-  }).catch(function(){ JOBS.state = JOBS.jobs.length ? "stale" : "error"; if (TAB === "Private" && PSEC === "jobs") softRender(); });
+    document.body.classList.remove("loading"); renderNav(); if (TAB === "Private" && PSEC === "jobs") softRender();
+  }).catch(function(){ document.body.classList.remove("loading"); JOBS.state = JOBS.jobs.length ? "stale" : "error"; if (TAB === "Private" && PSEC === "jobs") softRender(); });
 }
 function jobsOk(){ return JOBS.state === "live" || JOBS.state === "sample" || JOBS.state === "stale"; }
 function jobsNote(){
@@ -1810,6 +1811,9 @@ function softRender(){
 }
 function render(){
   var app = document.getElementById("app");
+  if (!NEXT_ANIM) { document.body.classList.add("soft"); clearTimeout(render.t); render.t = setTimeout(function(){ document.body.classList.remove("soft"); }, 700); }
+  NEXT_ANIM = false;
+  var keepY = window.scrollY;
   app.textContent = "";
   document.getElementById("refreshed").textContent = "Live " + new Date(DATA.now).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
   document.getElementById("livepill").classList.remove("off");
@@ -2100,6 +2104,7 @@ document.addEventListener("visibilitychange", function(){
 });
 })();
 </script>
+<div id="loadbar"><i></i></div>
 <script src="cc-motion.js"></script>
 <script src="views/business.js" onerror="void 0"></script>
 <script src="views/bizcharts.js" onerror="void 0"></script>

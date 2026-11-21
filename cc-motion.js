@@ -22,7 +22,7 @@
   }
 
   function countUp() {
-    if (reduce) return;
+    if (reduce || document.body.classList.contains("soft")) return;
     Array.prototype.forEach.call(app.querySelectorAll(".wbig,.big"), function (el) {
       var node = el.firstChild;
       if (!node || node.nodeType !== 3) return;
