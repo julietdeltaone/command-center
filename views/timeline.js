@@ -64,7 +64,8 @@
     var now0 = api.nowMs(), nd = new Date(now0), mid = new Date(nd.getFullYear(), nd.getMonth(), nd.getDate()).getTime();
     var PRESETS = {now: ['Now', now0 - HR, now0 + 5 * HR], day: ['Day', mid, mid + DAY], week: ['Week', mid - 2 * DAY, mid + 5 * DAY], two: ['2 weeks', mid, mid + 14 * DAY]};
     if (st && st.preset && PRESETS[st.preset]) { st.w0 = PRESETS[st.preset][1]; st.w1 = PRESETS[st.preset][2]; }
-    if (!st) { st = STORE[key] = {hide: load(key).hide || {}, sel: null}; var p0 = PRESETS[opt.span] || PRESETS.day; st.w0 = p0[1]; st.w1 = p0[2]; st.preset = opt.span || 'day'; if (opt.layers) LAYERS.forEach(function (L) { if (opt.layers.indexOf(L[0]) < 0 && st.hide[L[0]] === undefined) st.hide[L[0]] = true; }); }
+    if (!st) { st = STORE[key] = {hide: load(key).hide || {}, sel: null}; var p0 = PRESETS[opt.span] || PRESETS.day; st.w0 = p0[1]; st.w1 = p0[2]; st.preset = opt.span || 'day'; if (!opt.layers && load(key).hide === undefined) opt = Object.assign({}, opt, {layers: ['cal', 'due', 'local', 'alert', 'lead', 'money', 'guard']});
+      if (opt.layers) LAYERS.forEach(function (L) { if (opt.layers.indexOf(L[0]) < 0 && st.hide[L[0]] === undefined) st.hide[L[0]] = true; }); }
     var M = collect(api, mid), root = h('section', {class: 'pv-card tlz'}), bodyBox = h('div', {class: 'tlscroll'}), detail = h('div', {class: 'tldet'}), chipsBox = h('div', {class: 'tlchips'}), titleEl = h('span');
     var raf = 0, W = 900;
     function span() { return st.w1 - st.w0; }
@@ -85,7 +86,7 @@
     }
     function ticks() {
       var s = span(), step = s <= 3 * HR ? 15 * 60000 : s <= 8 * HR ? HR : s <= 30 * HR ? 3 * HR : s <= 4 * DAY ? 6 * HR : DAY, out = [];
-      for (var t = Math.ceil(st.w0 / step) * step - (new Date(st.w0).getTimezoneOffset() * 60000 % step); t <= st.w1; t += step) { if (t >= st.w0) out.push(t); }
+      var off = new Date(st.w0).getTimezoneOffset() * 60000; for (var t = Math.ceil((st.w0 - off) / step) * step + off; t <= st.w1; t += step) { if (t >= st.w0) out.push(t); }
       return out;
     }
     function tickLabel(t) {
@@ -98,7 +99,7 @@
     function lanes(list, labels) {
       var ends = [], out = [];
       list.sort(function (a, b) { return a.t0 - b.t0; }).forEach(function (m) {
-        var x0 = X(m.t0), w = m.t1 && m.t1 - m.t0 > 20 * 60000 ? Math.max(8, X(m.t1) - x0) : 12, lab = labels ? Math.min(34, m.label.length) * 6.3 + 12 : 0, need = m.t1 && w > 8 ? Math.max(w, labels ? lab : 0) : w + lab;
+        var x0 = X(m.t0), w = m.t1 && m.t1 - m.t0 > 20 * 60000 ? Math.max(labels ? Math.min(34, m.label.length) * 7 + 22 : 8, X(m.t1) - x0) : 12, lab = labels ? Math.min(34, m.label.length) * 6.3 + 12 : 0, need = m.t1 && w > 8 ? Math.max(w, labels ? lab : 0) : w + lab;
         var ln = 0; while (ends[ln] !== undefined && ends[ln] > x0 - 4) ln++; ends[ln] = x0 + need; out.push({m: m, x0: x0, w: w, ln: ln});
       });
       return {items: out, n: Math.max(1, ends.length)};
@@ -113,12 +114,12 @@
       var vis = LAYERS.filter(function (L) { return !st.hide[L[0]] && (L[0] !== 'money' && L[0] !== 'guard' || layerCount(L[0])); });
       vis.forEach(function (L) {
         var list = M.filter(function (m) { return m.layer === L[0] && (m.t1 || m.t0) >= st.w0 && m.t0 <= st.w1; }), pk = lanes(list.slice(), true);
-        var labels = true; if (pk.n > 4) { pk = lanes(list.slice(), false); labels = false; }
-        var  hgt = Math.max(40, pk.n * 28 + 10), lane = h('div', {class: 'tllane', style: 'width:' + W + 'px;height:' + hgt + 'px'});
+        var labels = true; if (pk.n > 9) { pk = lanes(list.slice(), false); labels = false; }
+        var  hgt = Math.max(52, pk.n * 34 + 12), lane = h('div', {class: 'tllane', style: 'width:' + W + 'px;height:' + hgt + 'px'});
         if (!st.hide.sun) sdays.forEach(function (dd) { var sd = api.sunDay(new Date(dd + 43200000)); if (!sd || sd.rise == null) return; var a = X(dd + sd.rise * HR), b = X(dd + sd.set * HR); if (b < 0 || a > W) return; lane.appendChild(h('div', {class: 'tlsun', style: 'left:' + a + 'px;width:' + (b - a) + 'px'})); });
         tk.forEach(function (t) { var d = new Date(t); lane.appendChild(h('div', {class: 'tlgrid' + (d.getHours() === 0 && d.getMinutes() === 0 ? ' day' : ''), style: 'left:' + X(t) + 'px'})); });
         pk.items.forEach(function (it) {
-          var m = it.m, c = col(m), top = 6 + it.ln * 28, tip = m.label + ' · ' + fmtD(m.t0) + ' ' + fmtT(m.t0), onc = function (e) { e.stopPropagation(); st.sel = m; showDetail(m); };
+          var m = it.m, c = col(m), top = 8 + it.ln * 34, tip = m.label + ' · ' + fmtD(m.t0) + ' ' + fmtT(m.t0), onc = function (e) { e.stopPropagation(); st.sel = m; showDetail(m); };
           if (m.t1 && m.t1 - m.t0 > 20 * 60000 && m.kind !== 'expected') lane.appendChild(h('div', {class: 'tlb' + (st.sel === m ? ' sel' : ''), style: 'left:' + it.x0 + 'px;width:' + it.w + 'px;top:' + top + 'px;--c:' + c, title: tip, onclick: onc, tabindex: '0', role: 'button', 'aria-label': tip, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onc(e); } }, 'data-m': '1'}, labels ? m.label : null));
           else {
             lane.appendChild(h('i', {class: 'tlm ' + (m.kind === 'expected' ? 'exp' : m.kind === 'missed' ? 'mis' : '') + (st.sel === m ? ' sel' : ''), style: 'left:' + it.x0 + 'px;top:' + (top + 12) + 'px;--c:' + c, title: tip, onclick: onc, tabindex: '0', role: 'button', 'aria-label': tip, onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onc(e); } }, 'data-m': '1'}));

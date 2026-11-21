@@ -545,10 +545,11 @@ function tiles(){ return h("div", {class: "tiles"}, tileList()); }
 /* ---------- wall ---------- */
 function swap(fn){
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (document.startViewTransition && !reduce) document.startViewTransition(function(){ fn(); }); else fn();
+  /* No cross-fade snapshot: it re-rasterized the whole page and made navigation stutter. The page content fades in by itself. */
+  fn();
 }
 var NEXT_ANIM = false;
-function go(tab){ NEXT_ANIM = true; swap(function(){ TAB = tab; PSUB = null; render(); window.scrollTo(0, 0); }); }
+function go(tab){ document.body.classList.add("navving"); setTimeout(function(){ document.body.classList.remove("navving"); }, 500); NEXT_ANIM = true; swap(function(){ TAB = tab; PSUB = null; render(); window.scrollTo(0, 0); }); }
 function clock(txt){
   var m = /(\d{1,2})(?::(\d{2}))?\s?([AP])M/i.exec(txt || "");
   if (!m) return null;

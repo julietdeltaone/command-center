@@ -949,3 +949,29 @@ html{background:var(--bg,#0b0e1a)}
 .rh-bars{display:flex;align-items:flex-end;gap:3px;height:64px;margin:8px 0 10px}
 .rh-bars i{flex:1;min-width:3px;border-radius:3px 3px 0 0;opacity:.9}
 @media (max-width:900px){.rh-grid{grid-template-columns:1fr}.rh-big{font-size:38px}}
+
+
+/* ---------- smooth navigation ---------- */
+html{scrollbar-gutter:stable}
+body::after{will-change:transform;filter:none}
+body.navving::after{animation-play-state:paused}
+#app>*,.wall>*,.tiles>*,.hero>*{animation:rise .16s ease-out backwards;animation-delay:calc(min(var(--i,0),8) * 12ms);will-change:opacity}
+.g-fill,.cells i,.tl .blk,.bar-fill{animation-duration:.35s!important;animation-delay:0s!important}
+@keyframes pulse{0%,100%{opacity:.75}50%{opacity:1}}
+@keyframes pulse-red{0%,100%{opacity:.75}50%{opacity:1}}
+
+/* same compact header on every page, so nothing jumps when switching tabs */
+body.onwall header{flex-direction:row;justify-content:space-between;align-items:center;text-align:left;padding:calc(8px + env(safe-area-inset-top)) 0 8px}
+body.onwall header .sub{display:none}
+body.onwall h1{font-size:22px;font-weight:600;letter-spacing:.02em}
+body.onwall .hbtns{position:static;margin:0}
+body.onwall .ibtn,body.onwall .pill{height:34px;min-width:34px}
+body.onwall .ibtn.icon{width:34px}
+
+/* ---------- timeline as a dashboard card ---------- */
+.tlz{max-width:1180px;margin-left:auto;margin-right:auto;padding:20px 24px 22px}
+.tlb{height:28px;line-height:24px;font-size:12.5px;font-weight:500;border-radius:9px;padding:0 10px}
+.tlt{font-size:12.5px;line-height:20px;padding:0 6px;border-radius:6px}
+.tlname{font-size:12.5px;font-weight:600}
+.tlscroll{border-radius:16px;background:var(--panel)}
+.tlchip{font-size:12px}
