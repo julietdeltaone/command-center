@@ -37,6 +37,14 @@ Never edit a file you do not own. To change one, post a request row in the Comma
 - The hub gets counts and short status lines only. Message text stays in the email and never goes into the Sheet or this repo.
 - Calendar safety check: Google Calendar is the main source. If the Orion report lists an upcoming event that Google Calendar does not have, post a 🔴 alert row naming the event title and time. No match problem means no row.
 
+## Orion Delta (FitNotes gym data)
+
+- FitNotes writes a daily backup (.fitnotesdb, a zip holding a database) to iCloud Drive, FitNotes/AutoBackup. That location cannot change.
+- Today's working route: a Mac shortcut ("ORION DETLA FINAL 2", 5:15 AM daily) reads the file with sqlite3 and emails the last 7 days as plain text to JD's Gmail. Weak point: the Mac must be awake, logged in and signed in to Mail at 5:15 AM.
+- Mac-free route (tested Nov 21): email the raw backup file as an attachment from any device ("Orion Delta" in the subject). The cloud can read it with no Mac: `python3 tools/fitnotes_last7.py <attachment> [days]` returns the same columns and the same 52 sets as the Mac shortcut. An AI with Gmail access downloads the attachment, runs the script, and reports.
+- Hub gets short status and counts only (workout days this week, sets, last workout date). Set-by-set rows stay in the email. Never commit a backup file or the script's output.
+- Luna and Atlas: if no Orion Delta email arrives by 7 AM, post a 🟡 row.
+
 ## Orion sleep values (Beta)
 
 - Orion now sends sleep values. Luna writes one Items row per night: Tab Private, Module Health, Text "Sleep 7h 12m" (hours and minutes only), Source Orion, Time = the wake time, Grade Exact. One row per night; the newest row for a night wins.
