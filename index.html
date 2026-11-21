@@ -1141,7 +1141,7 @@ function todayView(){
   ["Weather and drone", "Watch"].forEach(function(n){ if (by[n]) { right.appendChild(by[n]); placed[n] = 1; } });
   mods.forEach(function(m){ if (!placed[m.name]) (right.children.length <= left.children.length ? right : left).appendChild(by[m.name]); });
   var box = h("div");
-  var tl = todayTimeline(); if (tl) box.appendChild(tl);
+  var tl = (window.CC && CC.timeline) ? CC.timeline(CCAPI) : todayTimeline(); if (tl) box.appendChild(tl);
   var gust = todayGust(); if (gust) right.insertBefore(gust, right.firstChild);
   box.appendChild(h("div", {class: "todayz"}, left, right));
   return box;
@@ -1400,17 +1400,9 @@ function lAgenda(rows){
   return h("section", {class: "pv-card"}, h("h3", null, "Next 10 days", h("small", null, "darker squares are quiet days")), heat, any ? ag : h("div", {class: "pv-empty"}, "Nothing dated in the next 10 days."));
 }
 function localView(){
-  var wrap = h("div", {class: "ltwrap"}), rows = lrows();
-  LVAR = LVAR || pvGet("cc_local_layout");
-  var top = h("div");
-  function paint(){
-    top.textContent = "";
-    top.appendChild(pvSwitch("cc_local_layout", LVAR, function(v){ LVAR = v; paint(); }));
-    var al = lalerts(rows); if (al) top.appendChild(al);
-    top.appendChild(LVAR === "B" ? lLanes(rows) : LVAR === "C" ? lAgenda(rows) : lDays(rows));
-  }
-  paint();
-  wrap.appendChild(top);
+  var wrap = h("div", {class: "ltwrap"}), rows = lrows(), al = lalerts(rows);
+  if (al) wrap.appendChild(al);
+  wrap.appendChild(lDays(rows));
   wrap.appendChild(localTable());
   return wrap;
 }
@@ -1932,7 +1924,7 @@ window.addEventListener("resize", function(){ clearTimeout(fitTimer); fitTimer =
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if (TAB === "Wall" && DATA) fitWall(); });
 
 /* ---------- view modules (views/*.js): see views/CONTRACT.md ---------- */
-var CCAPI = {pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
+var CCAPI = {lrows: function(){ return lrows(); }, ltier: function(r){ return ltier(r); }, dayOffset: dayOffset, clock: clock, clockRange: clockRange, sunDay: sunDay, shortName: shortName, pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
   get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
   get data(){ return DATA; }, get tab(){ return TAB; }};
@@ -2278,6 +2270,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="views/business.js" onerror="void 0"></script>
 <script src="views/bizcharts.js" onerror="void 0"></script>
 <script src="views/bizleads.js" onerror="void 0"></script>
+<script src="views/timeline.js" onerror="void 0"></script>
 <script src="views/system.js" onerror="void 0"></script>
 <script src="views/shooting.js" onerror="void 0"></script>
 <link rel="stylesheet" href="views/views.css">
