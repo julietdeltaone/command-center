@@ -1261,8 +1261,29 @@ function localTable(){
   paint();
   return card;
 }
+function localDiagram(){
+  var rows = lrows().filter(function(r){ return r.whenKey !== 9999; }), N = 10, W = 940, H = 150, L = 34, T = 8, B = 26, cw = (W - L - 8) / N, ch = H - T - B;
+  var svg = svgEl("svg", {viewBox: "0 0 " + W + " " + H, class: "ldia", role: "img", "aria-label": "Local events by day and time, next " + N + " days"});
+  var Y = function(hr){ return T + ch * hr / 24; };
+  [0, 6, 12, 18, 24].forEach(function(hr){
+    svg.appendChild(svgEl("line", {x1: L, x2: W - 8, y1: Y(hr), y2: Y(hr), stroke: "var(--line)", "stroke-dasharray": "2 5"}));
+    var t = svgEl("text", {x: L - 6, y: Y(hr) + 4, "text-anchor": "end", class: "ldia-ax"}); t.textContent = hr === 0 || hr === 24 ? "12a" : hr === 12 ? "12p" : (hr % 12) + (hr < 12 ? "a" : "p"); svg.appendChild(t);
+  });
+  for (var d = 0; d < N; d++) {
+    var dt = new Date(nowMs() + d * 86400000), sd = sunDay(dt), x = L + d * cw;
+    if (sd && sd.rise != null) svg.appendChild(svgEl("rect", {x: x + 4, y: Y(sd.rise), width: cw - 8, height: Math.max(0, Y(sd.set) - Y(sd.rise)), rx: 10, fill: "var(--amber)", opacity: .1}));
+    var lab = svgEl("text", {x: x + cw / 2, y: H - 8, "text-anchor": "middle", class: "ldia-ax" + (d === 0 ? " now" : "")}); lab.textContent = d === 0 ? "Today" : DAYS[dt.getDay()] + " " + (dt.getMonth() + 1) + "/" + dt.getDate(); svg.appendChild(lab);
+    var day = rows.filter(function(r){ return Math.floor(r.whenKey / 100) === d; }), slots = {};
+    day.forEach(function(r){
+      var hr = r.hr == null ? 12 : r.hr, key = Math.round(hr * 2), n = slots[key] = (slots[key] || 0) + 1, c = svgEl("circle", {cx: x + cw / 2 + (n - 1) * 15 - ((slots[key] > 1) ? 7 : 0), cy: Y(hr), r: 5.5, fill: ltypeColor(r.type), opacity: r.hr == null ? .45 : .95});
+      var tt = svgEl("title", {}); tt.textContent = r.what + (r.time ? " · " + r.time : ""); c.appendChild(tt); svg.appendChild(c);
+    });
+  }
+  return h("section", {class: "card mod ldiac"}, h("div", {class: "lbar"}, h("h3", null, "Next " + N + " days"), h("span", {class: "lcount"}, "dot = event · amber band = daylight")), svg);
+}
 function localView(){
   var wrap = h("div", {class: "ltwrap"});
+  wrap.appendChild(localDiagram());
   wrap.appendChild(localTable());
   return wrap;
 }

@@ -737,3 +737,6 @@ body.soft *,body.soft *::before,body.soft *::after{animation:none!important;tran
   .pn{white-space:nowrap;flex:0 0 auto}
 }
 .rail .rshort{margin-top:6px;border-top:1px solid var(--line);border-radius:0 0 14px 14px;padding-top:12px}
+.ldiac{margin-bottom:14px}.ldia{width:100%;height:auto;display:block}
+.ldia-ax{fill:var(--muted);font:500 11px var(--mono)}.ldia-ax.now{fill:var(--accent);font-weight:700}
+.ldiac .lbar{margin-bottom:6px}
