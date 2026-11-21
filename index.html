@@ -251,7 +251,7 @@ function unlockPrompt(note){
   key.addEventListener("keydown", function(e){ if (e.key === "Enter") submit(); });
   app.textContent = "";
   app.appendChild(h("section", {class: "card mod"},
-    h("h3", null, "Unlock Private and Work"),
+    h("h3", null, "Unlock Personal and Work"),
     h("div", {class: "empty"}, "These sections need a second key. It is kept in this tab only and locks again after " + LOCK_AFTER_MIN + " idle minutes or when you leave the page."),
     key, msg,
     h("div", {class: "acts"},
@@ -263,10 +263,10 @@ function lockScreen(name){
   return h("section", {class: "card mod"},
     h("div", {class: "mhead"}, h("h3", null, name + " is locked")),
     lockBox(),
-    h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Private and Work")));
+    h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Personal and Work")));
 }
 var TABS = ["Wall", "Today", "Business", "Local", "Private", "System"];
-var TABLABEL = {Wall: "Overview"};
+var TABLABEL = {Wall: "Overview", Private: "Personal"};
 var PAGES = {
   Today: [{name: "Recap", url: "pages/recap.html"}],
   Business: [{name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}, {name: "Leads", url: "pages/leads.html"}, {name: "Marketing", url: "pages/marketing.html"}],
@@ -935,7 +935,7 @@ function wpTile(){
   var a = secTile("Work"), b = secTile("Private");
   function half(x, tab){ return h("div", {class: "half"}, h("div", {class: "hh"}, x.st ? h("span", {class: "dot " + (x.st === "good" ? "ok" : x.st === "watch" ? "late" : "fail")}) : null, h("span", {class: "mono"}, x.label),
     tab ? h("button", {class: "wopen", type: "button", onclick: function(){ go(tab); }}, "OPEN") : null), x.body); }
-  return h("section", {class: "wt ws3 wp", "aria-label": "Work and Private"}, half(a, null), half(b, "Private"));
+  return h("section", {class: "wt ws3 wp", "aria-label": "Work and Personal"}, half(a, null), half(b, "Personal"));
 }
 
 function wall(){
@@ -944,7 +944,7 @@ function wall(){
   if (bad.length) box.appendChild(h("div", {class: "walert", role: "status"}, h("b", null, "ATTENTION"),
     h("span", null, bad.map(function(r){ return r.routine; }).join(", ") + (bad.length === 1 ? " is failing." : " are failing.")),
     h("button", {class: "wopen", type: "button", onclick: function(){ go("System"); }}, "VIEW IN SYSTEM")));
-  var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Private and Work" : "Unlock Private and Work") : null;
+  var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Personal and Work" : "Unlock Personal and Work") : null;
   if (lockBtn) box.appendChild(h("div", {class: "wbar", style: "justify-content:center"}, lockBtn));
   box.appendChild(h("div", {class: "wall fit"},
     statsRow(),
@@ -1000,7 +1000,7 @@ function viewStats(tab){
       return vstat(m.name, String(n), s.text, s.state === "fail" ? "alert" : s.state === "late" ? "watch" : s.state === "ok" ? "good" : null);
     });
     var tot = DATA.items.filter(function(i){ return i.tab === "Private"; }).length;
-    out.push(vstat("Private items", String(tot), "across all private feeds"));
+    out.push(vstat("Personal items", String(tot), "across all personal feeds"));
     return out;
   }
   var rs2 = DATA.routines, ok2 = rs2.filter(function(r){ return r.status === "ok"; }).length;
@@ -1356,7 +1356,7 @@ function shotView(){
   var ss = SHOT.sessions, st = shotStats(ss), types = Object.keys(st.by).sort();
   var colOf = function(t){ return SHOT_COL[Math.max(0, types.indexOf(t)) % SHOT_COL.length]; };
   var wrap = h("div", {class: "shwrap"});
-  wrap.appendChild(h("div", {class: "shbar"}, h("button", {type: "button", class: "btn", onclick: function(){ PSUB = null; render(); }}, "← Private"), h("h3", null, "Shooting log"), h("span", {class: "lcount"}, shotNote())));
+  wrap.appendChild(h("div", {class: "shbar"}, h("button", {type: "button", class: "btn", onclick: function(){ PSUB = null; render(); }}, "← Personal"), h("h3", null, "Shooting log"), h("span", {class: "lcount"}, shotNote())));
   if (!shotOk()) { wrap.appendChild(h("section", {class: "card mod"}, h("div", {class: "empty"}, shotNote()))); return wrap; }
   var tile = function(l, v, sub){ return h("div", {class: "shm big"}, h("b", null, v), h("span", null, l), sub ? h("small", null, sub) : null); };
   var goal = 1000, pct = Math.min(100, Math.round(st.total / goal * 100));
@@ -1512,7 +1512,6 @@ function privSections(){
   out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ return listCard("Health", by("Health"), "Health"); }});
   out.push({k: "jobs", label: "Job search", always: true, n: jobsNeeds(), alert: true, body: jobsView});
   out.push({k: "shoot", label: "Shooting log", always: true, n: 0, body: function(){ var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }});
-  out.push({k: "week", label: "Routine week", always: true, n: 0, body: function(){ var rw = routineWeek("Private"); rw.classList.remove("vs12"); return rw; }});
   return out.filter(function(x){ return x.always || x.n > 0; });
 }
 function privateView(){
@@ -1520,11 +1519,17 @@ function privateView(){
   var secs = privSections();
   if (!secs.some(function(x){ return x.k === PSEC; })) PSEC = secs[0].k;
   var cur = secs.filter(function(x){ return x.k === PSEC; })[0];
-  var nav = h("nav", {class: "pnav", "aria-label": "Private sections"}, secs.map(function(x){
-    return h("button", {type: "button", class: "pn" + (x.alert && x.n ? " alert" : ""), "aria-current": String(x.k === PSEC), onclick: function(){ PSEC = x.k; var y = window.scrollY; render(); window.scrollTo(0, y); }},
+  var pbody = h("div", {class: "pbody"}, cur.body());
+  var nav = h("nav", {class: "pnav", "aria-label": "Personal sections"}, secs.map(function(x){
+    return h("button", {type: "button", class: "pn" + (x.alert && x.n ? " alert" : ""), "data-k": x.k, "aria-current": String(x.k === PSEC), onclick: function(){
+      PSEC = x.k; document.body.classList.add("soft");
+      [].forEach.call(nav.children, function(b){ b.setAttribute("aria-current", String(b.getAttribute("data-k") === x.k)); });
+      pbody.innerHTML = ""; pbody.appendChild(x.body()); renderNav();
+      setTimeout(function(){ document.body.classList.remove("soft"); }, 400);
+    }},
       h("span", null, x.label), x.n ? h("em", null, String(x.n)) : null);
   }));
-  return h("div", {class: "priv"}, nav, h("div", {class: "pbody"}, cur.body()));
+  return h("div", {class: "priv"}, nav, pbody);
 }
 
 /* ---------- System: AI map ---------- */
@@ -1766,7 +1771,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(function()
 
 /* ---------- view modules (views/*.js): see views/CONTRACT.md ---------- */
 var CCAPI = {h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
-  openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
+  get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
   get data(){ return DATA; }, get tab(){ return TAB; }};
 function customView(tab){
@@ -1791,7 +1796,7 @@ function render(){
   if (DATA.sample) app.appendChild(h("div", {class: "banner"}, "Showing sample data."));
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   document.body.classList.toggle("onwall", TAB === "Wall");
-  var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : TAB;
+  var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TABLABEL[TAB] || TAB);
   if (TAB === "Wall") { app.appendChild(wall()); renderNav(); setTimeout(fitWall, 0); return; }
   if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
@@ -1836,11 +1841,11 @@ function renderNav(){
       icon(t), h("span", {class: "rlab"}, lbl), (t !== "Wall" && n) ? h("em", {class: "rn"}, String(n)) : null));
   });
   if (rail) {
-    rail.appendChild(h("div", {class: "rsp"}));
     var jn = jobsNeeds(), on = TAB === "Private" && PSEC === "jobs";
     rail.appendChild(h("button", {type: "button", class: "rshort", title: "Job search", "aria-label": "Job search" + (jn ? ", " + jn + " need you" : ""), "aria-selected": String(on),
       onclick: function(){ PSEC = "jobs"; if (TAB === "Private") { render(); window.scrollTo(0, 0); } else go("Private"); }},
       svgIcon([["path", "M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M4 13h16"]]), h("span", {class: "rlab"}, "Job search"), jn ? h("em", {class: "rn hot"}, String(jn)) : null));
+    rail.appendChild(h("div", {class: "rsp"}));
   }
 }
 function svgIcon(parts){

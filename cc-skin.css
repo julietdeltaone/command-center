@@ -736,3 +736,4 @@ body.soft *,body.soft *::before,body.soft *::after{animation:none!important;tran
   .pnav{flex-direction:row;overflow-x:auto;position:static;padding-bottom:4px;scrollbar-width:none}
   .pn{white-space:nowrap;flex:0 0 auto}
 }
+.rail .rshort{margin-top:6px;border-top:1px solid var(--line);border-radius:0 0 14px 14px;padding-top:12px}
