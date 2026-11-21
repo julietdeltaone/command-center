@@ -6,7 +6,7 @@ Four writers push to this repo. Writer IDs: `claude` (Atlas), `muse` (Luna), `ch
 
 | Path | Owner |
 | --- | --- |
-| `index.html`, `cc-design.css`, `cc-motion.js`, `COORDINATION.md` | Atlas (`claude`) |
+| `index.html`, `cc-design.css`, `cc-motion.js`, `cc-dev.js`, `COORDINATION.md` | Atlas (`claude`) |
 | `pages/` (spoke pages: leads, marketing, local, recap) | Luna (`muse`) |
 | `feeds/`, `docs/` (data feed specs, guides, QA lists) | Argus (`chatgpt`) |
 

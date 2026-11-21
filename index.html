@@ -203,6 +203,7 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 </style>
 <link rel="stylesheet" href="cc-design.css">
 <link rel="stylesheet" href="cc-skin.css">
+<script src="cc-dev.js" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -1928,7 +1929,10 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(function()
 var CCAPI = {unlocked: function(){ return !DATA.sample && isUnlocked() || !!DATA.sample; }, lrows: function(){ return lrows(); }, ltier: function(r){ return ltier(r); }, dayOffset: dayOffset, clock: clock, clockRange: clockRange, sunDay: sunDay, shortName: shortName, pvIcon: function(n,b){ return pvIcon(n,b); }, pvTier: function(a,b){ return pvTier(a,b); }, pvSwitch: function(k,c,f){ return pvSwitch(k,c,f); }, pvGet: function(k){ return pvGet(k); }, h: h, svgEl: svgEl, icon: icon, ago: ago, nowMs: nowMs, go: go, render: render, cfgVal: function(k){ return cfgVal(k); }, summaryRows: summaryRows, moduleStatus: moduleStatus, itemsModule: itemsModule, itemRow: itemRow,
   get depts(){ return DEPTS; }, deptSignal: deptSignal, get crew(){ return CREW; }, routineWeek: function(){ var rw = routineWeek("System"); rw.classList.remove("vs12"); return rw; }, openSub: function(n){ PSEC = (n === "shooting") ? "shoot" : n; TAB = "Private"; render(); window.scrollTo(0, 0); }, closeSub: function(){ PSEC = null; render(); },
   get shots(){ return SHOT; }, get shotStats(){ return shotStats(SHOT.sessions); }, get jobs(){ return JOBS; },
-  get data(){ return DATA; }, get tab(){ return TAB; }};
+  get data(){ return DATA; }, get tab(){ return TAB; },
+  get connected(){ return !!getCfg(); },
+  get pulse(){ var st = null; try { st = pulseStats(); } catch (e) {} return {state: PULSE_STATE, built: st ? st.built : null}; }};
+window.CC.api = CCAPI;
 function customView(tab){
   var fn = window.CC && window.CC.views && window.CC.views[tab];
   if (typeof fn !== "function") return null;
