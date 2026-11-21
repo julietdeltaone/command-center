@@ -1388,9 +1388,87 @@ function shotView(){
   paint(); wrap.appendChild(card);
   return wrap;
 }
+
+/* ---------- Private > Job search ---------- */
+var JOBS = {state: "idle", jobs: [], model: null, goal: null, at: null}, JSORT = {k: "status", dir: 1};
+var JOBS_URL = "https://raw.githubusercontent.com/julietdeltaone/job-search/main/data/jobs.json";
+var JOBS_SAMPLE = {goal: {target: 10, by: "2026-11-30"}, model: {oddsFloor: [{from: "2026-11-17", min: 45}, {from: "2026-12-01", min: 55}]}, jobs: [
+  {id: "s1", company: "Sample Co A", role: "Operations Coordinator", pay: "$72,000 - $85,000", payMin: 72000, status: "Applied", dateFound: "2026-11-11", dateApplied: "2026-11-11", odds: 62, link: ""},
+  {id: "s2", company: "Sample Co B", role: "Customer Success Associate", pay: "$70,000 - $80,000", payMin: 70000, status: "Applied", dateFound: "2026-11-12", dateApplied: "2026-11-13", odds: 55, link: ""},
+  {id: "s3", company: "Sample Co C", role: "Business Analyst", pay: "$78,000", payMin: 78000, status: "Found", dateFound: "2026-11-19", dateApplied: "", odds: 58, link: ""},
+  {id: "s4", company: "Sample Co D", role: "Program Manager", pay: "", status: "Passed", dateFound: "2026-11-14", dateApplied: "", odds: null, link: ""}]};
+function loadJobs(){
+  if (JOBS.state === "loading" || JOBS.state === "live" || JOBS.state === "sample") return;
+  if (DATA.sample) { JOBS = {state: "sample", jobs: JOBS_SAMPLE.jobs, model: JOBS_SAMPLE.model, goal: JOBS_SAMPLE.goal, at: nowMs()}; return; }
+  JOBS.state = "loading";
+  fetch(JOBS_URL, {cache: "no-store"}).then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }).then(function(j){
+    var g = j.goal; if (typeof g === "number") g = {target: g}; else if (g && typeof g === "object") g = {target: Number(g.target || g.count || g.applications) || null, by: g.by || g.deadline || null};
+    JOBS = {state: "live", jobs: (j.jobs || []), model: j.model || null, goal: g || null, at: nowMs()};
+    if (TAB === "Private") render();
+  }).catch(function(){ JOBS.state = JOBS.jobs.length ? "stale" : "error"; if (TAB === "Private") render(); });
+}
+function jobsOk(){ return JOBS.state === "live" || JOBS.state === "sample" || JOBS.state === "stale"; }
+function jobsNote(){
+  if (JOBS.state === "sample") return "Sample data";
+  if (JOBS.state === "live") return "Live · read " + ago(new Date(JOBS.at).toISOString());
+  if (JOBS.state === "stale") return "Stale · last read " + ago(new Date(JOBS.at).toISOString());
+  if (JOBS.state === "loading" || JOBS.state === "idle") return "Loading…";
+  return "Not available yet";
+}
+function jobsFloor(){
+  var f = (JOBS.model && JOBS.model.oddsFloor) || [], today = new Intl.DateTimeFormat("en-CA", {timeZone: "America/New_York"}).format(new Date(nowMs())), v = null;
+  f.slice().sort(function(a, b){ return a.from < b.from ? -1 : 1; }).forEach(function(x){ if (x.from <= today) v = x.min; });
+  return v;
+}
+function jobsStats(){
+  var js = JOBS.jobs, st = {applied: 0, found: 0, passed: 0, other: 0, week: 0}, cut = nowMs() - 7 * 86400000, last = "";
+  js.forEach(function(j){
+    if (j.status === "Applied") st.applied++; else if (j.status === "Found") st.found++; else if (j.status === "Passed") st.passed++; else st.other++;
+    if (j.dateApplied) { if (new Date(j.dateApplied + "T12:00:00").getTime() >= cut) st.week++; if (j.dateApplied > last) last = j.dateApplied; }
+  });
+  st.last = last; st.target = JOBS.goal && JOBS.goal.target; st.by = JOBS.goal && JOBS.goal.by; st.floor = jobsFloor();
+  return st;
+}
+function jdate(d){ if (!d) return "–"; var x = new Date(d + "T12:00:00"); return isNaN(x.getTime()) ? d : (x.getMonth() + 1) + "/" + x.getDate() + "/" + x.getFullYear(); }
+var JSTAT = {Applied: "var(--green)", Found: "var(--accent)", Interview: "var(--violet)", Offer: "var(--amber)", Passed: "var(--muted)"};
+var JRANK = {Interview: 0, Offer: 0, Applied: 1, Found: 2, Passed: 3};
+function jobsCard(){
+  var ok = jobsOk(), st = jobsStats(), m = function(l, v){ return h("div", {class: "shm"}, h("b", null, ok ? v : "–"), h("span", null, l)); };
+  return h("section", {class: "card mod vs4 shcard"},
+    h("div", {class: "mhead"}, h("h3", null, "Job search"), h("button", {type: "button", class: "btn link", onclick: function(){ PSUB = "jobs"; render(); window.scrollTo(0, 0); }}, "Open ↗")),
+    h("div", {class: "shgrid"}, m("Applied", st.target ? st.applied + " of " + st.target : String(st.applied)), m("Ready to apply", String(st.found)), m("Last applied", jdate(st.last)), m("Past 7 days", String(st.week))),
+    h("div", {class: "wnote", style: "margin-top:10px"}, jobsNote()));
+}
+function jobsView(){
+  var wrap = h("div", {class: "shwrap"}), st = jobsStats(), js = JOBS.jobs;
+  wrap.appendChild(h("div", {class: "shbar"}, h("button", {type: "button", class: "btn", onclick: function(){ PSUB = null; render(); }}, "← Private"), h("h3", null, "Job search"), h("span", {class: "lcount"}, jobsNote())));
+  if (!jobsOk()) { wrap.appendChild(h("section", {class: "card mod"}, h("div", {class: "empty"}, jobsNote()))); return wrap; }
+  var tile = function(l, v, sub){ return h("div", {class: "shm big"}, h("b", null, v), h("span", null, l), sub ? h("small", null, sub) : null); };
+  var pct = st.target ? Math.min(100, Math.round(st.applied / st.target * 100)) : null;
+  wrap.appendChild(h("div", {class: "shtiles"}, tile("Applied", String(st.applied), st.target ? "of " + st.target + (st.by ? " by " + jdate(st.by) : "") : ""), tile("Goal progress", pct == null ? "–" : pct + "%"), tile("Ready to apply", String(st.found)), tile("Passed", String(st.passed)),
+    tile("Past 7 days", String(st.week)), tile("Last applied", jdate(st.last)), tile("Odds floor today", st.floor == null ? "–" : String(st.floor))));
+  var cols = [["status", "Status", function(j){ return JRANK[j.status] != null ? JRANK[j.status] : 4; }], ["company", "Company", function(j){ return String(j.company || "").toLowerCase(); }], ["role", "Role", function(j){ return String(j.role || "").toLowerCase(); }],
+    ["odds", "Odds", function(j){ return j.odds == null ? -1 : Number(j.odds); }], ["pay", "Pay", function(j){ return Number(j.payMin) || 0; }], ["found", "Found", function(j){ return j.dateFound || ""; }], ["applied", "Applied", function(j){ return j.dateApplied || ""; }], ["link", "Posting", function(j){ return j.link ? 0 : 1; }]];
+  var card = h("section", {class: "card mod ltab shtab"});
+  function paint(){
+    var col = cols.filter(function(c){ return c[0] === JSORT.k; })[0] || cols[0], shown = js.slice();
+    shown.sort(function(a, b){ var x = col[2](a), y = col[2](b); return (x < y ? -1 : x > y ? 1 : 0) * JSORT.dir; });
+    card.innerHTML = "";
+    card.appendChild(h("div", {class: "lbar"}, h("h3", null, "Jobs"), h("span", {class: "lcount"}, js.length + " tracked")));
+    card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:60vh"}, h("table", {class: "ltbl sht"},
+      h("thead", null, h("tr", null, cols.map(function(c){ var on = JSORT.k === c[0]; return h("th", {"aria-sort": on ? (JSORT.dir > 0 ? "ascending" : "descending") : "none"}, h("button", {type: "button", onclick: function(){ if (JSORT.k === c[0]) JSORT.dir = -JSORT.dir; else { JSORT.k = c[0]; JSORT.dir = 1; } paint(); }}, c[1], h("b", null, on ? (JSORT.dir > 0 ? "▲" : "▼") : ""))); }))),
+      h("tbody", null, shown.map(function(j){
+        return h("tr", {style: "--c:" + (JSTAT[j.status] || "var(--muted)")}, h("td", null, h("span", {class: "ltag"}, j.status || "–")), h("td", null, j.company || ""), h("td", null, j.role || ""), h("td", null, j.odds == null ? "–" : String(j.odds)), h("td", null, j.pay || "–"), h("td", null, jdate(j.dateFound)), h("td", null, jdate(j.dateApplied)),
+          h("td", null, j.link ? h("a", {href: j.link, target: "_blank", rel: "noopener"}, "Open ↗") : "–"));
+      })))));
+  }
+  paint(); wrap.appendChild(card);
+  return wrap;
+}
 function privateView(){
-  loadShots();
+  loadShots(); loadJobs();
   if (PSUB === "shooting") return shotView();
+  if (PSUB === "jobs") return jobsView();
   var wrap = h("div", {class: "wall vgrid top"});
   ((DATA.modules || {})[TAB] || []).forEach(function(m){
     var card = m.name === "Guard, OTS, MBA" ? guardModule(m, TAB) : itemsModule(m, TAB);
@@ -1398,7 +1476,8 @@ function privateView(){
     wrap.appendChild(card);
   });
   wrap.appendChild(shotCard());
-  var rw = routineWeek("Private"); rw.classList.remove("vs12"); rw.classList.add("vs8");
+  wrap.appendChild(jobsCard());
+  var rw = routineWeek("Private"); rw.classList.remove("vs12"); rw.classList.add("vs4");
   wrap.appendChild(rw);
   return wrap;
 }
