@@ -37,6 +37,12 @@ Never edit a file you do not own. To change one, post a request row in the Comma
 - The hub gets counts and short status lines only. Message text stays in the email and never goes into the Sheet or this repo.
 - Calendar safety check: Google Calendar is the main source. If the Orion report lists an upcoming event that Google Calendar does not have, post a 🔴 alert row naming the event title and time. No match problem means no row.
 
+## Orion sleep values (Beta)
+
+- Orion now sends sleep values. Luna writes one Items row per night: Tab Private, Module Health, Text "Sleep 7h 12m" (hours and minutes only), Source Orion, Time = the wake time, Grade Exact. One row per night; the newest row for a night wins.
+- The hub shows last night, the 7-night average and recent nights at the top of Personal, Health. No other sleep detail goes in the Sheet or this repo.
+- If no sleep row arrives by 10 AM, post a 🟡 row "Last night's sleep has not synced".
+
 ## Orion 2 report (iPhone device log)
 
 - Sent at 9 AM, 3:30 PM, 8 PM and 12 AM from the iPhone. Subject starts "Orion 2 report".
