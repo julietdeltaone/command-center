@@ -201,17 +201,17 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
-<link rel="stylesheet" href="cc-design.css?v=20261122A">
-<link rel="stylesheet" href="cc-skin.css?v=20261122A">
-<link rel="stylesheet" href="cc-widgets.css?v=20261122A">
-<link rel="stylesheet" href="cc-biz.css?v=20261122A">
-<link rel="stylesheet" href="cc-sources2.css?v=20261122A">
-<link rel="stylesheet" href="cc-pages.css?v=20261122A">
-<link rel="stylesheet" href="cc-sources.css?v=20261122A">
-<script src="cc-fresh.js?v=20261122A"></script>
-<script src="cc-inbox.js?v=20261122A"></script>
-<script src="cc-sources.js?v=20261122A"></script>
-<script src="cc-dev.js?v=20261122A" onerror="void 0"></script>
+<link rel="stylesheet" href="cc-design.css?v=20261122B">
+<link rel="stylesheet" href="cc-skin.css?v=20261122B">
+<link rel="stylesheet" href="cc-widgets.css?v=20261122B">
+<link rel="stylesheet" href="cc-biz.css?v=20261122B">
+<link rel="stylesheet" href="cc-sources2.css?v=20261122B">
+<link rel="stylesheet" href="cc-pages.css?v=20261122B">
+<link rel="stylesheet" href="cc-sources.css?v=20261122B">
+<script src="cc-fresh.js?v=20261122B"></script>
+<script src="cc-inbox.js?v=20261122B"></script>
+<script src="cc-sources.js?v=20261122B"></script>
+<script src="cc-dev.js?v=20261122B" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -1699,6 +1699,7 @@ function shotView(){
 
 /* ---------- Private > Job search ---------- */
 var JOBS = {state: "idle", jobs: [], model: null, goal: null, needs: [], at: null}, JSORT = {k: "status", dir: 1}, PSEC = null;
+try { var sv = JSON.parse(localStorage.getItem("cc_view") || "null"); if (sv && TABS.indexOf(sv.t) >= 0) { TAB = sv.t; if (sv.p) PSEC = sv.p; } } catch (e) {}
 var JOBS_URL = "https://raw.githubusercontent.com/julietdeltaone/job-search/main/data/jobs.json";
 var BLOCK_URL = "https://raw.githubusercontent.com/julietdeltaone/job-search/main/inbox/blockers.md";
 var JOBS_SAMPLE = {goal: {target: 10, by: "2026-11-30"}, model: {oddsFloor: [{from: "2026-11-17", min: 45}, {from: "2026-12-01", min: 55}]}, needs: [{id: "B-9", ask: "Sample question: share a short story about a trip that mattered to you.", blocked: "Sample Co A application is paused on this answer.", date: "2026-11-20"}], jobs: [
@@ -2210,6 +2211,7 @@ function render(){
   app.textContent = "";
   LAST_RENDER = Date.now();
   paintPill();
+  try { localStorage.setItem("cc_view", JSON.stringify({t: TAB, p: TAB === "Private" ? PSEC : null})); } catch (e) {}
   document.getElementById("hdate").textContent = new Date(nowMs()).toLocaleDateString("en-US", {timeZone: "America/New_York", weekday: "long", month: "short", day: "numeric"});
   CC.inbox.loadHistory();
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
@@ -2568,21 +2570,21 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <div id="loadbar"><i></i></div>
-<script src="cc-motion.js?v=20261122A"></script>
-<script src="views/business.js?v=20261122A" onerror="void 0"></script>
-<script src="views/bizcharts.js?v=20261122A" onerror="void 0"></script>
-<script src="views/bizleads.js?v=20261122A" onerror="void 0"></script>
-<script src="views/timeline.js?v=20261122A" onerror="void 0"></script>
-<script src="views/system.js?v=20261122A" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261122A" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261122A"></script>
-<script src="cc-nurture.js?v=20261122A"></script>
-<script src="cc-crm.js?v=20261122A"></script>
-<script src="cc-biz.js?v=20261122A"></script>
-<script src="cc-sources2.js?v=20261122A"></script>
-<script src="cc-body.js?v=20261122A"></script>
-<script src="cc-pages.js?v=20261122A"></script>
-<script src="cc-know.js?v=20261122A"></script>
-<link rel="stylesheet" href="views/views.css?v=20261122A">
+<script src="cc-motion.js?v=20261122B"></script>
+<script src="views/business.js?v=20261122B" onerror="void 0"></script>
+<script src="views/bizcharts.js?v=20261122B" onerror="void 0"></script>
+<script src="views/bizleads.js?v=20261122B" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261122B" onerror="void 0"></script>
+<script src="views/system.js?v=20261122B" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261122B" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261122B"></script>
+<script src="cc-nurture.js?v=20261122B"></script>
+<script src="cc-crm.js?v=20261122B"></script>
+<script src="cc-biz.js?v=20261122B"></script>
+<script src="cc-sources2.js?v=20261122B"></script>
+<script src="cc-body.js?v=20261122B"></script>
+<script src="cc-pages.js?v=20261122B"></script>
+<script src="cc-know.js?v=20261122B"></script>
+<link rel="stylesheet" href="views/views.css?v=20261122B">
 </body>
 </html>

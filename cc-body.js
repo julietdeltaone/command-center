@@ -125,7 +125,8 @@
     return {vals: vals, latest: latest, n: days.length, age: F.dayDiff(latest.t)};
   }
   function vitalsBlock(api) {
-    var m = vitalsModel(api); if (!m) return null;
+    var m = vitalsModel(api);
+    if (!m) return h("div", {class: "cd-vt"}, h("h4", null, "Vitals · waiting for Apple Health"), h("div", {class: "cd-vg"}, ["Resting HR", "HRV", "Blood oxygen", "Respiration"].map(function (l) { return h("div", {class: "cd-vc n"}, h("div", {class: "cd-vl"}, l), h("div", {class: "cd-vv"}, "\u2014"), h("div", {class: "cd-vd"}, "no data yet")); })));
     var when = m.age <= 0 ? "today" : m.age === 1 ? "yesterday" : new Date(m.latest.t).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"});
     var chips = m.vals.slice(0, 4).map(function (x) {
       var f = x.f, mx = Math.max.apply(null, x.series.filter(function (q) { return q != null; })), mn = Math.min.apply(null, x.series.filter(function (q) { return q != null; })), rng = (mx - mn) || 1;
