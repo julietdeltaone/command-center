@@ -74,7 +74,7 @@
   function agoShort(t, now) { if (!t) return "never"; var m = Math.round((now - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " hr ago" : Math.round(m / 1440) + " d ago"; }
   CC.hubmap = function (api) {
     var D = api.data || {}, now = api.nowMs ? api.nowMs() : Date.now(), msgs = arr(D.messages), routines = arr(D.routines), crew = api.crew || [];
-    var secs = ["Today", "Business", "Local", "Private", "System"], W = 1500, H = 282, xa = 330, xb = 760, xc = 1190, ya = function (i) { return 30 + i * 54; }, yc = function (j) { return 24 + j * 56; };
+    var secs = ["Today", "Business", "Local", "Private", "System"], W = 1500, H = 256, xa = 330, xb = 760, xc = 1190, ya = function (i) { return 26 + i * 48; }, yc = function (j) { return 20 + j * 50; };
     var info = crew.map(function (c) {
       var sent = msgs.filter(function (m) { return m.from === c[0]; }).sort(function (a, b) { return Date.parse(b.time) - Date.parse(a.time); }), last = sent[0] ? Date.parse(sent[0].time) : null;
       var mine = routines.filter(function (r) { return r.writer === c[0]; }), perTab = {}; mine.forEach(function (r) { perTab[r.tab] = (perTab[r.tab] || 0) + 1; });
@@ -147,7 +147,7 @@
   }
 
   CC.views.Wall = function (api) {
-    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(4, Math.min(8, Math.floor((window.innerHeight - 640) / 56)));
+    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(4, Math.min(8, Math.floor((window.innerHeight - 725) / 56)));
     var page = h("div", {class: "ov"});
 
     /* ---- needs you ---- */
