@@ -2224,7 +2224,7 @@ function render(){
   if (!(tier2(TAB) && !isUnlocked())) {
     app.appendChild(freshStrip(TAB));
     if (TAB === "Business" && !(window.CC && CC.views && CC.views.Business)) app.appendChild(replyHero());
-    if (window.CC && CC.pageTop && (TAB === "Business" || TAB === "Today" || TAB === "Local" || TAB === "Sources")) { try { var ptop = CC.pageTop(CCAPI, TAB); if (ptop) app.appendChild(ptop); } catch (e) { if (window.console) console.error("page top failed", e); } }
+    if (window.CC && CC.pageTop && (TAB === "Business" || TAB === "Today" || TAB === "Local")) { try { var ptop = CC.pageTop(CCAPI, TAB); if (ptop) app.appendChild(ptop); } catch (e) { if (window.console) console.error("page top failed", e); } }
   }
   var cv = (TAB === "Private" && PSUB) ? null : customView(TAB);
   if (cv) app.appendChild(cv);
@@ -2583,6 +2583,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="cc-crm.js?v=20261122C"></script>
 <script src="cc-biz.js?v=20261122C"></script>
 <script src="cc-sources2.js?v=20261122C"></script>
+<script src="cc-map.js?v=20261122C"></script>
 <script src="cc-body.js?v=20261122C"></script>
 <script src="cc-pages.js?v=20261122C"></script>
 <script src="cc-know.js?v=20261122C"></script>
