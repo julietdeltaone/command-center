@@ -66,3 +66,4 @@
 .ov-empty{font-size:12.5px;color:var(--muted);padding:6px 0}.ov-w .ov-nums{grid-template-columns:repeat(3,1fr)}
 .ov-w .bd-fig.sm{width:70px}
 .ov{gap:10px}.ov-wr .wd{padding-top:10px;padding-bottom:10px}.ov-w .bd-fig.sm{width:56px}.ov-wr .ov-nums{margin-bottom:4px}
+.ov-side{gap:8px}.ov-side .wd{padding:10px 14px}.ov-hero b{font-size:18px}.ov-side .ov-nums{margin-bottom:4px}.ov-side .wchips{margin-top:2px}
