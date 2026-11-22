@@ -66,7 +66,7 @@
       })),
       p.next.length ? h("div", {class: "nu-blk"}, h("h4", null, "Next"), p.next.map(function (t) { return step(t); })) : null,
       p.need.length ? h("div", {class: "nu-blk"}, h("h4", null, "Still need"), p.need.map(function (t) { return step(t); })) : null,
-      CC.crm ? h("button", {type: "button", class: "nu-crm", onclick: function () { panel(false); CC.crm.focus(p.name); }}, "Open in CRM ↓") : (url ? h("a", {class: "nu-crm", href: url, target: "_blank", rel: "noopener"}, "Open in CRM ↗") : null));
+      CC.crm ? h("button", {type: "button", class: "nu-crm", onclick: function () { panel(false); CC.crm.focus(p.name); }}, "Open in CRM ↗") : (url ? h("a", {class: "nu-crm", href: url, target: "_blank", rel: "noopener"}, "Open in CRM ↗") : null));
   }
   var inl = [];
   function mini(api, p) {
@@ -79,7 +79,7 @@
       h("div", {class: "nm-h"}, h("b", {class: "nm-n"}, p.name), h("span", {class: "nm-e"}, p.event || ""), p.lastMs ? CC.fresh.pill(p.lastMs, 10080, {what: "Last contact", cls: "so-p"}) : null),
       h("div", {class: "nm-t", role: "img", "aria-label": "Stage: " + STAGES[p.stageIx]}, STAGES.map(function (s, i) { return h("div", {class: i < p.stageIx ? "past" : i === p.stageIx ? "now" : ""}, h("i"), h("span", null, s)); })),
       h("div", {class: "nm-s"}, p.next.map(function (t) { return step(t, "Next"); }), p.need.map(function (t) { return step(t, "Still need"); }),
-        CC.crm ? h("button", {type: "button", class: "nu-crm", onclick: function () { CC.crm.focus(p.name); }}, "CRM ↓") : null));
+        CC.crm ? h("button", {type: "button", class: "nu-crm", onclick: function () { CC.crm.focus(p.name); }}, "CRM ↗") : null));
   }
   function fillInline(el, api) {
     el.textContent = "";

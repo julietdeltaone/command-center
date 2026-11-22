@@ -47,33 +47,85 @@
     return true;
   }
   function fmtDate(ms0) { if (ms0 == null) return ""; return new Date(ms0).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"}); }
-  function focus(name) { state.q = String(name || ""); state.filter = "All"; state.all = true; if (CC._crmPaint) CC._crmPaint(); var el = document.getElementById("crm-panel"); if (el && el.scrollIntoView) el.scrollIntoView({behavior: "smooth", block: "start"}); }
+  function sortPri(rows) {
+    function k(p) { return p.cancelled ? 4 : p.attention ? 0 : p.upcoming ? 1 : p.done ? 3 : 2; }
+    return rows.slice().sort(function (a, b) { var d = k(a) - k(b); if (d) return d; return k(a) === 1 || k(a) === 0 ? (a.dateMs || 9e15) - (b.dateMs || 9e15) : (b.dateMs || 0) - (a.dateMs || 0); });
+  }
+  function totals(rows) {
+    var t = {col: 0, due: 0, up: 0, pipe: 0, att: 0};
+    rows.forEach(function (p) { if (p.cancelled) return; t.col += p.collected; t.due += p.balance; if (p.upcoming && !p.pipeline) t.up++; if (p.pipeline) t.pipe++; if (p.attention) t.att++; });
+    return t;
+  }
+  function link(api, k) { var u = ""; try { u = api.cfgVal(k) || ""; } catch (e) {} return u; }
+  function shortDate(m) { if (m == null) return ""; var d = new Date(m), y = d.getFullYear() === new Date().getFullYear(); return d.toLocaleDateString("en-US", y ? {month: "short", day: "numeric"} : {month: "short", day: "numeric", year: "2-digit"}).replace(/, (\d\d)$/, " \u2019$1"); }
+  function focus(name) { state.q = String(name || ""); state.filter = "All"; if (CC._crmOpener) CC._crmOpener(null); }
+  function open(id) { if (CC._crmOpener) CC._crmOpener(id); }
+
+  /* Preview card inside the Business page */
   function panel(api) {
-    var rows = list(api), body = h("div", {class: "crm-body"}), box = h("section", {id: "crm-panel", class: "wd crm slim"}), search;
-    function paint() {
-      body.textContent = "";
-      var vis = rows.filter(passes), shown = state.all ? vis : vis.slice(0, 10);
-      if (!rows.length) { body.appendChild(h("div", {class: "wsub"}, "No reading yet. The ledger has not been mirrored into the Command Center.")); return; }
-      if (!vis.length) { body.appendChild(h("div", {class: "wsub"}, "No projects match.")); return; }
-      body.appendChild(h("div", {class: "crm-row crm-hd"}, h("span", null, "Client"), h("span", null, "Service"), h("span", null, "Date"), h("span", null, "Status"), h("span", {class: "r"}, "Balance")));
-      shown.forEach(function (p) {
-        var c = col(score(p));
-        body.appendChild(h("div", {class: "crm-row", title: p.id + (p.delivery ? " · " + p.delivery : "")},
-          h("span", {class: "crm-c"}, p.client || p.id), h("span", {class: "crm-s"}, p.service || ""), h("span", {class: "crm-d"}, fmtDate(p.dateMs)),
-          h("span", {class: "crm-st", style: "--c:" + c}, h("i"), p.status || "No status"),
-          h("span", {class: "r crm-b", style: p.balance ? "color:" + col(p.attention ? 0.1 : 0.5) : ""}, p.balance ? usd(p.balance) : "Paid")));
-      });
-      if (vis.length > 10) body.appendChild(h("button", {type: "button", class: "crm-more", onclick: function () { state.all = !state.all; paint(); }}, state.all ? "Show fewer" : "Show all " + vis.length));
-    }
-    CC._crmPaint = function () { if (search) search.value = state.q; chips(); paint(); };
-    var chipsEl = h("div", {class: "crm-f"});
-    function chips() { chipsEl.textContent = ""; FILTERS.forEach(function (f) { var n = rows.filter(function (p) { var s = state.filter; state.filter = f; var ok = passes(p); state.filter = s; return ok; }).length; chipsEl.appendChild(h("button", {type: "button", "aria-pressed": String(state.filter === f), onclick: function () { state.filter = f; state.all = false; chips(); paint(); }}, f, h("b", null, String(n)))); }); }
-    search = h("input", {type: "search", class: "crm-q", placeholder: "Search", value: state.q, oninput: function () { state.q = search.value; paint(); }});
+    var rows = sortPri(list(api)), box = h("section", {id: "crm-panel", class: "wd crm slim"}), t = totals(rows);
     var newest = rows.reduce(function (m, p) { return Math.max(m, p.time || 0); }, 0);
-    box.appendChild(h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "CRM"), h("span", {class: "wd-s"}, rows.length ? rows.length + " projects" : "from the Projects and Ledger sheet"), newest && CC.fresh ? CC.fresh.pill(newest, 1440, {what: "Ledger mirror"}) : null));
-    if (rows.length) box.appendChild(h("div", {class: "crm-tools"}, chipsEl, search));
-    box.appendChild(body); chips(); paint();
+    var openBtn = h("button", {type: "button", class: "crm-open", onclick: function () { state.q = ""; state.filter = "All"; open(null); }}, "Open full view ", h("span", {"aria-hidden": "true"}, "↗"));
+    box.appendChild(h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Projects & Ledger"), h("span", {class: "wd-s"}, rows.length ? rows.length + " projects" : ""), newest && CC.fresh ? CC.fresh.pill(newest, 1440, {what: "Ledger mirror"}) : null, openBtn));
+    if (!rows.length) {
+      box.appendChild(h("div", {class: "wsub"}, "No ledger reading yet. Waiting for the Projects and Ledger sheet to sync into the Command Center."));
+      return box;
+    }
+    box.appendChild(h("div", {class: "crm-sum"},
+      h("span", null, h("b", null, String(t.up)), "active"), h("span", null, h("b", null, String(t.pipe)), "pipeline"),
+      h("span", {class: t.att ? "warn" : ""}, h("b", null, String(t.att)), "need attention"), h("span", null, h("b", null, usd(t.due)), "outstanding")));
+    box.appendChild(h("div", {class: "crm-row pv crm-hd"}, h("span", null, "Client"), h("span", null, "Status"), h("span", {class: "r"}, "Balance")));
+    rows.slice(0, 6).forEach(function (p) {
+      box.appendChild(h("button", {type: "button", class: "crm-row pv crm-click", title: "Peek at " + (p.client || p.id), onclick: function () { open(p.id); }},
+        h("span", {class: "crm-c"}, p.client || p.id, h("small", null, [p.service, shortDate(p.dateMs)].filter(Boolean).join(" \u00b7 "))),
+        h("span", {class: "crm-st", style: "--c:" + col(score(p))}, h("i"), p.status || "No status"),
+        h("span", {class: "r crm-b", style: p.balance ? "color:" + col(p.attention ? 0.1 : 0.5) : ""}, p.balance ? usd(p.balance) : "Paid")));
+    });
+    if (rows.length > 6) box.appendChild(h("button", {type: "button", class: "crm-more", onclick: function () { state.q = ""; state.filter = "All"; open(null); }}, "See all " + rows.length + " projects"));
     return box;
   }
-  CC.crm = {list: list, panel: panel, focus: focus};
+
+  /* Full-screen dashboard inside the Business section */
+  function full(api, opts) {
+    opts = opts || {};
+    var rows = sortPri(list(api)), sel = opts.select || null, t = totals(rows);
+    var root = h("section", {class: "crm-full"}), tbl = h("div", {class: "crm-tbl"}), det = h("aside", {class: "crm-det"}), chipsEl = h("div", {class: "crm-f"}), search;
+    var dash = link(api, "ledger_dashboard_url"), sheet = link(api, "ledger_sheet_url");
+    function stat(label, val, cls) { return h("div", {class: "cf-stat " + (cls || "")}, h("b", null, val), h("span", null, label)); }
+    function lnk(label, url) { return url ? h("a", {class: "cf-link", href: url, target: "_blank", rel: "noopener"}, label, " ↗") : null; }
+    function chips() { chipsEl.textContent = ""; FILTERS.forEach(function (f) { var n = rows.filter(function (p) { var s0 = state.filter; state.filter = f; var ok = passes(p); state.filter = s0; return ok; }).length; chipsEl.appendChild(h("button", {type: "button", "aria-pressed": String(state.filter === f), onclick: function () { state.filter = f; chips(); paint(); }}, f, h("b", null, String(n)))); }); }
+    function detail(p) {
+      det.textContent = "";
+      if (!p) { det.appendChild(h("div", {class: "wsub"}, "Select a project to see its details.")); return; }
+      var pc = p.total ? Math.min(100, Math.round(p.collected / p.total * 100)) : 0, c = col(score(p));
+      function kv(k, v) { return v ? h("div", {class: "kv"}, h("span", null, k), h("b", null, v)) : null; }
+      det.appendChild(h("div", {class: "cd-top", style: "--c:" + c}, h("div", null, h("h3", null, p.client || p.id), h("small", null, p.id)), h("span", {class: "crm-st", style: "--c:" + c}, h("i"), p.status || "No status")));
+      det.appendChild(h("div", {class: "cd-money"}, h("div", {class: "cd-bar"}, h("i", {style: "width:" + pc + "%"})), h("div", {class: "cd-nums"}, h("span", null, h("b", null, usd(p.collected)), " collected"), h("span", null, h("b", {style: p.balance ? "color:" + col(p.attention ? 0.1 : 0.5) : ""}, p.balance ? usd(p.balance) : "Paid in full"), p.balance ? " due" : ""), h("span", null, "of ", h("b", null, usd(p.total))))));
+      det.appendChild(h("div", {class: "cd-kv"}, kv("Service", p.service), kv("Date", fmtDate(p.dateMs)), kv("Contract", p.contract), kv("Payment", p.payment), kv("Delivery", p.delivery), p.time ? kv("Mirrored", new Date(p.time).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})) : null));
+      det.appendChild(h("div", {class: "cd-act"}, lnk("Open in Ledger dashboard", dash), lnk("Ledger sheet", sheet)));
+    }
+    function paint() {
+      tbl.textContent = "";
+      var vis = rows.filter(passes);
+      if (!vis.length) { tbl.appendChild(h("div", {class: "wsub", style: "padding:14px"}, rows.length ? "No projects match." : "No ledger reading yet.")); detail(null); return; }
+      if (!sel || !vis.some(function (p) { return p.id === sel; })) sel = vis[0].id;
+      tbl.appendChild(h("div", {class: "crm-row cf crm-hd"}, h("span", null, "Client"), h("span", null, "Service"), h("span", null, "Date"), h("span", null, "Status"), h("span", null, "Contract"), h("span", {class: "r"}, "Total"), h("span", {class: "r"}, "Paid"), h("span", {class: "r"}, "Balance")));
+      vis.forEach(function (p) {
+        tbl.appendChild(h("button", {type: "button", class: "crm-row cf crm-click" + (p.id === sel ? " sel" : ""), onclick: function () { sel = p.id; paint(); }},
+          h("span", {class: "crm-c"}, p.client || p.id, h("small", null, p.id)), h("span", {class: "crm-s"}, p.service || ""), h("span", {class: "crm-d"}, fmtDate(p.dateMs)),
+          h("span", {class: "crm-st", style: "--c:" + col(score(p))}, h("i"), p.status || "No status"), h("span", {class: "crm-s"}, p.contract || ""),
+          h("span", {class: "r"}, p.total ? usd(p.total) : ""), h("span", {class: "r"}, p.collected ? usd(p.collected) : ""),
+          h("span", {class: "r crm-b", style: p.balance ? "color:" + col(p.attention ? 0.1 : 0.5) : ""}, p.balance ? usd(p.balance) : "Paid")));
+      });
+      detail(vis.filter(function (p) { return p.id === sel; })[0]);
+    }
+    search = h("input", {type: "search", class: "crm-q", placeholder: "Search client or ID", value: state.q, oninput: function () { state.q = search.value; chips(); paint(); }});
+    root.appendChild(h("div", {class: "cf-head"}, h("button", {type: "button", class: "cf-back", onclick: function () { if (opts.onBack) opts.onBack(); }}, "← Business"), h("h2", null, "Projects & Ledger"), h("div", {class: "cf-links"}, lnk("Ledger dashboard", dash), lnk("Ledger sheet", sheet))));
+    root.appendChild(h("div", {class: "cf-stats"}, stat("collected", usd(t.col)), stat("outstanding", usd(t.due), t.due ? "warn" : ""), stat("active sessions", String(t.up)), stat("in pipeline", String(t.pipe)), stat("need attention", String(t.att), t.att ? "warn" : "")));
+    root.appendChild(h("div", {class: "crm-tools"}, chipsEl, search));
+    root.appendChild(h("div", {class: "cf-body"}, tbl, det));
+    chips(); paint();
+    return root;
+  }
+  CC.crm = {list: list, panel: panel, full: full, focus: focus, open: open};
 })();

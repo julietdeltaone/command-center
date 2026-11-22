@@ -393,8 +393,14 @@
     function tile(el, cls) { return el ? h("div", {class: "bf " + (cls || "")}, el) : null; }
     var leadsCard = cards.filter(function (c) { return c.classList.contains("wd-leads"); })[0], restCards = cards.filter(function (c) { return c !== leadsCard; });
     var other2 = restCards.filter(function (c) { return c.classList.contains("wd-mk") || c.classList.contains("wd-oth"); }), mid2 = restCards.filter(function (c) { return other2.indexOf(c) < 0; });
-    var fit = h("div", {class: "biz-fit"}, tile(P.chips, "top"), h("div", {class: "bf-main"}, [P.wait, nurEl, crmEl].filter(Boolean)), h("div", {class: "bf-rail"}, [P.pipe, P.strip, leadsCard].filter(Boolean)), h("div", {class: "bf-more"}, mid2.concat(other2)));
-    box.appendChild(h("div", {class: "biz-fitw"}, fit));
+    var fit = h("div", {class: "biz-fit"}, tile(P.chips, "top"), h("div", {class: "bf-main"}, [P.wait, nurEl].filter(Boolean)), h("div", {class: "bf-rail"}, [P.pipe, P.strip, crmEl].filter(Boolean)), h("div", {class: "bf-more"}, [leadsCard].concat(mid2, other2).filter(Boolean)));
+    var fitw = h("div", {class: "biz-fitw"}, fit);
+    box.appendChild(fitw);
+    CC._crmOpener = function (id) {
+      var prev = box.querySelector(".crm-full"); if (prev) prev.remove();
+      var fv = CC.crm.full(api, {select: id, onBack: function () { fv.remove(); fitw.style.display = ""; window.scrollTo(0, 0); }});
+      fitw.style.display = "none"; box.appendChild(fv); window.scrollTo(0, 0);
+    };
     return box;
   };
 
