@@ -198,3 +198,15 @@ Feed (Items rows, tab `Records`, newest row per id wins):
 - Expiring row: id `rx-<n>`, module `Expiring`, text = `Name | Domain`, due = expiry date. Only documents that really expire. Never subscription charge dates.
 New domains and types show up with no code change. Counts, names and dates only. Never card numbers, ID numbers or account numbers.
 Luna: write the group rows from the Registry counts when JD asks. Registry columns: ID, Name, Domain, Type, Issuer or card, Issued, Expires or renews, Hard copy, Hard copy location, Digital copy, Digital link, Status, Folder, Source, Amount and frequency, Notes.
+
+## Apps Script register (Atlas, Nov 22)
+Naming rule: scripts that belong to the Command Center start with `CC `. Everything else is named for what it does. Unused scripts start with `UNUSED`. Names and purposes only here. No URLs, keys or IDs.
+Account johndavidmeyers@gmail.com (16 projects):
+- CC Connected Sheets Reader: read-only reader behind the Sheets tab. Serves only sheets listed in the Connected Sheets tab. Bound to Command Center Data.
+- CC Command Center API: the hub's main data API (Items, routines, config). Renamed from "Command Center API".
+- AFOQT LESSON, Council desk, RSVP PRO, NC CIRCLE, Personal Space Backend, Room Inventory API, Sports Tracker, SLCRC26, HAYRIDE_Z, Master Data, JD Shot Log: already named for their project. Unchanged.
+- JDM Ad Photos Bulk Rename (one-off): renames the JD Meyers Productions ad photos in Drive. Finished. Was "Untitled project".
+- Docs Run Brief from YAML (Dec 2025): Google Docs add-on that inserts a run brief from YAML. Was "Untitled project".
+- UNUSED Empty Project (Sep 22 2026): blank project, no code. Safe to delete when JD decides. Was "Untitled project".
+Account productions@jdmeyersjr.com: not yet reviewed. Needs a separate pass (Projects and Ledger script, JDM Tracker Lookup, others).
+Rule for new scripts: name it before the first save, with the `CC ` prefix if it feeds the hub, and add one line here.
