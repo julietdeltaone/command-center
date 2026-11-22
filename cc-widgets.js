@@ -123,6 +123,14 @@
     });
     return out.filter(function (e) { return e.day <= 0; }).sort(function (a, b) { return a.start - b.start; });
   }
+  W.weatherInfo = weatherInfo;
+  W.dayInfo = function (api) {
+    var nowH = hrNow(api), ev = dayEvents(api).filter(function (e) { return e.kind !== "local"; });
+    var dues = ev.filter(function (e) { return e.kind === "due"; }), sched = ev.filter(function (e) { return e.kind !== "due"; });
+    var upcoming = sched.filter(function (e) { return (e.end != null ? e.end : e.start + 0.5) > nowH; });
+    var cur = sched.filter(function (e) { return e.start <= nowH && (e.end != null ? e.end : e.start + 0.5) > nowH; })[0];
+    return {nowH: nowH, dues: dues, sched: sched, upcoming: upcoming, cur: cur, nxt: cur || upcoming[0], fmtHr: fmtHr, dur: dur};
+  };
   CC.views.Today = function (api) {
     var d = api.data, nowH = hrNow(api), now = api.nowMs();
     var evAll = dayEvents(api), seenEv = {}, town = evAll.filter(function (e) { return e.kind === "local"; }).filter(function (e) { var k = String(e.label || "").toLowerCase().replace(/\W/g, "") + "@" + Math.round(e.start * 2); if (seenEv[k]) return false; seenEv[k] = 1; return true; });

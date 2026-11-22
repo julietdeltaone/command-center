@@ -1126,6 +1126,8 @@ function needsBand(){
     h("div", {class: "pv-alerts"}, L.map(alertCard)));
 }
 function wall(){
+  var cvw = window.CC && CC.views && CC.views.Wall;
+  if (typeof cvw === "function") { try { var wel = cvw(CCAPI); if (wel && wel.nodeType) { var wb = h("div", {class: "wallbox"}); wb.appendChild(wel); return wb; } } catch (e) { if (window.console) console.error("Overview module failed", e); } }
   var box = h("div", {class: "wallbox"});
   var lockBtn = (DATA.lockEnabled || (!DATA.sample && !isUnlocked())) ? h("button", {class: "btn", type: "button", onclick: function(){ if (isUnlocked() && !DATA.sample) lockNow(); else if (DATA.sample) render(); else unlockPrompt(); }}, isUnlocked() && !DATA.sample ? "Lock Personal and Work" : "Unlock Personal and Work") : null;
   var nb = (window.CC && CC.widgets && CC.widgets.pathToGreen) ? CC.widgets.pathToGreen(CCAPI) : needsBand(); if (nb) box.appendChild(nb);
@@ -1709,7 +1711,7 @@ function parseBlockers(md){
   String(md || "").split(/^### /m).slice(1).forEach(function(blk){
     var head = blk.split("\n")[0].split("|").map(function(x){ return x.trim(); });
     function f(k){ var m = new RegExp("^- " + k + ":\\s*(.*)$", "mi").exec(blk); return m ? m[1].trim() : ""; }
-    if ((head[2] || "").toLowerCase() === "open" && /\bJD\b/.test(f("For"))) out.push({id: head[0], date: head[1], blocked: f("Blocked on"), ask: f("Ask")});
+    if ((head[2] || "").toLowerCase() === "open" && /\bJD\b/.test(f("For")) && !/^(the one thing needed|what stopped the step)/i.test(f("Blocked on") + " " + head[0]) && !/^(the one thing needed|what stopped)/i.test(blk.split("\n")[0].split("|").slice(-1)[0] || "")) out.push({id: head[0], date: head[1], blocked: f("Blocked on"), ask: f("Ask")});
   });
   return out;
 }
@@ -2176,6 +2178,7 @@ var CCAPI = {unlocked: function(){ return !DATA.sample && isUnlocked() || !!DATA
   get connected(){ return !!getCfg(); }, get sheetAt(){ return SHEET_AT; },
   get pulse(){ var st = null; try { st = pulseStats(); } catch (e) {} return {state: PULSE_STATE, built: st ? st.built : null}; }};
 window.CC.api = CCAPI;
+CCAPI.jobsNeeds = function(){ return JOBS.needs || []; };
 function customView(tab){
   var fn = window.CC && window.CC.views && window.CC.views[tab];
   if (typeof fn !== "function") return null;
@@ -2284,7 +2287,7 @@ function renderNav(){
   if (rail) { rail.textContent = ""; rail.appendChild(h("div", {class: "rmark"}, h("i"))); }
   TABS.forEach(function(t){
     var lbl = TABLABEL[t] || t;
-    var n = DATA.items.filter(function(i){ return i.tab === t; }).length;
+    var n = (window.CC && CC.needsCount && t !== "Wall") ? CC.needsCount(CCAPI, t) : DATA.items.filter(function(i){ return i.tab === t; }).length; if (n == null) n = 0;
     nav.appendChild(h("button", {class: "tab", type: "button", role: "tab", "aria-selected": String(t === TAB),
       onclick: function(){ go(t); }}, icon(t), lbl));
     if (rail) rail.appendChild(h("button", {type: "button", title: lbl, "aria-label": lbl, "aria-selected": String(t === TAB), onclick: function(){ go(t); }},
@@ -2574,6 +2577,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="cc-crm.js"></script>
 <script src="cc-biz.js"></script>
 <script src="cc-sources2.js"></script>
+<script src="cc-pages.js"></script>
 <link rel="stylesheet" href="views/views.css">
 </body>
 </html>
