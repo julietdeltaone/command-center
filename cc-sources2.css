@@ -49,3 +49,4 @@
 .s2-cc i{width:7px;height:7px;border-radius:50%;background:var(--k);flex:none}
 .s2-cc.ls{background:transparent;border-color:transparent;padding-left:0}
 .hm2 ~ .s2-grid .s2-tb{max-height:calc(100vh - 690px);min-height:150px}.hm2 ~ .s2-grid .s2-side{max-height:calc(100vh - 560px);min-height:230px}
+.hm2 ~ .s2-grid .s2-tb{max-height:calc(100vh - 752px);min-height:130px}.hm2 ~ .s2-grid .s2-side{max-height:calc(100vh - 652px);min-height:200px}
