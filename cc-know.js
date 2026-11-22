@@ -47,9 +47,11 @@
       return [tile(usd(m.due), "owed to you", m.due ? col(m.past ? 0.1 : 0.55) : col(1)), tile(usd(m.past), "past due", m.past ? col(0.1) : col(1)), tile(usd(m.col), "collected"), tile(String(m.up), "booked, next 30 days")];
     },
     Local: function (api) {
-      var rows = api.lrows ? api.lrows() : [], ev = rows.filter(function (r) { return r.date; }), tod = ev.filter(function (r) { return r.whenKey < 100; }), wk = ev.filter(function (r) { return r.whenKey < 700; });
-      var maybe = ev.filter(function (r) { return r.hr == null || r.price.key >= 1e9; }), free = ev.filter(function (r) { return r.price.key === 0; });
-      return [tile(String(tod.length), "today and tonight", tod.length ? col(0.7) : null), tile(String(wk.length), "this week"), tile(String(free.length), "free events"), tile(String(maybe.length), "need a detail", maybe.length ? col(0.45) : col(1), "time or price missing")];
+      var rows = api.lrows ? api.lrows() : [], ev = rows.filter(function (r) { return r.date; }), n = new Date(now(api)), hr = n.getHours() + n.getMinutes() / 60;
+      var tod = ev.filter(function (r) { return r.whenKey < 100; }), wk = ev.filter(function (r) { return r.whenKey < 700; }), notime = ev.filter(function (r) { return r.hr == null; });
+      var up = ev.filter(function (r) { return r.hr != null && (r.whenKey >= 100 || r.hr + 2 >= hr); }).sort(function (a, b) { return a.whenKey - b.whenKey; })[0];
+      var nextBig = up ? (up.whenKey < 100 ? (up.hr > hr ? "in " + dur((up.hr - hr) * 3600000) : "now") : up.date) : "None";
+      return [tile(String(tod.length), "today and tonight", tod.length ? col(0.7) : null), tile(String(wk.length), "this week"), tile(nextBig, "next event", null, up ? up.what.slice(0, 28) : "nothing listed"), tile(String(notime.length), "no time listed", notime.length ? col(0.45) : col(1), "check before going")];
     },
     Sources: function (api) {
       var D = api.data || {}, rs = arr(D.routines), F = CC.fresh, n = now(api);
@@ -60,7 +62,7 @@
       return [tile(rs.length ? Math.round(ok / rs.length * 100) + "%" : "n/a", "routines on schedule", rs.length && ok === rs.length ? col(1) : col(0.45), ok + " of " + rs.length),
         tile(graded ? Math.round(exact / graded * 100) + "%" : "n/a", "items graded Exact", null, "rest single source or image"),
         tile(oldest != null ? dur(n - oldest) : "n/a", "longest since a run", null, "oldest last-run time"),
-        tile(String(Object.keys(writers).length), "writers feeding the hub")];
+        tile(String(rs.filter(function (r) { return r.last_status && !/^ok|success|clean/i.test(String(r.last_status)); }).length), "last run failed", rs.some(function (r) { return r.last_status && !/^ok|success|clean/i.test(String(r.last_status)); }) ? col(0.1) : col(1), Object.keys(writers).length + " writers feeding")];
     }
   };
   function know(api, tab) {
@@ -81,9 +83,9 @@
       return Math.max(0, Math.min(99, s));
     }
     var good = [], maybe = [];
-    live.forEach(function (r) { var miss = []; if (r.hr == null) miss.push("no time"); if (r.price.key >= 1e9) miss.push("price unknown"); if (!r.where) miss.push("no place"); (miss.length ? maybe : good).push({r: r, s: score(r), miss: miss}); });
+    live.forEach(function (r) { var miss = []; if (r.hr == null) miss.push("no time"); (miss.length ? maybe : good).push({r: r, s: score(r), miss: miss}); });
     good.sort(function (a, b) { return b.s - a.s; });
-    var card = h("section", {class: "pgl"}, h("div", {class: "pgm-h"}, h("span", {class: "pgm-t"}, "Worth a look"), h("span", {class: "pgm-s"}, "scored on day, cost and daylight")));
+    var card = h("section", {class: "pgl"}, h("div", {class: "pgm-h"}, h("span", {class: "pgm-t"}, "Worth a look"), h("span", {class: "pgm-s"}, "scored on day, time, cost and daylight")));
     if (!good.length && !maybe.length) { card.appendChild(h("div", {class: "pgm-ok"}, h("i", {style: "background:" + col(0.6)}), "No upcoming events pulled yet")); return card; }
     good.slice(0, 2).forEach(function (g) {
       card.appendChild(h("div", {class: "pgl-r"}, h("span", {class: "pgl-s", style: "--c:" + col(g.s / 100)}, String(g.s)), h("span", {class: "pgm-b"}, h("b", null, g.r.what), h("em", null, [g.r.date, g.r.time, g.r.price.label, g.r.where].filter(Boolean).join(" · ")))));
