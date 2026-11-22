@@ -13,7 +13,7 @@
     Array.prototype.slice.call(arguments, 2).forEach(function add(c) { if (c == null || c === false) return; if (Array.isArray(c)) return c.forEach(add); e.appendChild(c.nodeType ? c : document.createTextNode(String(c))); });
     return e;
   }
-  function ms(x) { var t = x ? Date.parse(x) : NaN; return isNaN(t) ? null : t; }
+  function ms(x) { var d = /^(\d{4})-(\d\d)-(\d\d)$/.exec(String(x || "").trim()); if (d) return new Date(+d[1], +d[2] - 1, +d[3]).getTime(); var t = x ? Date.parse(x) : NaN; return isNaN(t) ? null : t; }
   function num(x) { var n = parseFloat(String(x == null ? "" : x).replace(/[$,]/g, "")); return isNaN(n) ? 0 : n; }
   function usd(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
   function parse(it) {
@@ -23,10 +23,12 @@
     o.dateMs = ms(o.date);
     var st = String(o.status || "") + " " + String(o.contract || "") + " " + String(o.payment || "");
     o.cancelled = /cancel|lost/i.test(st);
-    o.pipeline = /negotiat|not started|contract sent|inquiry/i.test(st) && !o.cancelled;
+    var pastDay = o.dateMs != null && o.dateMs < Date.now() - 86400000;
+    o.pastDue = !o.cancelled && o.balance > 0 && pastDay;
+    o.pipeline = /negotiat|not started|contract sent|inquiry/i.test(st) && !o.cancelled && !pastDay;
     o.done = /gallery is ready|complete/i.test(String(o.status || "")) && o.balance === 0;
     o.upcoming = o.dateMs != null && o.dateMs >= Date.now() - 86400000 && !o.cancelled;
-    o.attention = !o.cancelled && (o.balance > 0 && !o.pipeline && o.dateMs != null && o.dateMs < Date.now() || (o.pipeline && o.dateMs != null && o.dateMs - Date.now() < 30 * 86400000 && o.dateMs > Date.now()));
+    o.attention = !o.cancelled && (o.pastDue || (o.pipeline && o.dateMs != null && o.dateMs - Date.now() < 30 * 86400000 && o.dateMs > Date.now()));
     return o;
   }
   function list(api) {
@@ -52,8 +54,8 @@
     return rows.slice().sort(function (a, b) { var d = k(a) - k(b); if (d) return d; return k(a) === 1 || k(a) === 0 ? (a.dateMs || 9e15) - (b.dateMs || 9e15) : (b.dateMs || 0) - (a.dateMs || 0); });
   }
   function totals(rows) {
-    var t = {col: 0, due: 0, up: 0, pipe: 0, att: 0};
-    rows.forEach(function (p) { if (p.cancelled) return; t.col += p.collected; t.due += p.balance; if (p.upcoming && !p.pipeline) t.up++; if (p.pipeline) t.pipe++; if (p.attention) t.att++; });
+    var t = {col: 0, due: 0, up: 0, pipe: 0, att: 0, past: 0};
+    rows.forEach(function (p) { if (p.cancelled) return; t.col += p.collected; t.due += p.balance; if (p.pastDue) t.past += p.balance; if (p.upcoming && !p.pipeline) t.up++; if (p.pipeline) t.pipe++; if (p.attention) t.att++; });
     return t;
   }
   function link(api, k) { var u = ""; try { u = api.cfgVal(k) || ""; } catch (e) {} return u; }
