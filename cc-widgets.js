@@ -241,7 +241,7 @@
   function money(api) {
     var it = newest(modItems(api, "Business", "Money").filter(function (i) { return /invoice|collected|session/i.test(i.text || ""); })), o = {it: it};
     if (!it) return o;
-    var t = it.text, m = /Invoice due: \$([\d,.]+)/i.exec(t); o.due = m ? m[1] : null;
+    var t = it.text, m = /Invoice due: \$([\d,.]+)/i.exec(t); o.due = m ? m[1].replace(/[.,]+$/, "") : null;
     m = /(\d+) open deals?/i.exec(t); o.deals = m ? +m[1] : null;
     m = /Collected this year: \$([\d,]+)/i.exec(t); o.col = m ? m[1] : null;
     m = /Sessions in the next (\d+) days: (\d+)/i.exec(t); o.sd = m ? +m[1] : null; o.sn = m ? +m[2] : null;
@@ -250,6 +250,49 @@
   }
   function waitScore(w) { return w > 4 * 3600000 ? 0.06 : w > 3600000 ? 0.45 : 0.95; }
   function replyScore(med) { if (med == null) return null; var m = med / 60000; return m <= 30 ? 1 : m <= 60 ? 0.88 : m <= 240 ? 0.6 : m <= 720 ? 0.32 : 0.1; }
+
+  /* ---------- Business: pipeline, money, ledger links ---------- */
+  var STG = ["Inquiry", "Talking", "Contract", "Deposit", "Booked"];
+  function num(x) { var n = parseFloat(String(x == null ? "" : x).replace(/,/g, "")); return isNaN(n) ? null : n; }
+  function usd(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
+  var GL = {
+    clock: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
+    link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+    bolt: "M13 2L4 14h7l-1 8 9-12h-7z",
+    sheet: "M5 3h14v18H5zM5 9h14M5 15h14M11 3v18",
+    heart: "M12 20s-7-4.5-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.5-7 10-7 10z"
+  };
+  function glyph(k) { return sv("svg", {viewBox: "0 0 24 24", width: 17, height: 17, fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round", "class": "gl", "aria-hidden": "true"}, [sv("path", {d: GL[k]})]); }
+  W.glyph = glyph;
+  W.bizPipeline = function (api) {
+    var cfg = function (k) { try { return api.cfgVal(k) || ""; } catch (e) { return ""; } };
+    var dash = cfg("ledger_dashboard_url"), sheet = cfg("ledger_sheet_url"), mo = money(api), leads = CC.nurture ? CC.nurture.list(api) : [];
+    var at = mo.it ? ms(mo.it.time) : null;
+    function btn(label, url, ic) {
+      return url ? h("a", {class: "lk", href: url, target: "_blank", rel: "noopener"}, glyph(ic), h("span", null, label), h("em", null, "↗"))
+        : h("span", {class: "lk off", title: "Luna sets this link in Config"}, glyph(ic), h("span", null, label), h("em", null, "link not set"));
+    }
+    var sync = at ? stamp(at, 1440, "Ledger read") : h("span", {class: "wc", style: "--c:" + col(0.1)}, h("i"), h("span", null, "No ledger reading yet"));
+    var bar = h("div", {class: "lkbar"}, btn("Open dashboard", dash, "bolt"), btn("Open ledger sheet", sheet, "sheet"), h("span", {class: "lk-sync"}, h("small", null, "Ledger synced"), sync));
+
+    var counts = STG.map(function (s, i) { return leads.filter(function (p) { return p.stageIx === i; }).length; }), mx = Math.max.apply(null, counts.concat([1]));
+    var fun = h("div", {class: "pp-col"}, h("div", {class: "pp-h"}, "Leads by stage"),
+      leads.length ? h("div", {class: "fn"}, STG.map(function (s, i) {
+        return h("div", {class: "fn-r"}, h("span", null, s), h("div", {class: "fn-bar"}, h("i", {style: "width:" + (counts[i] ? Math.max(10, counts[i] / mx * 100) : 0) + "%;background:" + col(0.2 + i * 0.2)})), h("b", null, String(counts[i])));
+      })) : h("div", {class: "wsub"}, "No leads in the pipeline"));
+
+    var due = num(mo.due), got = num(mo.col), top = Math.max(due || 0, got || 0, 1);
+    function bar2(label, v, sc) { return h("div", {class: "mn-r"}, h("div", {class: "mn-l"}, h("span", null, label), h("b", {style: "color:" + col(sc)}, usd(v))), h("div", {class: "mn-bar"}, h("i", {style: "width:" + Math.max(3, v / top * 100) + "%;background:" + col(sc)}))); }
+    var haveMoney = mo.it && (due != null || got != null);
+    var money2 = h("div", {class: "pp-col"}, h("div", {class: "pp-h"}, "Money"),
+      haveMoney ? h("div", {class: "mn"}, got != null ? bar2("Collected this year", got, 1) : null, due != null ? bar2(mo.overdue ? "Overdue" : "Due now", due, mo.overdue ? 0.06 : 0.5) : null)
+        : h("div", {class: "wsub"}, "No reading", at ? " · last reading " + F().stamp(at) : ""));
+    var facts = [];
+    if (mo.deals != null) facts.push(chip(mo.deals + (mo.deals === 1 ? " open deal" : " open deals"), mo.deals ? 0.6 : 1, {big: true}));
+    if (mo.sn != null) facts.push(chip(mo.sn + (mo.sn === 1 ? " session" : " sessions") + " in " + mo.sd + " days", mo.sn ? 0.8 : 0.55, {big: true}));
+    var right = h("div", {class: "pp-col"}, h("div", {class: "pp-h"}, "Next up"), facts.length ? h("div", {class: "wchips col"}, facts) : h("div", {class: "wsub"}, "No reading"));
+    return card("wd-pipe", "Pipeline and money", "from the Projects and Ledger sheet", h("div", null, bar, h("div", {class: "pp"}, fun, money2, right)), haveMoney ? (mo.overdue ? 0.1 : 0.7) : null);
+  };
   W.bizTop = function (api) {
     var st = CC.inbox.stats(), ol = api.openLeads ? api.openLeads() : [], now = api.nowMs(), mo = money(api);
     var cfg = function (k) { try { return api.cfgVal(k) || ""; } catch (e) { return ""; } };
@@ -294,8 +337,14 @@
       bars = card("wd-bars", "Recent replies", null, h("div", {class: "wd-b"}, h("div", {class: "rh-bars"}, st.series.map(function (x) { return h("i", {style: "height:" + (10 + Math.sqrt(x.wait / mxw) * 90) + "%;background:" + col(waitScore(x.wait)), title: F().stamp(x.replied) + ": " + CC.inbox.waitText(x.wait)}); })),
         h("div", {class: "wchips"}, chip(b.u1 + " under 1 hr", 1), chip(b.h4 + " 1 to 4 hr", 0.5), chip(b.d1 + " 4 to 24 hr", 0.2), chip(b.over + " over a day", 0.04))), 0.6);
     }
-    var row = h("div", {class: "wdgrid g4"}, tWait, tUnder, tTyp, bars || card("wd-bars", "Recent replies", null, h("div", {class: "wsub"}, "Nothing recorded yet"), null));
-    return h("div", {class: "wdpage tight"}, chipRow, row);
+    var row;
+    if (st.n) row = h("div", {class: "wdgrid g4"}, tWait, tUnder, tTyp, bars);
+    else {
+      var empty = card("wd-nohist", "Reply speed", "goal: answer within 1 hour", h("div", {class: "wd-b row"}, ring(0, null, "—", "no reading", 118),
+        h("div", {class: "wsub"}, "The first reply you log starts the speed chart, the 1-hour score and your typical reply time. Over 70% within the hour is green.")), null);
+      row = h("div", {class: "wdgrid g4"}, tWait, empty);
+    }
+    return h("div", {class: "wdpage tight"}, chipRow, W.bizPipeline(api), row);
   };
   CC.views.Business = function (api) {
     var box = h("div", {class: "wdpage"}), items = modItems(api, "Business", null);
@@ -330,24 +379,15 @@
     var ol = api.openLeads ? api.openLeads() : [], lcards = [];
     lds.sort(function (a, b) { return (ms(b.time) || 0) - (ms(a.time) || 0); }).slice(0, 3).forEach(function (i) {
       var parts = String(i.text || "").split("Recommended action:"), open = ol.indexOf(i) > -1 || ol.some(function (x) { return x.id === i.id; });
-      lcards.push(h("div", {class: "ld", style: "--c:" + col(open ? 0.3 : 0.85)}, h("i"), h("div", null, h("b", null, parts[0].replace(/\s+$/, "")), h("small", null, (i.source || "") + " · logged " + F().stamp(ms(i.time)))), parts[1] ? chip(parts[1].replace(/^\s+/, "").replace(/\.$/, ""), open ? 0.3 : 0.85, {title: "Recommended action"}) : null));
+      var wt2 = open ? Date.now() - (ms(i.time) || Date.now()) : 0;
+      lcards.push(h("div", {class: "ld" + (open ? " hot" : ""), style: "--c:" + col(open ? waitScore(wt2) : 0.85)}, h("span", {class: "ld-ic"}, glyph(open ? "clock" : "heart")), h("div", null, h("b", null, parts[0].replace(/\s+$/, "")), h("small", null, (i.source || "") + " · logged " + F().stamp(ms(i.time)))), open ? h("b", {class: "ld-w"}, dur(wt2) + " waiting") : null, parts[1] ? chip(parts[1].replace(/^\s+/, "").replace(/\.$/, ""), open ? 0.3 : 0.85, {title: "Recommended action"}) : null));
     });
     if (lcards.length) cards.unshift(card("wd-leads", "Latest leads", ol.length ? ol.length + " to answer" : "all answered", h("div", {class: "lds"}, lcards), ol.length ? 0.25 : 1, frOf(api, lds)));
     var other = items.filter(function (i) { return ["Competitors", "Marketing", "Leads", "Money", "Nurturing"].indexOf(i.module) < 0; });
     if (other.length) cards.push(card("wd-oth", "Other", null, h("div", {class: "wchips col"}, other.slice(0, 8).map(function (i) { return chip(i.text.slice(0, 100), 0.7, {title: i.text}); })), 0.7));
-    var layer = "now", ledger = ""; try { ledger = api.cfgVal("ledger_dashboard_url") || ""; } catch (e) {}
-    var grid = h("div", {class: "wdgrid g3"}, cards), crm = h("div", {class: "crm-wrap", style: "display:none"});
-    var seg = h("div", {class: "wd-seg", role: "group", "aria-label": "Business layer"});
-    function setLayer(k) {
-      layer = k; grid.style.display = k === "now" ? "" : "none"; crm.style.display = k === "crm" ? "" : "none";
-      Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-k") === k)); });
-      if (k === "crm" && !crm.firstChild) crm.appendChild(ledger
-        ? h("div", null, h("div", {class: "crm-bar"}, h("span", null, "Projects and Ledger, live from the CRM"), h("a", {href: ledger, target: "_blank", rel: "noopener"}, "Open full screen ↗")), h("iframe", {class: "crm-frame", src: ledger, title: "Projects and Ledger CRM", loading: "lazy"}))
-        : h("p", {class: "wsub"}, "The CRM link is not set yet. Luna adds ledger_dashboard_url to Config and this tab fills in."));
-    }
-    [["now", "Now"], ["crm", "CRM"]].forEach(function (x) { seg.appendChild(h("button", {type: "button", "data-k": x[0], "aria-pressed": String(x[0] === layer), onclick: function () { setLayer(x[0]); }}, x[1])); });
+    var grid = h("div", {class: "wdgrid g3 biz"}, cards);
     var edge = CC.nurture ? CC.nurture.handle(api) : null;
-    box.appendChild(seg); box.appendChild(grid); box.appendChild(crm);
+    box.appendChild(grid);
     if (edge) box.appendChild(edge);
     return box;
   };

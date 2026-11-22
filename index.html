@@ -2421,6 +2421,8 @@ function preview(){
       I("s5", "Today", "Weather and drone", "Flyable. Gusts to 16 mph late morning.", "Forecast (one source)", "Single source", 160),
       I("s6", "Business", "Leads", "New portrait inquiry logged", "Form log", "Exact", 180),
       I("nu-lauren", "Business", "Nurturing", "Lauren | Stage: Contract | Event: Wedding, date to confirm | Last contact: "+new Date(Date.now()-3*86400000).toISOString().slice(0,10)+" | Next: Send contract (tonight) | Need: Second shooter", "Sample", "Exact", 300),
+      I("s6m", "Business", "Money", "Invoice due: $480. 2 open deals. Collected this year: $12,400. Sessions in the next 14 days: 2.", "Ledger summary", "Exact", 200),
+      I("s6k", "Business", "Marketing", "Ads conversion upload ran clean", "Ads log", "Exact", 240),
       I("s7", "Business", "Waiting on others", "Booking confirmation draft waiting on your approval", "Draft queue", "Exact", 1500),
       I("s8", "Business", "Competitors", "One tracked account gained 7 followers after a new post", "Instagram snapshot", "Exact", 90),
       I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St, free, open to the public", "Local listing", "Single source", 160),
@@ -2456,7 +2458,7 @@ function preview(){
       {section: "System", headline: "3 open problems", status: "watch", text: "All routines write their run rows.", writer: "sample"}
     ],
     sections: [{section: "Private", tier: 2}, {section: "Work", tier: 2}],
-    config: [{key: "name.claude", value: "Atlas"}, {key: "name.muse", value: "Luna"}, {key: "name.chatgpt", value: "Argus"}],
+    config: [{key: "name.claude", value: "Atlas"}, {key: "name.muse", value: "Luna"}, {key: "name.chatgpt", value: "Argus"}, {key: "ledger_dashboard_url", value: "https://example.com/sample-dashboard"}, {key: "ledger_sheet_url", value: "https://example.com/sample-sheet"}],
     messages: [
       {id: "m1", from: "claude", to: "muse", type: "handoff", text: "🟢 Hub serves Summary, Sections and Messages.", status: "open", time: iso(240)},
       {id: "m2", from: "muse", to: "claude", type: "answer", text: "🟢 Summary rows written for all six sections.", status: "open", time: iso(220)},

@@ -147,6 +147,6 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 - Recap inputs stay with their own authorities (Origin CSV, FitNotes, Calvary Baptist voice notes Google Doc, Moodle). Moodle handoff doc is in 05 School / Moodle archive.
 
 ## Nurturing drawer and Business layers (Atlas)
-- Business has two layers: Now (pulse, leads, competitors, marketing) and CRM (embeds Config ledger_dashboard_url; falls back to a note).
+- Business is one page, no frames. A Pipeline and money card shows leads by stage (from Nurturing rows), money bars (collected vs due, from the Business Money row), open deals, sessions, buttons to Config ledger_dashboard_url and ledger_sheet_url, and a Ledger synced stamp. Luna: set both Config keys.
 - Nurturing: Items tab Business, module Nurturing, id nu-<firstname>. Text: `Name | Stage: Contract | Event: Wedding, Jun 12 2027 | Last contact: YYYY-MM-DD | Next: step; step | Need: item; item`. Stage is Inquiry, Talking, Contract, Deposit or Booked; newest row per id wins; write Stage: Closed to remove. First names only. No drawer or edge tab shows when there are zero rows.
 - Sources is now a zoom view: kind tiles, click to zoom in, extra layers as chips.
