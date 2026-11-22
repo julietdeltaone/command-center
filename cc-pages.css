@@ -29,3 +29,6 @@
 .ov-health{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
 .ov-h{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:10px minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;border-radius:12px;border:1px solid var(--border,rgba(255,255,255,.12));background:var(--card,rgba(255,255,255,.03))}
 .ov-h:hover{border-color:var(--c,var(--accent))}.ov-h i{width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--c,var(--muted))}.ov-h b{display:block;font-size:12.5px}.ov-h small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.jwrap .ltab{max-width:none;width:100%}
+.jwrap .jringw svg{width:84px;height:84px}
+.jwrap .jtop .shm.big b{font-size:26px}
