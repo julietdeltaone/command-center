@@ -82,7 +82,7 @@
     var F = CC.fresh, now = F.now ? F.now() : Date.now(), days = {}, rows = [];
     if (api.workoutDays) api.workoutDays().forEach(function (x) { if (x.cardio) { days[x.k] = (days[x.k] || 0) + x.cardio; rows.push({t: x.t, min: x.cardio}); } });
     var cmin = null, cex = "", ct = c && c.t ? c.t : null;
-    if (c) { var mm = /(\d+)\s*(?:cardio\s*)?min/i.exec(c.text || ""); cmin = mm ? Number(mm[1]) : null; cex = c.ex || ""; if (ct && cmin && !days[F.ymd(ct)]) { days[F.ymd(ct)] = cmin; rows.push({t: ct, min: cmin}); } }
+    if (c) { var mm = /(\d+)\s*(?:cardio\s*)?min/i.exec(c.text || ""); cmin = mm ? Number(mm[1]) : null; cex = c.ex || ""; if (ct && cmin) { var ck = F.ymd(ct); days[ck] = cmin; rows = rows.filter(function (r) { return F.ymd(r.t) !== ck; }); rows.push({t: ct, min: cmin}); } }
     rows.sort(function (a, b) { return a.t - b.t; });
     var last = rows.length ? rows[rows.length - 1] : (ct ? {t: ct, min: cmin} : null);
     var weeks = [0, 0, 0, 0], sess = [0, 0, 0, 0];
