@@ -4,11 +4,7 @@
      tr-abs, tr-quads, tr-hamstrings, tr-glutes, tr-calves, tr-cardio)
      time = the date that group was last trained
      text = "Chest | 14 sets in 14 days | Bench Press 11/19, Incline Press 11/17"
-   Cardio falls back to the daily workout rows (cardio minutes) until tr-cardio rows exist. Counts and names only.
-   Vitals contract (Luna writes daily from Apple Health, one Items row per day, newest row wins):
-     tab "Private", module "Health", source "Apple Health", time = the day the values describe, at noon,
-     text = "Vitals | Resting HR 65 | Avg HR 73 | HRV 52 ms | Blood oxygen 95.6% | Respiratory rate 16.1"
-   The cardio section renders the newest vitals row as a Vitals block under the cardio grid. */
+   Cardio falls back to the daily workout rows (cardio minutes) until tr-cardio rows exist. Counts and names only. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -93,29 +89,6 @@
     rows.forEach(function (r) { var a = Math.floor((now - r.t) / 86400000 / 7); if (a >= 0 && a < 4) { weeks[3 - a] += r.min; sess[3 - a]++; } });
     var daily = []; for (var d = 27; d >= 0; d--) daily.push({k: F.ymd(now - d * 86400000), min: days[F.ymd(now - d * 86400000)] || 0});
     return {any: !!last, last: last, days: last ? F.dayDiff(last.t) : null, min: last ? last.min : null, ex: cex, weeks: weeks, sess: sess, daily: daily, week: weeks[3], t: last ? last.t : null};
-  }
-
-  function vitalsModel(api) {
-    var items = (api.data && api.data.items) || [], F = CC.fresh, best = null;
-    function num(text, re) { var m = re.exec(text || ""); return m ? m[1] : null; }
-    items.forEach(function (i) {
-      if (i.tab !== "Private" || i.module !== "Health") return;
-      if (!/^vitals\b/i.test(i.text || "")) return;
-      var t = ms(i.time), w = ms(i.written) || t || 0;
-      if (!best || w >= best.w) best = {t: t, w: w, text: i.text};
-    });
-    if (!best) return null;
-    var x = best.text, rows = [], v;
-    v = num(x, /Resting HR\s*([\d.]+)/i); if (v != null) rows.push(["Resting heart rate", v + " bpm"]);
-    v = num(x, /Avg HR\s*([\d.]+)/i); if (v != null) rows.push(["Heart rate, daily avg", v + " bpm"]);
-    v = num(x, /HRV\s*([\d.]+)/i); if (v != null) rows.push(["Heart rate variability", v + " ms"]);
-    v = num(x, /Blood oxygen\s*([\d.]+)/i); if (v != null) rows.push(["Blood oxygen", v + "%"]);
-    v = num(x, /Respiratory rate\s*([\d.]+)/i); if (v != null) rows.push(["Respiratory rate", v + " /min"]);
-    v = num(x, /VO2 max\s*([\d.]+)/i); if (v != null) rows.push(["VO2 max", v]);
-    if (!rows.length) return null;
-    var d = best.t ? F.dayDiff(best.t) : null;
-    var when = d == null ? "" : d <= 0 ? "today" : d === 1 ? "yesterday" : new Date(best.t).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"});
-    return {rows: rows, when: when};
   }
 
   /* anatomical shapes, left half drawn, right half mirrored */
@@ -225,11 +198,6 @@
         h("div", {class: "cd-r"}, ring, h("div", null, h("h4", null, "This week"), h("div", {class: "rh-sub"}, c.week + " of " + tgt + " min target"), h("div", {class: "rh-sub"}, c.sess[3] + (c.sess[3] === 1 ? " session" : " sessions")))),
         h("div", null, h("h4", null, "Last 4 weeks"), wk, h("div", {class: "rh-sub"}, wkTotal + " min total")),
         cp ? null : h("div", null, h("h4", null, "Last 28 days"), dl)));
-      var vit = vitalsModel(api);
-      if (vit) {
-        var vrows = vit.rows.map(function (r) { return h("div", {class: "bd-r static"}, h("i"), h("b", null, r[0]), h("span", {class: "bd-d"}, r[1])); });
-        wrap.appendChild(h("div", {class: "cd-vit"}, h("h4", null, "Vitals" + (vit.when ? " · " + vit.when : "")), h("div", {class: "bd-ml"}, vrows)));
-      }
       return wrap;
     },
     mini: function (api) {
