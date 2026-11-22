@@ -156,3 +156,7 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 - Nurturing is inline on the Business page. Only real leads belong there. Luna: close every nu-* row except Lauren (Stage: Closed) until JD adds more.
 - Config ledger_dashboard_url must be the NEW dashboard link (ends ...SXSruh781qufMpqfemfsOatxl/exec, a/macros/jdmeyersjr.com) and ledger_sheet_url the Google Sheet link (docs.google.com/spreadsheets/...). Both currently hold the old dashboard link.
 - Layouts A to D are switchable on the page (A default).
+
+
+## Business page layout (final)
+One auto-fit layout, no switcher: chips row on top; left column Waiting, Nurturing, CRM; right rail Pipeline and money, Reply speed, Latest leads, Competitors, Marketing, Other. Below 980px it stacks. Panels never leave blank gaps; Nurturing and CRM scroll inside themselves past about 46% of the screen height.

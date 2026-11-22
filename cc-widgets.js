@@ -294,7 +294,7 @@
     if (ol.length) {
       var wt = now - ms(ol[0].time);
       chips.push(chip(ol.length + (ol.length === 1 ? " lead waiting " : " leads waiting ") + dur(wt), waitScore(wt)));
-    } else chips.push(chip("No leads waiting", 1));
+    } else chips.push(chip("No unanswered inquiries", 1));
     if (mo.it) {
       if (mo.due) {
         var url = cfg("ledger_dashboard_url");
@@ -304,7 +304,11 @@
       if (mo.sn != null) chips.push(chip(mo.sn + (mo.sn === 1 ? " session" : " sessions") + " in " + mo.sd + " days", mo.sn ? 0.8 : 0.55));
     }
     var nn = CC.nurture ? CC.nurture.waiting(api) : 0;
-    if (nn) chips.push(chip(nn + (nn === 1 ? " lead to nurture" : " leads to nurture"), 0.5, {onclick: function () { var el = document.getElementById("nu-inline"); if (el && el.scrollIntoView) el.scrollIntoView({behavior: "smooth", block: "start"}); else CC.nurture.open(api); }}));
+    if (nn) {
+      var nl = CC.nurture.list ? CC.nurture.list(api).filter(function (q) { return q.next && q.next.length; }) : [];
+      var nlab = nl.length === 1 ? nl[0].name + ": " + String(nl[0].next[0]).replace(/\s*\(.*$/, "") : nn + (nn === 1 ? " lead needs your next step" : " leads need your next step");
+      chips.push(chip(nlab, 0.4, {onclick: function () { var el = document.getElementById("nu-inline"); if (el && el.scrollIntoView) el.scrollIntoView({behavior: "smooth", block: "nearest"}); else CC.nurture.open(api); }}));
+    }
     if (!CC.inbox.stats().n) chips.push(chip("Reply speed: no reading", null));
     var ads = newest(modItems(api, "Business", "Marketing").filter(function (i) { return /conversion upload/i.test(i.text || ""); }));
     if (ads) chips.push(chip(/clean|no errors/i.test(ads.text) ? "Ads upload ran clean" : "Ads upload needs a look", /clean|no errors/i.test(ads.text) ? 1 : 0.3));
@@ -334,15 +338,16 @@
     tWait.classList.add("slim");
     var strip = null;
     if (st.n) {
-      var bk = st.buckets, mx2 = Math.max.apply(null, st.series.map(function (x) { return x.wait; }).concat([3600000]));
+      var bk = st.buckets, mx2 = Math.max.apply(null, st.series.map(function (x) { return x.wait; }).concat([3600000])), pc = Math.round(st.under1h * 100);
       strip = h("section", {class: "wd slim wd-reply"}, h("div", {class: "wd-h nd"}, h("span", {class: "wd-t"}, "Reply speed"), h("small", null, st.n + " replies")),
         h("div", {class: "rp"},
-          h("div", {class: "rp-i"}, ring(Math.round(st.under1h * 100), st.under1h, Math.round(st.under1h * 100) + "%", "", 64), h("small", null, "under 1 hr")),
-          h("div", {class: "rp-i"}, h("b", {style: "color:" + col(rs)}, fmtW(typ)), h("small", null, "typical")),
-          h("div", {class: "rh-bars sm"}, st.series.map(function (x) { return h("i", {style: "height:" + (10 + Math.sqrt(x.wait / mx2) * 90) + "%;background:" + col(waitScore(x.wait)), title: F().stamp(x.replied) + ": " + CC.inbox.waitText(x.wait)}); })),
-          h("div", {class: "wchips"}, chip(bk.u1 + " fast", 1), chip(bk.h4 + " 1-4h", 0.5), chip(bk.d1 + " 4-24h", 0.2), chip(bk.over + " 1d+", 0.04))));
+          h("div", {class: "rp-i"}, h("b", {style: "color:" + col(st.under1h)}, pc + "%"), h("small", null, "answered within 1 hr")),
+          h("div", {class: "rp-i"}, h("b", {style: "color:" + col(rs)}, fmtW(typ)), h("small", null, "typical reply")),
+          h("div", {class: "rh-bars sm"}, st.series.map(function (x) { return h("i", {style: "height:" + (10 + Math.sqrt(x.wait / mx2) * 90) + "%;background:" + col(waitScore(x.wait)), title: F().stamp(x.replied) + ": " + CC.inbox.waitText(x.wait)}); }))));
     }
-    return h("div", {class: "wdpage tight"}, chipRow, h("div", {class: "gl-2"}, W.bizPipeline(api), strip), ol.length ? tWait : null);
+    var pipe = W.bizPipeline(api);
+    W.bizTop.parts = {chips: chipRow, pipe: pipe, strip: strip, wait: ol.length ? tWait : null};
+    return h("div", {class: "wdpage tight"}, chipRow, h("div", {class: "gl-2"}, pipe, strip), ol.length ? tWait : null);
   };
   CC.views.Business = function (api) {
     var box = h("div", {class: "wdpage"}), items = modItems(api, "Business", null);
@@ -383,25 +388,13 @@
     if (lcards.length) cards.unshift(card("wd-leads", "Latest leads", ol.length ? ol.length + " to answer" : "all answered", h("div", {class: "lds"}, lcards), ol.length ? 0.25 : 1, frOf(api, lds)));
     var other = items.filter(function (i) { return ["Competitors", "Marketing", "Leads", "Money", "Nurturing", "Ledger"].indexOf(i.module) < 0; });
     if (other.length) cards.push(card("wd-oth", "Other", null, h("div", {class: "wchips col"}, other.slice(0, 8).map(function (i) { return chip(i.text.slice(0, 100), 0.7, {title: i.text}); })), 0.7));
-    var grid = h("div", {class: "wdgrid g3 biz"}, cards);
-    var LAYS = [["A", "Top glance, CRM and nurturing side by side"], ["B", "Left rail, CRM on the right"], ["C", "Right rail, CRM on the left"], ["D", "Stacked, nurturing across"]], lay = "A";
-    try { var q = /[?&]layout=([A-D])/.exec(location.search); lay = (q && q[1]) || localStorage.getItem("cc_biz_layout") || "A"; } catch (e) {}
-    function area(n, el) { return el ? h("div", {class: "ba ba-" + n}, el) : null; }
-    var glance = h("div", {class: "biz-glance"}, W.bizTop(api)), crmEl = CC.crm ? CC.crm.panel(api) : null, nurEl = CC.nurture ? CC.nurture.panelEl(api) : null;
-    var layEl = h("div", {class: "biz-lay", "data-lay": lay});
-    function stack(x) { return h("div", {class: "bz-col"}, x.filter(Boolean)); }
-    function arrange() {
-      layEl.textContent = ""; layEl.setAttribute("data-lay", lay);
-      var g = area("glance", glance), c = area("crm", crmEl), n = area("nurt", nurEl), m = area("more", grid);
-      if (lay === "A") { layEl.appendChild(g); layEl.appendChild(h("div", {class: "bz-row" + ((CC.crm && CC.crm.list(api).length) ? "" : " solo")}, c, n)); layEl.appendChild(m); }
-      else if (lay === "B") layEl.appendChild(h("div", {class: "bz-row rail-l"}, stack([g, n]), stack([c, m])));
-      else if (lay === "C") layEl.appendChild(h("div", {class: "bz-row rail-r"}, stack([c, m]), stack([g, n])));
-      else { layEl.appendChild(g); layEl.appendChild(n); layEl.appendChild(c); layEl.appendChild(m); }
-    }
-    var sw = h("div", {class: "lay-sw", role: "group", "aria-label": "Page layout"}, h("small", null, "Layout"), LAYS.map(function (x) {
-      return h("button", {type: "button", title: x[1], "aria-pressed": String(x[0] === lay), onclick: function () { lay = x[0]; try { localStorage.setItem("cc_biz_layout", lay); } catch (e) {} arrange(); Array.prototype.forEach.call(sw.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.textContent === lay)); }); }}, x[0]);
-    }));
-    arrange(); box.appendChild(sw); box.appendChild(layEl);
+    W.bizTop(api);
+    var P = W.bizTop.parts, crmEl = CC.crm ? CC.crm.panel(api) : null, nurEl = CC.nurture ? CC.nurture.panelEl(api) : null;
+    function tile(el, cls) { return el ? h("div", {class: "bf " + (cls || "")}, el) : null; }
+    var leadsCard = cards.filter(function (c) { return c.classList.contains("wd-leads"); })[0], restCards = cards.filter(function (c) { return c !== leadsCard; });
+    var other2 = restCards.filter(function (c) { return c.classList.contains("wd-mk") || c.classList.contains("wd-oth"); }), mid2 = restCards.filter(function (c) { return other2.indexOf(c) < 0; });
+    var fit = h("div", {class: "biz-fit"}, tile(P.chips, "top"), h("div", {class: "bf-main"}, [P.wait, nurEl, crmEl].filter(Boolean)), h("div", {class: "bf-rail"}, [P.pipe, P.strip, leadsCard].concat(mid2, other2).filter(Boolean)));
+    box.appendChild(h("div", {class: "biz-fitw"}, fit));
     return box;
   };
 
