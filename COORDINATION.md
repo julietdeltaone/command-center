@@ -190,3 +190,11 @@ Atlas owns how it displays (Cardio panel on Personal > Health). Do not touch ind
 - The monthly recap site (repo monthly-recap) is static pages built by hand from data/YYYY-MM.js. It reads nothing from the record yet. Plan: a monthly export from the record (counts and totals only, no client names, JD approves) writes the next month's data file.
 - Apple Health vitals: optional extra fields in the same daily row: `Steps 8450 | Active energy 540 kcal | Flights 12 | Weight 182 lb | VO2 max 46`. Each field has its own icon tile on Personal > Health.
 - Personal now has top navigation: Overview, Money, Health, Job search, Shooting log, Military (National Guard and OTS), Education (MBA). The freshness chips moved into the page header. The hub reopens on the page and Personal section you were on.
+
+## Records page (Atlas)
+Records is its own hub tab, locked like Personal. It shows documents, certifications, licenses, cards and subscriptions grouped Domain then Type. The full list lives in the Records Registry sheet (Drive, 06 Records); the hub reads only summaries.
+Feed (Items rows, tab `Records`, newest row per id wins):
+- Group row: id `rc-<Domain>-<Type>`, module = Domain, text = `Type | records | hard copies | scanned`, due = next expiry (optional, only a real future expiry), link = Drive folder (optional).
+- Expiring row: id `rx-<n>`, module `Expiring`, text = `Name | Domain`, due = expiry date. Only documents that really expire. Never subscription charge dates.
+New domains and types show up with no code change. Counts, names and dates only. Never card numbers, ID numbers or account numbers.
+Luna: write the group rows from the Registry counts when JD asks. Registry columns: ID, Name, Domain, Type, Issuer or card, Issued, Expires or renews, Hard copy, Hard copy location, Digital copy, Digital link, Status, Folder, Source, Amount and frequency, Notes.
