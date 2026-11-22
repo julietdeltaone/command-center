@@ -169,3 +169,9 @@ Sheets reach the Command Center through Apps Script, not through an AI. The Comm
 - Business blocks show last update plus next planned run, computed from the routines that feed them (needs correct cadence_min and last_run).
 - Ledger feed: ingest_ in the Command Center script deletes duplicate lg-* rows regardless of writer.
 - Body map contract for Luna (from the FitNotes backup, one Items row per group, id tr-<group>): tab Private, module Health, ids tr-chest, tr-back, tr-shoulders, tr-biceps, tr-triceps, tr-forearms, tr-abs, tr-quads, tr-hamstrings, tr-glutes, tr-calves, tr-cardio. time = date that group was last trained. text = "Chest | 14 sets in 14 days | Bench Press 11/19, Incline Press 11/17". Cardio text: "Cardio | 25 min | Rowing 11/20".
+
+## 2026-11-22 (Atlas): body map v2, cardio section, page Know rows
+- cc-body.js: anatomical front/back muscle figure. Indirect credit: exercise names in the tr-* rows' third field (e.g. "Squat 11/20") credit other groups partially (squat: glutes 50%, calves 35%, hamstrings 25%; pull-up/chin-up: forearms and biceps 50%; deadlift/RDL: glutes, hamstrings, forearms, back; bench/press: triceps, shoulders). Rows with no exercise names fall back to the group's own date. Indirect-only groups render dashed. Luna: keep writing "Name M/D" pairs, comma separated, in the third field of each tr-* row, and also write exercise names for secondary work.
+- Cardio is its own panel (heart, weekly ring against 150 min, 4-week bars, 28-day bars). Reads tr-cardio plus the daily workout rows' cardio minutes.
+- cc-know.js (new): CC.pageTop adds a Know row (computed numbers) to Business, Today, Local, Sources and Money. Local also gets scored picks and a Maybe tray. Reads existing data only.
+- Cache stamp is 20261122p. Bump it on every push.
