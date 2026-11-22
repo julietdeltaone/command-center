@@ -140,3 +140,4 @@
 .bd-list{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px}
 .bd-r{grid-template-columns:10px minmax(0,1fr)!important;row-gap:0!important}.bd-r .bd-d{grid-column:2!important;grid-row:2!important;font-size:11px}.bd-r em{grid-row:3!important;grid-column:2!important}.bd-r b{grid-column:2;grid-row:1}.bd-r i{grid-row:1 / 3!important;align-self:center}
 .bd-body .bd-fig{width:215px}.bd-r{padding:5px 9px}
+.pgt2 ~ .wdpage .wd-ten{max-height:calc(100vh - 482px);min-height:240px;overflow:auto}
