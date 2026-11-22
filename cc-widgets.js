@@ -385,7 +385,7 @@
     function arrange() {
       layEl.textContent = ""; layEl.setAttribute("data-lay", lay);
       var g = area("glance", glance), c = area("crm", crmEl), n = area("nurt", nurEl), m = area("more", grid);
-      if (lay === "A") { layEl.appendChild(g); layEl.appendChild(h("div", {class: "bz-row"}, c, n)); layEl.appendChild(m); }
+      if (lay === "A") { layEl.appendChild(g); layEl.appendChild(h("div", {class: "bz-row" + ((CC.crm && CC.crm.list(api).length) ? "" : " solo")}, c, n)); layEl.appendChild(m); }
       else if (lay === "B") layEl.appendChild(h("div", {class: "bz-row rail-l"}, stack([g, n]), stack([c, m])));
       else if (lay === "C") layEl.appendChild(h("div", {class: "bz-row rail-r"}, stack([c, m]), stack([g, n])));
       else { layEl.appendChild(g); layEl.appendChild(n); layEl.appendChild(c); layEl.appendChild(m); }
