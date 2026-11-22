@@ -163,3 +163,9 @@ One auto-fit layout, no switcher: chips row on top; left column Waiting, Nurturi
 
 ## Sheet-to-sheet feeds (Atlas, Nov 22)
 Sheets reach the Command Center through Apps Script, not through an AI. The Command Center script (Command Center API, deployment version 5) accepts `action: "ingest"` with an INGEST_KEY and writes Items rows with writer `ledger`. The Projects and Ledger script pushes every project (cancelled ones left out) as `lg-<Project ID>` rows after each save, delete and summary refresh, and hourly. Luna: do not write Ledger rows any more; the script owns them. To add another sheet, give its script a small push function like `ccPush` there and widen the ingest id check in `ingest_`.
+
+## Added 2026-11-22 (Atlas)
+- New files: cc-biz.js/.css (Business v2), cc-sources2.js/.css (Sources register), cc-pages.js/.css (Overview, CC.needs, hub map), cc-body.js (body map). index.html links carry ?v= cache-busters; bump them on every push.
+- Business blocks show last update plus next planned run, computed from the routines that feed them (needs correct cadence_min and last_run).
+- Ledger feed: ingest_ in the Command Center script deletes duplicate lg-* rows regardless of writer.
+- Body map contract for Luna (from the FitNotes backup, one Items row per group, id tr-<group>): tab Private, module Health, ids tr-chest, tr-back, tr-shoulders, tr-biceps, tr-triceps, tr-forearms, tr-abs, tr-quads, tr-hamstrings, tr-glutes, tr-calves, tr-cardio. time = date that group was last trained. text = "Chest | 14 sets in 14 days | Bench Press 11/19, Incline Press 11/17". Cardio text: "Cardio | 25 min | Rowing 11/20".
