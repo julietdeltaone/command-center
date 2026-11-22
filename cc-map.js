@@ -104,7 +104,7 @@
       var its = items.filter(function (i) { return (o.writer && i.writer === o.writer) || (o.sx && o.sx.test(i.source || "")) || (o.mod && o.mod.test(i.module || "")); });
       its.forEach(function (i) { var w = ms(i.written || i.time); if (w && (!last || w > last) && !rs.length) last = w; });
       var lv = rs.length ? worst : (its.length && last ? F().level(last, o.id === "ledger" ? 120 : 1440) : null);
-      if (o.id === "inv" && !its.length && !rs.length) lv = "none";
+      if (o.id === "inv" && !its.length && !rs.length) lv = "pending";
       return Object.assign({}, o, {routines: rs, items: its.length, level: lv, last: last, bad: fails});
     });
     /* Routines that matched no origin are still sources: gather them so nothing hides. */
@@ -117,30 +117,30 @@
     return {origins: origins, carriers: carriers, stray: stray, routines: routines, items: items.length, msgs: arr(D.messages).length, now: now, D: D};
   }
 
-  function levelColor(lv) { return lv === "ok" ? OK : lv === "late" || lv === "stale" ? WARN : lv === "none" || lv === "fail" ? BAD : DIM; }
-  function levelWord(lv) { return lv === "ok" ? "on schedule" : lv === "late" ? "running late" : lv === "stale" ? "stale" : lv === "fail" ? "last run failed" : lv === "none" ? "never ran" : "no read time reported"; }
+  function levelColor(lv) { return lv === "ok" ? OK : lv === "late" || lv === "stale" || lv === "pending" ? WARN : lv === "none" || lv === "fail" ? BAD : DIM; }
+  function levelWord(lv) { return lv === "ok" ? "on schedule" : lv === "late" ? "running late" : lv === "stale" ? "stale" : lv === "fail" ? "last run failed" : lv === "none" ? "never ran" : lv === "pending" ? "not flowing yet" : "no read time reported"; }
 
   CC.map = {
     hero: function (api) {
-      var M = model(api), W = 1500, H = 548;
-      var oy = function (i) { return 42 + i * 31; };
+      var M = model(api), W = 1500, H = 470;
+      var oy = function (i) { return 34 + i * 27; };
       var order = ["muse", "chatgpt", "script", "manual", "direct"];
       var CARS = [];
       order.forEach(function (id) { if (M.carriers[id]) CARS.push(M.carriers[id]); });
       Object.keys(M.carriers).forEach(function (id) { if (order.indexOf(id) < 0) CARS.push(M.carriers[id]); });
-      var cy = function (i) { return 78 + i * 86; };
-      var XO = 14, WO = 276, XC = 520, XR = 880, YR = 196, XP = 1150, WP = 190;
+      var cy = function (i) { return 92 + i * 100; };
+      var XO = 14, WO = 236, XC = 470, XR = 840, YR = 172, XP = 1150, WP = 190;
       var pageY = function (j) { return 40 + j * 40; };
-      var YREC = 340, YQ = 420;
+      var YREC = 360, YQ = 416;
       var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, class: "hm2-svg", role: "img", "aria-label": "Everything that can reach the Command Center, how it gets in, and what reads from the record"});
       var edges = [], nodes = {};
       function edge(d, cls, color, w, ids, dash) { var p = sv("path", {d: d, class: "hm2-e " + cls, stroke: color, "stroke-width": w}); if (dash) p.setAttribute("stroke-dasharray", dash); p.setAttribute("data-ids", ids.join(" ")); svg.appendChild(p); edges.push(p); return p; }
       var carIx = {}; CARS.forEach(function (c, i) { carIx[c.id] = i; });
       /* column titles */
-      svg.appendChild(tx(XO, 18, "hm2-ct", "WHERE IT STARTS"));
-      svg.appendChild(tx(XC, 18, "hm2-ct", "WHAT CARRIES IT", "middle"));
-      svg.appendChild(tx(XR, 18, "hm2-ct", "THE RECORD", "middle"));
-      svg.appendChild(tx(XP, 18, "hm2-ct", "WHAT READS IT"));
+      svg.appendChild(tx(XO, 16, "hm2-ct", "WHERE IT STARTS"));
+      svg.appendChild(tx(XC, 16, "hm2-ct", "WHAT CARRIES IT", "middle"));
+      svg.appendChild(tx(XR, 16, "hm2-ct", "THE RECORD", "middle"));
+      svg.appendChild(tx(XP, 16, "hm2-ct", "WHAT READS IT (THIS HUB)"));
       /* origin -> carrier */
       M.origins.forEach(function (o, i) {
         var ci = carIx[o.car]; if (ci == null) return;
@@ -150,28 +150,30 @@
       /* carriers -> record, or carriers -> pages (direct) */
       CARS.forEach(function (c, i) {
         var col = CLASS[c.cls] ? CLASS[c.cls].color : "#94a3b8", wd = 1.8 + Math.min(4, Math.log(1 + c.routines + 1) * 1.2);
-        if (c.id === "direct") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 420) + " " + cy(i) + " " + (XP - 280) + " " + (pageY(3) + 16) + " " + (XP - 2) + " " + (pageY(3) + 16), "d", col, 2.2, ["c:direct", "k:pages"]);
+        if (c.id === "direct") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 380) + " " + cy(i) + " " + (XP - 260) + " " + (pageY(5) + 46) + " " + (XP - 14) + " " + (pageY(5) + 46), "d", col, 2.2, ["c:direct", "k:pages"]);
         else if (c.id === "manual") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 160) + " " + cy(i) + " " + (XR - 150) + " " + (YR + 40) + " " + (XR - 96) + " " + (YR + 40), "k", col, 1.6, ["c:" + c.id, "k:record"], "3 6");
         else edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 170) + " " + cy(i) + " " + (XR - 160) + " " + (YR + (i - 1) * 8) + " " + (XR - 96) + " " + (YR + (i - 1) * 8), "k", col, wd, ["c:" + c.id, "k:record"]);
       });
       /* record -> pages */
-      SECS.forEach(function (s, j) { edge("M" + (XR + 96) + " " + YR + " C" + (XR + 170) + " " + YR + " " + (XP - 120) + " " + (pageY(j) + 16) + " " + (XP - 2) + " " + (pageY(j) + 16), "p", "rgba(255,255,255,.26)", 1.3, ["k:record", "k:pages", "p:" + s[0]], "4 5"); });
+      SECS.forEach(function (s, j) { edge("M" + (XR + 96) + " " + YR + " C" + (XR + 170) + " " + YR + " " + (XP - 70) + " " + (pageY(j) + 16) + " " + (XP - 2) + " " + (pageY(j) + 16), "p", "rgba(255,255,255,.26)", 1.3, ["k:record", "k:pages", "p:" + s[0]], "4 5"); });
       /* record -> monthly recap (proposed) and manual authorities -> recap (today) */
-      edge("M" + XR + " " + (YR + 66) + " C" + XR + " " + (YREC - 20) + " " + (XP - 180) + " " + (YREC + 16) + " " + (XP - 2) + " " + (YREC + 16), "x", "#f472b6", 2, ["k:record", "k:recap"], "2 7");
+      edge("M" + (XR + 70) + " " + (YR + 66) + " C" + (XR + 120) + " " + (YREC - 30) + " " + (XP - 120) + " " + (YREC + 4) + " " + (XP - 2) + " " + (YREC + 14), "x", "#f472b6", 2, ["k:record", "k:recap"], "2 7");
       edge("M" + (XP + 70) + " " + (YREC + 34) + " L" + (XP + 70) + " " + YQ, "x", "#f472b6", 1.6, ["k:recap", "k:queue"], "2 7");
-      /* pool strip */
-      var PY = 492, px = XO, pw = [];
-      POOL.forEach(function (p) {
-        var w = Math.max(90, p.name.length * 7.4 + 22);
-        if (px + w > XP - 40) { return; }
-        var g = sv("g", {class: "hm2-n pool", tabindex: "0", role: "button", "aria-label": p.name + ", not connected"}); g.dataset.id = p.id;
-        g.appendChild(sv("rect", {x: px, y: PY, width: w, height: 26, rx: 10, class: "hm2-pool"}));
-        g.appendChild(tx(px + w / 2, PY + 17, "hm2-pn", p.name, "middle"));
-        g.addEventListener("click", function () { select("p:" + p.id); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") select("p:" + p.id); });
-        svg.appendChild(g); nodes["p:" + p.id] = g; px += w + 8;
-        if (p.recap) edge("M" + (px - w / 2 - 8) + " " + PY + " C" + (px - w / 2 - 8) + " " + (PY - 90) + " " + (XP - 60) + " " + (YREC + 120) + " " + (XP + 12) + " " + (YREC + 34), "x", "rgba(255,255,255,.35)", 1.1, ["p:" + p.id, "k:recap"], "2 6");
+      /* pool: three columns, recap inputs in the right column */
+      var PX = 560, PW = 168, PYY = 348, ordered = POOL.filter(function (p) { return !p.recap; }).concat(POOL.filter(function (p) { return p.recap; }));
+      var cols = [[], [], []]; ordered.forEach(function (p, i) { cols[p.recap ? 2 : (i % 2)].push(p); });
+      cols.forEach(function (col, ci) {
+        col.forEach(function (p, ri) {
+          var x = PX + ci * (PW + 8), y = PYY + ri * 28;
+          var g = sv("g", {class: "hm2-n pool", tabindex: "0", role: "button", "aria-label": p.name + ", not connected"});
+          g.appendChild(sv("rect", {x: x, y: y, width: PW, height: 24, rx: 9, class: "hm2-pool"}));
+          g.appendChild(tx(x + PW / 2, y + 16, "hm2-pn", p.name, "middle"));
+          g.addEventListener("click", function () { select("p:" + p.id); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") select("p:" + p.id); });
+          svg.appendChild(g); nodes["p:" + p.id] = g;
+          if (p.recap) edge("M" + (x + PW) + " " + (y + 12) + " C" + (x + PW + 30) + " " + (y + 12) + " " + (XP - 40) + " " + (YREC + 24) + " " + (XP - 2) + " " + (YREC + 24), "x", "rgba(255,255,255,.4)", 1.1, ["p:" + p.id, "k:recap"], "2 6");
+        });
       });
-      svg.appendChild(tx(XO, PY - 8, "hm2-ct", "FOUND, NOT CONNECTED YET (" + POOL.length + ")"));
+      svg.appendChild(tx(PX, PYY - 8, "hm2-ct", "FOUND, NOT CONNECTED YET (" + POOL.length + ")"));
       /* record node */
       var gR = sv("g", {class: "hm2-n rec", tabindex: "0", role: "button", "aria-label": "The record"}); gR.dataset.id = "k:record";
       gR.appendChild(sv("rect", {x: XR - 96, y: YR - 66, width: 192, height: 132, rx: 20, class: "hm2-hub"}));
@@ -187,7 +189,6 @@
         g.appendChild(sv("rect", {x: XO, y: y, width: WO, height: 24, rx: 9, class: "hm2-o"}));
         g.appendChild(sv("circle", {cx: XO + 13, cy: y + 12, r: 4.5, fill: c}));
         g.appendChild(tx(XO + 25, y + 16, "hm2-on", o.name));
-        g.appendChild(tx(XO + WO - 8, y + 16, "hm2-os", o.sub, "end"));
         g.addEventListener("click", function () { select("o:" + o.id); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") select("o:" + o.id); });
         svg.appendChild(g); nodes["o:" + o.id] = g;
       });
@@ -199,7 +200,7 @@
         g.appendChild(sv("circle", {cx: XC, cy: y, r: 24, fill: col, "fill-opacity": ".2"}));
         g.appendChild(tx(XC, y + 6, "hm2-ini", c.id === "script" ? "{ }" : c.id === "direct" ? "→" : c.id === "manual" ? "JD" : c.name.charAt(0), "middle"));
         g.appendChild(tx(XC, y + 48, "hm2-cn", c.name, "middle"));
-        g.appendChild(tx(XC, y - 36, "hm2-cs", (CLASS[c.cls] ? CLASS[c.cls].label : "") + (c.routines ? " · " + c.routines + " routines" : ""), "middle"));
+        g.appendChild(tx(XC, y + 62, "hm2-cs", (CLASS[c.cls] ? CLASS[c.cls].label : "") + (c.routines ? " · " + c.routines + " routines" : ""), "middle"));
         g.addEventListener("click", function () { select("c:" + c.id); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") select("c:" + c.id); });
         svg.appendChild(g); nodes["c:" + c.id] = g;
       });
@@ -212,10 +213,9 @@
         g.addEventListener("click", function () { api.go(s[0]); });
         svg.appendChild(g); nodes["p:" + s[0]] = g;
       });
-      svg.appendChild(tx(XP + WP + 12, pageY(2) + 21, "hm2-cs", "this hub"));
-      /* outputs */
+            /* outputs */
       var gRc = sv("g", {class: "hm2-n", tabindex: "0", role: "button", "aria-label": "Monthly recap site"});
-      gRc.appendChild(sv("rect", {x: XP, y: YREC, width: WP + 120, height: 36, rx: 11, class: "hm2-out"}));
+      gRc.appendChild(sv("rect", {x: XP, y: YREC, width: WP + 120, height: 38, rx: 11, class: "hm2-out"}));
       gRc.appendChild(tx(XP + 14, YREC + 16, "hm2-pn2", "Monthly recap site"));
       gRc.appendChild(tx(XP + 14, YREC + 30, "hm2-os", "public · built by hand · last push Nov 5"));
       gRc.addEventListener("click", function () { select("k:recap"); }); svg.appendChild(gRc); nodes["k:recap"] = gRc;
@@ -312,7 +312,7 @@
     if (!base || base.__map) return;
     var wrapped = function (api) {
       var page = base(api);
-      try { if (api && api.data) page.insertBefore(CC.map.hero(api), page.firstChild); } catch (e) { if (window.console) console.error("map failed", e); }
+      try { var nd = page.querySelector(".s2-need"); if (nd && /All \d+ routines are on schedule/.test(nd.textContent)) nd.parentNode.removeChild(nd); if (api && api.data) page.insertBefore(CC.map.hero(api), page.firstChild); } catch (e) { if (window.console) console.error("map failed", e); }
       return page;
     };
     wrapped.__map = true; CC.views.Sources = wrapped;
