@@ -201,17 +201,17 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
-<link rel="stylesheet" href="cc-design.css?v=20261122c">
-<link rel="stylesheet" href="cc-skin.css?v=20261122c">
-<link rel="stylesheet" href="cc-widgets.css?v=20261122c">
-<link rel="stylesheet" href="cc-biz.css?v=20261122c">
-<link rel="stylesheet" href="cc-sources2.css?v=20261122c">
-<link rel="stylesheet" href="cc-pages.css?v=20261122c">
-<link rel="stylesheet" href="cc-sources.css?v=20261122c">
-<script src="cc-fresh.js?v=20261122c"></script>
-<script src="cc-inbox.js?v=20261122c"></script>
-<script src="cc-sources.js?v=20261122c"></script>
-<script src="cc-dev.js?v=20261122c" onerror="void 0"></script>
+<link rel="stylesheet" href="cc-design.css?v=20261122d">
+<link rel="stylesheet" href="cc-skin.css?v=20261122d">
+<link rel="stylesheet" href="cc-widgets.css?v=20261122d">
+<link rel="stylesheet" href="cc-biz.css?v=20261122d">
+<link rel="stylesheet" href="cc-sources2.css?v=20261122d">
+<link rel="stylesheet" href="cc-pages.css?v=20261122d">
+<link rel="stylesheet" href="cc-sources.css?v=20261122d">
+<script src="cc-fresh.js?v=20261122d"></script>
+<script src="cc-inbox.js?v=20261122d"></script>
+<script src="cc-sources.js?v=20261122d"></script>
+<script src="cc-dev.js?v=20261122d" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -1689,7 +1689,7 @@ function shotView(){
     var chips = types.map(function(t){ return h("button", {type: "button", class: "lchip" + (SFILT[t] ? " off" : ""), style: "--c:" + colOf(t), "aria-pressed": String(!SFILT[t]), onclick: function(){ SFILT[t] = !SFILT[t]; paint(); }}, h("i"), (t || "other") + " " + st.by[t].n); });
     card.innerHTML = "";
     card.appendChild(h("div", {class: "lbar"}, h("h3", null, "Sessions"), h("div", {class: "lchips"}, chips), h("span", {class: "lcount"}, shown.length + " of " + ss.length)));
-    card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:60vh"}, h("table", {class: "ltbl sht"},
+    card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:calc(100vh - 440px);min-height:150px"}, h("table", {class: "ltbl sht"},
       h("thead", null, h("tr", null, cols.map(function(c){ var on = SSORT.k === c[0]; return h("th", {"aria-sort": on ? (SSORT.dir > 0 ? "ascending" : "descending") : "none"}, h("button", {type: "button", onclick: function(){ if (SSORT.k === c[0]) SSORT.dir = -SSORT.dir; else { SSORT.k = c[0]; SSORT.dir = 1; } paint(); }}, c[1], h("b", null, on ? (SSORT.dir > 0 ? "▲" : "▼") : ""))); }))),
       h("tbody", null, shown.map(function(s){ return h("tr", {style: "--c:" + colOf(s.t)}, h("td", null, s.n), h("td", null, sdate(s.d)), h("td", null, h("span", {class: "ltag"}, s.t || "other")), h("td", null, s.cal), h("td", null, s.loc), h("td", null, String(s.r)), h("td", null, String(s.cum))); })))));
   }
@@ -1787,7 +1787,7 @@ function jobsView(){
     shown.sort(function(a, b){ var x = col[2](a), y = col[2](b); return (x < y ? -1 : x > y ? 1 : 0) * JSORT.dir; });
     card.innerHTML = "";
     card.appendChild(h("div", {class: "lbar"}, h("h3", null, "All jobs"), h("span", {class: "lcount"}, js.length + " tracked")));
-    card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:60vh"}, h("table", {class: "ltbl sht"},
+    card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:calc(100vh - 440px);min-height:150px"}, h("table", {class: "ltbl sht"},
       h("thead", null, h("tr", null, cols.map(function(c){ var on = JSORT.k === c[0]; return h("th", {"aria-sort": on ? (JSORT.dir > 0 ? "ascending" : "descending") : "none"}, h("button", {type: "button", onclick: function(){ if (JSORT.k === c[0]) JSORT.dir = -JSORT.dir; else { JSORT.k = c[0]; JSORT.dir = 1; } paint(); }}, c[1], h("b", null, on ? (JSORT.dir > 0 ? "▲" : "▼") : ""))); }))),
       h("tbody", null, shown.map(function(j){
         return h("tr", {style: "--c:" + (JSTAT[j.status] || "var(--muted)")}, h("td", null, h("span", {class: "ltag"}, j.status || "–")), h("td", null, j.company || ""), h("td", null, j.role || ""),
@@ -2565,19 +2565,19 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <div id="loadbar"><i></i></div>
-<script src="cc-motion.js?v=20261122c"></script>
+<script src="cc-motion.js?v=20261122d"></script>
 <script src="views/business.js" onerror="void 0"></script>
 <script src="views/bizcharts.js" onerror="void 0"></script>
 <script src="views/bizleads.js" onerror="void 0"></script>
 <script src="views/timeline.js" onerror="void 0"></script>
 <script src="views/system.js" onerror="void 0"></script>
 <script src="views/shooting.js" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261122c"></script>
-<script src="cc-nurture.js?v=20261122c"></script>
-<script src="cc-crm.js?v=20261122c"></script>
-<script src="cc-biz.js?v=20261122c"></script>
-<script src="cc-sources2.js?v=20261122c"></script>
-<script src="cc-pages.js?v=20261122c"></script>
+<script src="cc-widgets.js?v=20261122d"></script>
+<script src="cc-nurture.js?v=20261122d"></script>
+<script src="cc-crm.js?v=20261122d"></script>
+<script src="cc-biz.js?v=20261122d"></script>
+<script src="cc-sources2.js?v=20261122d"></script>
+<script src="cc-pages.js?v=20261122d"></script>
 <link rel="stylesheet" href="views/views.css">
 </body>
 </html>

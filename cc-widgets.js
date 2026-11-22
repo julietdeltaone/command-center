@@ -225,7 +225,7 @@
       var list = h("div", {class: "td-ev"});
       function paint() {
         list.textContent = "";
-        (expanded ? ev : ev.slice(0, 5)).forEach(function (r) {
+        (expanded ? ev : ev.slice(0, 4)).forEach(function (r) {
           var s = TYPECOL[r.type] != null ? TYPECOL[r.type] : 0.8;
           list.appendChild(h(r.it.link ? "a" : "div", {class: "td-e", href: r.it.link || null, target: r.it.link ? "_blank" : null, rel: "noopener", style: "--c:" + col(s), title: r.it.text},
             h("em", null, r.time ? api.shortName ? r.time.split(" to ")[0] : r.time : "All day"), h("b", null, r.what),
