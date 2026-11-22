@@ -40,7 +40,8 @@
   }
 
   /* ---------- alerts ---------- */
-  function all() { var a = []; try { a = provider ? provider() : []; } catch (e) {} return a; }
+  var MED = /\b(ALS|BLS|mutual aid|sick call|medical|ambulance|EMS|cardiac|overdose|abdominal|chest pain|unresponsive|fall victim)\b/i;
+  function all() { var a = []; try { a = provider ? provider() : []; } catch (e) {} return a.filter(function (x) { return !(x && x.kind !== "lead" && MED.test(String(x.ti || "") + " " + String(x.rt || ""))); }); }
   function open() { return all().filter(function (a) { return !S.seen[a.key]; }); }
   function isSeen(key) { return !!S.seen[key]; }
   function mark(a, how) {

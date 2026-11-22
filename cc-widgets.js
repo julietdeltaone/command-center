@@ -125,7 +125,8 @@
   }
   CC.views.Today = function (api) {
     var d = api.data, nowH = hrNow(api), now = api.nowMs();
-    var ev = dayEvents(api), dues = ev.filter(function (e) { return e.kind === "due"; }), sched = ev.filter(function (e) { return e.kind !== "due"; });
+    var evAll = dayEvents(api), seenEv = {}, town = evAll.filter(function (e) { return e.kind === "local"; }).filter(function (e) { var k = String(e.label || "").toLowerCase().replace(/\W/g, "") + "@" + Math.round(e.start * 2); if (seenEv[k]) return false; seenEv[k] = 1; return true; });
+    var ev = evAll.filter(function (e) { return e.kind !== "local"; }), dues = ev.filter(function (e) { return e.kind === "due"; }), sched = ev.filter(function (e) { return e.kind !== "due"; });
     var upcoming = sched.filter(function (e) { return (e.end != null ? e.end : e.start + 0.5) > nowH; });
     var cur = sched.filter(function (e) { return e.start <= nowH && (e.end != null ? e.end : e.start + 0.5) > nowH; })[0];
     var nxt = cur || upcoming[0];
@@ -162,21 +163,23 @@
       watch.length ? h("div", {class: "wchips"}, watch.slice(0, 3).map(function (i) { return chip(api.shortName(i.text), 0.5); })) : h("div", {class: "wsub"}, "Nothing flagged")), wScore);
 
     /* Day progress ring and schedule */
-    var pct = sched.length ? Math.round(done / sched.length * 100) : 100;
-    var rows = sched.map(function (e) {
-      var fin = (e.end != null ? e.end : e.start + 0.5) <= nowH, on = e === cur;
-      return h("div", {class: "sr" + (fin ? " fin" : "") + (on ? " on" : "")}, h("i", {style: "background:" + (fin ? col(1) : on ? col(0.5) : "var(--dim)")}), h("em", null, fmtHr(e.start)), h("span", {class: "sr-n"}, e.label), e.end != null ? h("span", {class: "sr-d"}, dur((e.end - e.start) * 3600000)) : null, h("span", {class: "sr-s"}, fin ? "Done" : on ? "Now" : e.kind === "local" ? "Local" : "Later"));
+    var rows = sched.concat(dues).sort(function (a, b) { return a.start - b.start; }).map(function (e) {
+      var fin = e.kind === "due" ? false : (e.end != null ? e.end : e.start + 0.5) <= nowH, on = e === cur;
+      return h("div", {class: "sr" + (fin ? " fin" : "") + (on ? " on" : "")}, h("i", {style: "background:" + (fin ? col(1) : on ? col(0.5) : e.over ? col(0.06) : "var(--dim)")}), h("em", null, fmtHr(e.start)), h("span", {class: "sr-n"}, e.label), e.end != null ? h("span", {class: "sr-d"}, dur((e.end - e.start) * 3600000)) : null, h("span", {class: "sr-s"}, e.kind === "due" ? (e.over ? "Overdue" : "Due") : fin ? "Done" : on ? "Now" : "Later"));
     });
-    var tSched = card("wd-sched", "Today's schedule", sched.length + (sched.length === 1 ? " item" : " items"),
-      h("div", {class: "wd-b row"}, ring(pct, sched.length ? pct / 100 * 0.6 + 0.4 : 1, done + "/" + sched.length || "0", "done", 104), rows.length ? h("div", {class: "srl"}, rows) : h("div", {class: "wsub"}, "Nothing on the clock today")), sched.length ? 0.6 : 1);
+    var tSched = card("wd-sched", "Your day", rows.length + (rows.length === 1 ? " item" : " items"),
+      h("div", {class: "wd-b"}, rows.length ? h("div", {class: "srl"}, rows) : h("div", {class: "wsub"}, "Nothing on your clock today")), rows.length ? 0.7 : 1);
+    var tTown = town.length ? card("wd-town", "Around town", town.length + (town.length === 1 ? " event" : " events") + " today, public", h("div", {class: "srl"}, town.slice(0, 10).map(function (e) {
+      return h("div", {class: "sr"}, h("i", {style: "background:var(--dim)"}), h("em", null, fmtHr(e.start)), h("span", {class: "sr-n"}, e.label));
+    })), 0.8) : null;
 
     /* Everything else for Today as chips, grouped by module */
     var other = modItems(api, "Today", null).filter(function (i) { return ["Weather and drone", "Watch", "Calendar and deadlines"].indexOf(i.module) < 0; });
     var tOther = other.length ? card("wd-other", "Also today", null, h("div", {class: "wchips"}, other.slice(0, 12).map(function (i) { return chip(api.shortName(i.text), 0.7, {title: i.text}); })), 0.7) : null;
 
     var box = h("div", {class: "wdpage"});
-    box.appendChild(h("div", {class: "wdgrid g4"}, tNext, tDue, tWx, tWatch));
-    box.appendChild(h("div", {class: "wdgrid g1"}, tSched));
+    box.appendChild(h("div", {class: "wdgrid g" + (dues.length ? 4 : 3)}, [tNext, dues.length ? tDue : null, tWx, tWatch].filter(Boolean)));
+    box.appendChild(h("div", {class: "wdgrid g2 tw"}, [tSched, tTown].filter(Boolean)));
     if (tOther) box.appendChild(h("div", {class: "wdgrid g1"}, tOther));
     box.appendChild(fold("tl-today", "Timeline", "optional, zoom and pan through your day", function () { return CC.timeline ? CC.timeline(api, {key: "today", span: "day", title: "Your day", _raw: true}) : null; }, false));
     return box;
@@ -190,7 +193,8 @@
     return {rise: s.rise, set: s.set, hrs: s.set - s.rise};
   }
   CC.views.Local = function (api) {
-    var rows = api.lrows ? api.lrows() : [], now = api.nowMs(), N = 10;
+    var rows = api.lrows ? api.lrows() : [], now = api.nowMs(), N = 10, seenL = {}, MEDX = /\b(ALS|BLS|mutual aid|sick call|medical|ambulance|EMS|cardiac|overdose|abdominal|chest pain|unresponsive|fall victim)\b/i;
+    rows = rows.filter(function (r) { if (r.type === "Alert" && MEDX.test(String(r.what || "") + " " + String(r.it && r.it.text || ""))) return false; var k = String(r.what || "").toLowerCase().replace(/\W/g, "") + "@" + r.whenKey; if (seenL[k]) return false; seenL[k] = 1; return true; });
     var alerts = rows.filter(function (r) { return r.type === "Alert" || (r.type === "Closure" && r.whenKey < 200); });
     var dated = rows.filter(function (r) { return r.whenKey !== 9999; });
     var box = h("div", {class: "wdpage"});
@@ -203,9 +207,12 @@
     var counts = [], total = 0;
     for (var d = 0; d < N; d++) { var c = dated.filter(function (r) { return Math.floor(r.whenKey / 100) === d; }).length; counts.push(c); total += c; }
     var mx = Math.max(1, Math.max.apply(null, counts));
-    var strip = h("div", {class: "tenday"});
+    var strip = h("div", {class: "tenday"}), gapDays = [];
+    function flushGap() { if (!gapDays.length) return; var a = gapDays[0], b = gapDays[gapDays.length - 1]; strip.appendChild(h("div", {class: "td-gap"}, (a.getMonth() + 1) + "/" + a.getDate() + (gapDays.length > 1 ? " to " + (b.getMonth() + 1) + "/" + b.getDate() : "") + ": nothing listed")); gapDays = []; }
     for (var d2 = 0; d2 < N; d2++) (function (d) {
       var dt = new Date(now + d * 86400000), ev = dated.filter(function (r) { return Math.floor(r.whenKey / 100) === d; }).sort(function (a, b) { return a.whenKey - b.whenKey; });
+      if (!ev.length && d !== 0) { gapDays.push(dt); return; }
+      flushGap();
       var dl = daylight(api, dt), DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], expanded = false;
       var list = h("div", {class: "td-ev"});
       function paint() {
@@ -225,6 +232,7 @@
         h("div", {class: "td-heat"}, h("i", {style: "width:" + Math.round(ev.length / mx * 100) + "%"})),
         dl ? h("div", {class: "td-sun"}, "☀ " + fmtHr(dl.rise) + " – " + fmtHr(dl.set) + " · " + Math.floor(dl.hrs) + "h " + Math.round((dl.hrs % 1) * 60) + "m light") : null, list));
     })(d2);
+    flushGap();
     var scan = api.moduleStatus ? api.moduleStatus("Events") : null;
     box.appendChild(h("div", {class: "wdgrid g1"}, card("wd-ten", "Next 10 days", total + (total === 1 ? " event" : " events") + (scan && scan.state !== "ok" ? " · scanner " + (scan.state === "fail" ? "failed" : "late") : ""), strip, scan && scan.state === "ok" ? 0.9 : scan && scan.state === "fail" ? 0.1 : 0.5, frOf(api, modItems(api, "Local", "Events")))));
     box.appendChild(fold("tl-local", "Timeline", "optional layered timeline", function () { return CC.timeline ? CC.timeline(api, {key: "local", span: "week", layers: ["local", "alert", "cal"], title: "Local timeline", _raw: true}) : null; }, false));
@@ -450,9 +458,7 @@
     var sinceLast = last ? Math.floor((now - last.t) / 86400000) : null;
     var days7 = W7.filter(function (w) { return now - w.t < 7 * 86400000; }).length;
 
-    /* Hero */
     var newestAt = Math.max(ph.length ? ph[ph.length - 1].at : 0, dl ? dl.t : 0, last ? last.row : 0);
-    box.appendChild(h("section", {class: "wd st-hero"}, h("div", null, h("div", {class: "st-name"}, "JD Meyers"), h("div", {class: "wsub"}, "Live status · " + nd.toLocaleDateString("en-US", {timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric"}))), newestAt ? stamp(newestAt, 360, "Newest status reading") : h("span", {class: "wsub"}, "Waiting for the first readings")));
 
     /* Workout */
     var wScore = sinceLast == null ? null : sinceLast <= 1 ? 1 : sinceLast <= 2 ? 0.78 : sinceLast <= 3 ? 0.5 : 0.12;
@@ -479,23 +485,22 @@
     if (s) {
       var ss = s.mins >= 450 ? 1 : s.mins >= 390 ? 0.75 : s.mins >= 330 ? 0.45 : 0.12;
       tS = card("wd-sleep", "Sleep", "last night", h("div", {class: "wd-b"}, h("div", {class: "wbig", style: "color:" + col(ss)}, Math.floor(s.mins / 60) + "h " + (s.mins % 60) + "m"), spark(sl.slice(-7).map(function (r) { return r.mins; }), 120, 30, col(ss)), h("div", {class: "wsub dim"}, "7 nights, goal 7.5 h")), ss, stamp(s.t, 1440, "Sleep read"));
-    } else tS = card("wd-sleep", "Sleep", null, h("div", {class: "wd-b"}, h("div", {class: "wsub"}, "No sleep reading yet")), null);
+    } else tS = null;
 
     /* Flying weather today */
     var wi = newest(modItems(api, "Today", "Weather and drone")), wx = wi ? weatherInfo(wi.text) : null;
     var tF = card("wd-fly", "Drone weather", null, wx ? h("div", {class: "wd-b"}, h("div", {class: "wbig", style: "color:" + col(wx.score)}, wx.no ? "No" : wx.fly ? "Yes" : "Check"), h("div", {class: "wsub"}, "flyable today" + (wx.hi != null ? " · high " + wx.hi + "°" : ""))) : h("div", {class: "wd-b"}, h("div", {class: "wsub"}, "No forecast yet")), wx ? wx.score : null, wi ? stamp(ms(wi.time), 1440, "Forecast read") : null);
-    box.appendChild(h("div", {class: "wdgrid g4"}, tW, tP, tS, tF));
+    box.appendChild(h("div", {class: "wdgrid g" + (tS ? 4 : 3)}, [tW, tP, tS, tF].filter(Boolean)));
 
-    /* Fun stats */
+    /* Quick stats: the five that change what JD does */
     var stats = [];
     function stat(label, val, sub, sc) { stats.push(h("div", {class: "fs", style: sc == null ? "" : "--c:" + col(sc)}, h("div", {class: "fs-v"}, String(val)), h("div", {class: "fs-l"}, label), sub ? h("div", {class: "fs-s"}, sub) : null)); }
-    if (dl) { stat("Workouts logged, all time", dl.w.toLocaleString(), "since 2021", 0.9); stat("Sets logged, all time", dl.s.toLocaleString(), null, 0.9); if (dl.wd != null) stat("Sessions this week", dl.wd, dl.wd >= 4 ? "on pace" : dl.wd >= 2 ? "building" : "light week", dl.wd >= 4 ? 1 : dl.wd >= 2 ? 0.55 : 0.15); }
-    if (W7.length) { stat("Workouts this month", thisMonth.length, null, thisMonth.length >= 12 ? 1 : thisMonth.length >= 6 ? 0.6 : 0.3); var ts = thisMonth.reduce(function (a, x) { return a + x.sets; }, 0); stat("Sets this month", ts, null, 0.8); stat("Workout days, last 7", days7, null, days7 >= 4 ? 1 : days7 >= 2 ? 0.55 : 0.15); }
-    if (ph.length) { var lo = Math.min.apply(null, ph.filter(function (r) { return now - r.at < 86400000; }).map(function (r) { return r.batt; }).concat([100])); stat("Phone low, last 24 h", lo + "%", null, lo >= 40 ? 1 : lo >= 20 ? 0.5 : 0.1); stat("Phone checks, last 24 h", ph.filter(function (r) { return now - r.at < 86400000; }).length, null, null); }
+    if (dl && dl.wd != null) stat("Sessions this week", dl.wd, dl.wd >= 4 ? "on pace" : dl.wd >= 2 ? "building" : "light week", dl.wd >= 4 ? 1 : dl.wd >= 2 ? 0.55 : 0.15);
+    if (W7.length) stat("Workouts this month", thisMonth.length, null, thisMonth.length >= 12 ? 1 : thisMonth.length >= 6 ? 0.6 : 0.3);
+    if (ph.length) { var lo = Math.min.apply(null, ph.filter(function (r) { return now - r.at < 86400000; }).map(function (r) { return r.batt; }).concat([100])); stat("Phone low, last 24 h", lo + "%", null, lo >= 40 ? 1 : lo >= 20 ? 0.5 : 0.1); }
     if (sl.length > 1) { var avg = Math.round(sl.slice(-7).reduce(function (a, x) { return a + x.mins; }, 0) / sl.slice(-7).length); stat("Average sleep, 7 nights", Math.floor(avg / 60) + "h " + (avg % 60) + "m", null, avg >= 450 ? 1 : avg >= 390 ? 0.7 : 0.35); }
-    var ev = api.lrows ? api.lrows().filter(function (r) { return r.it.module === "Events" && r.whenKey < 700; }).length : 0;
-    stat("Local events, next 7 days", ev, null, null);
-    box.appendChild(card("wd-fun", "Quick stats", stats.length + " numbers", h("div", {class: "fsg"}, stats), 0.8));
+    if (dl) stat("Workouts, all time", dl.w.toLocaleString(), "since 2021", 0.9);
+    if (stats.length) box.appendChild(card("wd-fun", "Quick stats", null, h("div", {class: "fsg"}, stats), 0.8));
 
     /* Weekly workout bars */
     if (W7.length) {
