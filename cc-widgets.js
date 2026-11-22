@@ -304,7 +304,7 @@
       if (mo.sn != null) chips.push(chip(mo.sn + (mo.sn === 1 ? " session" : " sessions") + " in " + mo.sd + " days", mo.sn ? 0.8 : 0.55));
     }
     var nn = CC.nurture ? CC.nurture.waiting(api) : 0;
-    if (nn) chips.push(chip(nn + (nn === 1 ? " lead to nurture" : " leads to nurture"), 0.5, {onclick: function () { CC.nurture.open(api); }}));
+    if (nn) chips.push(chip(nn + (nn === 1 ? " lead to nurture" : " leads to nurture"), 0.5, {onclick: function () { var el = document.getElementById("nu-inline"); if (el && el.scrollIntoView) el.scrollIntoView({behavior: "smooth", block: "start"}); else CC.nurture.open(api); }}));
     if (!CC.inbox.stats().n) chips.push(chip("Reply speed: no reading", null));
     var ads = newest(modItems(api, "Business", "Marketing").filter(function (i) { return /conversion upload/i.test(i.text || ""); }));
     if (ads) chips.push(chip(/clean|no errors/i.test(ads.text) ? "Ads upload ran clean" : "Ads upload needs a look", /clean|no errors/i.test(ads.text) ? 1 : 0.3));
@@ -334,7 +334,7 @@
     var row;
     if (st.n) row = h("div", {class: "wdgrid g4"}, tWait, tUnder, tTyp, bars);
     else { tWait.classList.add("slim"); row = h("div", {class: "wdgrid g1"}, tWait); }
-    return h("div", {class: "wdpage tight"}, chipRow, W.bizPipeline(api), ol.length || st.n ? row : null);
+    return h("div", {class: "wdpage tight"}, chipRow, h("div", {class: "gl-2"}, W.bizPipeline(api), ol.length || st.n ? row : null));
   };
   CC.views.Business = function (api) {
     var box = h("div", {class: "wdpage"}), items = modItems(api, "Business", null);
@@ -373,12 +373,27 @@
       lcards.push(h("div", {class: "ld" + (open ? " hot" : ""), style: "--c:" + col(open ? waitScore(wt2) : 0.85)}, h("span", {class: "ld-ic"}, glyph(open ? "clock" : "heart")), h("div", null, h("b", null, parts[0].replace(/\s+$/, "")), h("small", null, (i.source || "") + " · logged " + F().stamp(ms(i.time)))), open ? h("b", {class: "ld-w"}, dur(wt2) + " waiting") : null, parts[1] ? chip(parts[1].replace(/^\s+/, "").replace(/\.$/, ""), open ? 0.3 : 0.85, {title: "Recommended action"}) : null));
     });
     if (lcards.length) cards.unshift(card("wd-leads", "Latest leads", ol.length ? ol.length + " to answer" : "all answered", h("div", {class: "lds"}, lcards), ol.length ? 0.25 : 1, frOf(api, lds)));
-    var other = items.filter(function (i) { return ["Competitors", "Marketing", "Leads", "Money", "Nurturing"].indexOf(i.module) < 0; });
+    var other = items.filter(function (i) { return ["Competitors", "Marketing", "Leads", "Money", "Nurturing", "Ledger"].indexOf(i.module) < 0; });
     if (other.length) cards.push(card("wd-oth", "Other", null, h("div", {class: "wchips col"}, other.slice(0, 8).map(function (i) { return chip(i.text.slice(0, 100), 0.7, {title: i.text}); })), 0.7));
     var grid = h("div", {class: "wdgrid g3 biz"}, cards);
-    var edge = CC.nurture ? CC.nurture.handle(api) : null;
-    box.appendChild(grid);
-    if (edge) box.appendChild(edge);
+    var LAYS = [["A", "Top glance, CRM and nurturing side by side"], ["B", "Left rail, CRM on the right"], ["C", "Right rail, CRM on the left"], ["D", "Stacked, nurturing across"]], lay = "A";
+    try { var q = /[?&]layout=([A-D])/.exec(location.search); lay = (q && q[1]) || localStorage.getItem("cc_biz_layout") || "A"; } catch (e) {}
+    function area(n, el) { return el ? h("div", {class: "ba ba-" + n}, el) : null; }
+    var glance = h("div", {class: "biz-glance"}, W.bizTop(api)), crmEl = CC.crm ? CC.crm.panel(api) : null, nurEl = CC.nurture ? CC.nurture.panelEl(api) : null;
+    var layEl = h("div", {class: "biz-lay", "data-lay": lay});
+    function stack(x) { return h("div", {class: "bz-col"}, x.filter(Boolean)); }
+    function arrange() {
+      layEl.textContent = ""; layEl.setAttribute("data-lay", lay);
+      var g = area("glance", glance), c = area("crm", crmEl), n = area("nurt", nurEl), m = area("more", grid);
+      if (lay === "A") { layEl.appendChild(g); layEl.appendChild(h("div", {class: "bz-row"}, c, n)); layEl.appendChild(m); }
+      else if (lay === "B") layEl.appendChild(h("div", {class: "bz-row rail-l"}, stack([g, n]), stack([c, m])));
+      else if (lay === "C") layEl.appendChild(h("div", {class: "bz-row rail-r"}, stack([c, m]), stack([g, n])));
+      else { layEl.appendChild(g); layEl.appendChild(n); layEl.appendChild(c); layEl.appendChild(m); }
+    }
+    var sw = h("div", {class: "lay-sw", role: "group", "aria-label": "Page layout"}, h("small", null, "Layout"), LAYS.map(function (x) {
+      return h("button", {type: "button", title: x[1], "aria-pressed": String(x[0] === lay), onclick: function () { lay = x[0]; try { localStorage.setItem("cc_biz_layout", lay); } catch (e) {} arrange(); Array.prototype.forEach.call(sw.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.textContent === lay)); }); }}, x[0]);
+    }));
+    arrange(); box.appendChild(sw); box.appendChild(layEl);
     return box;
   };
 

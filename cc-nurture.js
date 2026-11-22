@@ -55,7 +55,7 @@
     try { url = api.cfgVal("ledger_dashboard_url") || ""; } catch (e) {}
     function step(t, kind) {
       var k = "" + p.id + ":" + t, on = !!d[k];
-      var b = h("button", {type: "button", class: "nu-st" + (on ? " on" : ""), "aria-pressed": on ? "true" : "false", onclick: function () { setDone(k, !on); paint(); }}, h("i"), h("span", null, t), kind ? h("em", null, kind) : null);
+      var b = h("button", {type: "button", class: "nu-st" + (on ? " on" : ""), "aria-pressed": on ? "true" : "false", onclick: function () { setDone(k, !on); paint(); repaintInline(); }}, h("i"), h("span", null, t), kind ? h("em", null, kind) : null);
       return b;
     }
     return h("section", {class: "nu-card", style: "--c:" + c},
@@ -66,7 +66,36 @@
       })),
       p.next.length ? h("div", {class: "nu-blk"}, h("h4", null, "Next"), p.next.map(function (t) { return step(t); })) : null,
       p.need.length ? h("div", {class: "nu-blk"}, h("h4", null, "Still need"), p.need.map(function (t) { return step(t); })) : null,
-      url ? h("a", {class: "nu-crm", href: url, target: "_blank", rel: "noopener"}, "Open in CRM ↗") : null);
+      CC.crm ? h("button", {type: "button", class: "nu-crm", onclick: function () { panel(false); CC.crm.focus(p.name); }}, "Open in CRM ↓") : (url ? h("a", {class: "nu-crm", href: url, target: "_blank", rel: "noopener"}, "Open in CRM ↗") : null));
+  }
+  var inl = [];
+  function mini(api, p) {
+    var d = done(), c = CC.widgets && CC.widgets.color ? CC.widgets.color(score(p)) : "var(--accent)";
+    function step(t, kind) {
+      var k = "" + p.id + ":" + t, on = !!d[k];
+      return h("button", {type: "button", class: "nm-st" + (on ? " on" : ""), "aria-pressed": on ? "true" : "false", title: kind, onclick: function () { setDone(k, !on); repaintInline(); }}, h("i"), h("span", null, t));
+    }
+    return h("div", {class: "nm", style: "--c:" + c},
+      h("div", {class: "nm-h"}, h("b", {class: "nm-n"}, p.name), h("span", {class: "nm-e"}, p.event || ""), p.lastMs ? CC.fresh.pill(p.lastMs, 10080, {what: "Last contact", cls: "so-p"}) : null),
+      h("div", {class: "nm-t", role: "img", "aria-label": "Stage: " + STAGES[p.stageIx]}, STAGES.map(function (s, i) { return h("div", {class: i < p.stageIx ? "past" : i === p.stageIx ? "now" : ""}, h("i"), h("span", null, s)); })),
+      h("div", {class: "nm-s"}, p.next.map(function (t) { return step(t, "Next"); }), p.need.map(function (t) { return step(t, "Still need"); }),
+        CC.crm ? h("button", {type: "button", class: "nu-crm", onclick: function () { CC.crm.focus(p.name); }}, "CRM ↓") : null));
+  }
+  function fillInline(el, api) {
+    el.textContent = "";
+    var ls = list(api);
+    if (!ls.length) { el.appendChild(h("p", {class: "nu-none"}, "No leads in nurturing.")); return; }
+    ls.forEach(function (p) { el.appendChild(mini(api, p)); });
+  }
+  function repaintInline() { inl.forEach(function (x) { if (document.body.contains(x.el)) fillInline(x.el, x.api); }); }
+  function panelEl(api) {
+    lastApi = api;
+    var ls = list(api), byStage = STAGES.map(function (s, i) { return {s: s, n: ls.filter(function (p) { return p.stageIx === i; }).length}; }).filter(function (x) { return x.n; });
+    var body = h("div", {class: "nu-inline"});
+    inl = inl.filter(function (x) { return document.body.contains(x.el); }); inl.push({el: body, api: api});
+    fillInline(body, api);
+    return h("section", {id: "nu-inline", class: "wd nu-wd slim"}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Nurturing"), h("span", {class: "wd-s"}, ls.length ? ls.length + (ls.length === 1 ? " lead" : " leads") : "none")),
+      byStage.length ? h("div", {class: "nu-sum"}, byStage.map(function (x) { return h("span", null, h("b", null, String(x.n)), " ", x.s); })) : null, body);
   }
   function paint() {
     if (!host || !lastApi) return;
@@ -99,7 +128,7 @@
     document.body.classList.toggle("nu-on", openNow);
   }
   CC.nurture = {
-    list: list,
+    list: list, panelEl: panelEl,
     count: function (api) { return list(api).length; },
     open: function (api) { panel(true, api); },
     close: function () { if (host && openNow) panel(false); },

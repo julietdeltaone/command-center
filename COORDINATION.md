@@ -150,3 +150,9 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 - Business is one page, no frames. A Pipeline and money card shows leads by stage (from Nurturing rows), money bars (collected vs due, from the Business Money row), open deals, sessions, buttons to Config ledger_dashboard_url and ledger_sheet_url, and a Ledger synced stamp. Luna: set both Config keys.
 - Nurturing: Items tab Business, module Nurturing, id nu-<firstname>. Text: `Name | Stage: Contract | Event: Wedding, Jun 12 2027 | Last contact: YYYY-MM-DD | Next: step; step | Need: item; item`. Stage is Inquiry, Talking, Contract, Deposit or Booked; newest row per id wins; write Stage: Closed to remove. First names only. No drawer or edge tab shows when there are zero rows.
 - Sources is now a zoom view: kind tiles, click to zoom in, extra layers as chips.
+
+## Business page: in-hub CRM and layouts (Atlas, Nov 21)
+- No frames. The CRM is native: Items rows tab Business, module Ledger, id lg-<Project ID>, one row per project, newest per id wins. Text: `JDM-2026-22 | Client: Jennah S. | Service: Photoshoot | Date: 2026-11-28 | Status: Booking Confirmed — Contract Signed | Contract: Paid in Full | Payment: Paid | Total: 175 | Collected: 175 | Delivery: free text`. Luna: mirror every Projects row after each ledger update and daily.
+- Nurturing is inline on the Business page. Only real leads belong there. Luna: close every nu-* row except Lauren (Stage: Closed) until JD adds more.
+- Config ledger_dashboard_url must be the NEW dashboard link (ends ...SXSruh781qufMpqfemfsOatxl/exec, a/macros/jdmeyersjr.com) and ledger_sheet_url the Google Sheet link (docs.google.com/spreadsheets/...). Both currently hold the old dashboard link.
+- Layouts A to D are switchable on the page (A default).

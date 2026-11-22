@@ -2213,7 +2213,7 @@ function render(){
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
   if (!(tier2(TAB) && !isUnlocked())) {
     app.appendChild(freshStrip(TAB));
-    if (TAB === "Business") app.appendChild(window.CC && CC.widgets && CC.widgets.bizTop ? CC.widgets.bizTop(CCAPI) : replyHero());
+    if (TAB === "Business" && !(window.CC && CC.views && CC.views.Business)) app.appendChild(replyHero());
   }
   var cv = (TAB === "Private" && PSUB) ? null : customView(TAB);
   if (cv) app.appendChild(cv);
@@ -2423,6 +2423,13 @@ function preview(){
       I("nu-lauren", "Business", "Nurturing", "Lauren | Stage: Contract | Event: Wedding, date to confirm | Last contact: "+new Date(Date.now()-3*86400000).toISOString().slice(0,10)+" | Next: Send contract (tonight) | Need: Second shooter", "Sample", "Exact", 300),
       I("s6m", "Business", "Money", "Invoice due: $480. 2 open deals. Collected this year: $12,400. Sessions in the next 14 days: 2.", "Ledger summary", "Exact", 200),
       I("s6k", "Business", "Marketing", "Ads conversion upload ran clean", "Ads log", "Exact", 240),
+      I("lg-JDM-2026-31", "Business", "Ledger", "JDM-2026-31 | Client: Jennah S. | Service: Photoshoot | Date: "+new Date(Date.now()+14*86400000).toISOString().slice(0,10)+" | Status: Booking Confirmed — Contract Signed | Contract: Paid in Full | Payment: Paid | Total: 175 | Collected: 175", "Ledger mirror", "Exact", 200),
+      I("lg-JDM-2027-01", "Business", "Ledger", "JDM-2027-01 | Client: Lauren | Service: Wedding Photography | Date: "+new Date(Date.now()+340*86400000).toISOString().slice(0,10)+" | Status: Booking Confirmed — Contract Sent | Contract: Not Started | Payment: Negotiating | Total: 2900 | Collected: 0", "Ledger mirror", "Exact", 200),
+      I("lg-JDM-2026-27", "Business", "Ledger", "JDM-2026-27 | Client: Maya K. | Service: Wedding Videography | Date: "+new Date(Date.now()+60*86400000).toISOString().slice(0,10)+" | Status: Your Session Is Coming Up | Contract: Deposit Received | Payment: Deposit Paid | Total: 2200 | Collected: 550", "Ledger mirror", "Exact", 200),
+      I("lg-JDM-2026-22", "Business", "Ledger", "JDM-2026-22 | Client: Ken and Tashell | Service: Wedding Videography | Date: "+new Date(Date.now()+-45*86400000).toISOString().slice(0,10)+" | Status: Your Gallery Is Being Edited | Contract: Paid in Full | Payment: Paid | Total: 1175 | Collected: 1175", "Ledger mirror", "Exact", 200),
+      I("lg-JDM-2026-18", "Business", "Ledger", "JDM-2026-18 | Client: Harper | Service: Photoshoot | Date: "+new Date(Date.now()+-60*86400000).toISOString().slice(0,10)+" | Status: Your Gallery Is Ready | Contract: Paid in Full | Payment: Paid | Total: 150 | Collected: 150", "Ledger mirror", "Exact", 200),
+      I("lg-JDM-2026-15", "Business", "Ledger", "JDM-2026-15 | Client: Dev | Service: Photoshoot | Date: "+new Date(Date.now()+-20*86400000).toISOString().slice(0,10)+" | Status: Your Session Is Complete | Contract: Paid in Full | Payment: Balance Due | Total: 320 | Collected: 120", "Ledger mirror", "Exact", 200),
+      I("nu-maya", "Business", "Nurturing", "Maya | Stage: Deposit | Event: Wedding, in two months | Last contact: "+new Date(Date.now()-2*86400000).toISOString().slice(0,10)+" | Next: Send timeline | Need: Venue address", "Sample", "Exact", 300),
       I("s7", "Business", "Waiting on others", "Booking confirmation draft waiting on your approval", "Draft queue", "Exact", 1500),
       I("s8", "Business", "Competitors", "One tracked account gained 7 followers after a new post", "Instagram snapshot", "Exact", 90),
       I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St, free, open to the public", "Local listing", "Single source", 160),
@@ -2561,6 +2568,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="views/shooting.js" onerror="void 0"></script>
 <script src="cc-widgets.js"></script>
 <script src="cc-nurture.js"></script>
+<script src="cc-crm.js"></script>
 <link rel="stylesheet" href="views/views.css">
 </body>
 </html>
