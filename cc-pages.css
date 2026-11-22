@@ -144,3 +144,4 @@
 .pv-left{display:flex;flex-direction:column;gap:10px;min-width:0}.cd.cp{padding:10px 14px}.cd.cp .wh{margin-bottom:6px}.cd.cp .cd-grid{grid-template-columns:1.2fr 1fr 1.2fr;align-items:center;gap:14px}.cd.cp .cd-weeks{height:40px;margin:2px 0}.cd.cp .cd-heart{width:40px;height:40px}
 @media (max-width:900px){.cd.cp .cd-grid{grid-template-columns:1fr}}
 .pv-left .bd-body .bd-fig{width:185px}.pv-left .bd{padding:10px 14px}.pv-left{gap:8px}
+.cd.cp{padding:7px 14px}.cd.cp .cd-weeks{height:30px}.cd.cp .cd-beat{padding:5px 10px}.pv-left .bd .wh{margin-bottom:4px}.pv-left .bd-body .bd-fig{width:175px}
