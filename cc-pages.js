@@ -146,6 +146,25 @@
     return h("div", {class: "ov-wr"}, cards);
   }
 
+
+  /* ---------- Personal overview: fill the page with what matters ---------- */
+  CC.personalWidgets = function (api) {
+    var D = api.data || {}, items = arr(D.items).filter(function (i) { return i.tab === "Private"; });
+    function newestOf(mod, n) { return items.filter(function (i) { return i.module === mod; }).sort(function (a, b) { return (ms(b.time) || 0) - (ms(a.time) || 0); }).slice(0, n); }
+    function card(cls, title, go, body) { return h("section", {class: "wd ov-w " + cls}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, title), go ? h("button", {type: "button", class: "ov-go", onclick: go}, "Open ↗") : null), body); }
+    function list(rows, empty) { return rows.length ? h("div", {class: "ov-rs pl"}, rows.map(function (i) { return h("div", {class: "ov-r"}, h("b", null, F().stamp(ms(i.time))), h("span", {title: i.text}, String(i.text || "").replace(/\s+/g, " ").slice(0, 110))); })) : h("div", {class: "ov-empty"}, empty); }
+    var js = api.jobsStats ? api.jobsStats() : null;
+    if (!js && api.loadJobs && !(api.jobsReady && api.jobsReady())) { try { api.loadJobs(); } catch (e) {} }
+    var jneeds = arr(api.jobsNeeds ? api.jobsNeeds() : []);
+    var jobCard = card("ov-wj", "Job search", function () { api.openSub("jobs"); }, js ? h("div", null, h("div", {class: "ov-nums"}, [["applied", js.sent + (js.target ? "/" + js.target : ""), js.target && js.sent >= js.target ? 1 : 0.55], ["past 7 days", js.week, js.week ? 1 : 0.2], ["interviews", js.interview + js.offer, js.interview ? 1 : 0.4]].map(function (n) { return h("div", {class: "ov-num", style: "--c:" + col(n[2])}, h("b", null, String(n[1])), h("span", null, n[0])); })), h("div", {class: "ov-line"}, h("span", null, jneeds.length ? jneeds.length + " question" + (jneeds.length === 1 ? "" : "s") + " for you" : "No open questions"), js.last ? h("span", null, "Last applied " + js.last) : null)) : h("div", {class: "ov-empty"}, "Loading the tracker"));
+    var wrap = h("div", {class: "pv-wr"});
+    wrap.appendChild(CC.body ? CC.body.panel(api) : h("div"));
+    wrap.appendChild(h("div", {class: "pv-side"}, jobCard,
+      card("ov-wm", "Money", function () { api.openSub("money"); }, list(newestOf("Money", 3), "No money rows yet")),
+      card("ov-wg", "Guard, OTS, MBA", function () { api.openSub("guard"); }, list(newestOf("Guard, OTS, MBA", 3), "Nothing current"))));
+    return wrap;
+  };
+
   CC.views.Wall = function (api) {
     var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(3, Math.min(8, Math.floor((window.innerHeight - 725) / 56)));
     var page = h("div", {class: "ov"});

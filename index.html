@@ -201,17 +201,17 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
-<link rel="stylesheet" href="cc-design.css?v=20261122n">
-<link rel="stylesheet" href="cc-skin.css?v=20261122n">
-<link rel="stylesheet" href="cc-widgets.css?v=20261122n">
-<link rel="stylesheet" href="cc-biz.css?v=20261122n">
-<link rel="stylesheet" href="cc-sources2.css?v=20261122n">
-<link rel="stylesheet" href="cc-pages.css?v=20261122n">
-<link rel="stylesheet" href="cc-sources.css?v=20261122n">
-<script src="cc-fresh.js?v=20261122n"></script>
-<script src="cc-inbox.js?v=20261122n"></script>
-<script src="cc-sources.js?v=20261122n"></script>
-<script src="cc-dev.js?v=20261122n" onerror="void 0"></script>
+<link rel="stylesheet" href="cc-design.css?v=20261122o">
+<link rel="stylesheet" href="cc-skin.css?v=20261122o">
+<link rel="stylesheet" href="cc-widgets.css?v=20261122o">
+<link rel="stylesheet" href="cc-biz.css?v=20261122o">
+<link rel="stylesheet" href="cc-sources2.css?v=20261122o">
+<link rel="stylesheet" href="cc-pages.css?v=20261122o">
+<link rel="stylesheet" href="cc-sources.css?v=20261122o">
+<script src="cc-fresh.js?v=20261122o"></script>
+<script src="cc-inbox.js?v=20261122o"></script>
+<script src="cc-sources.js?v=20261122o"></script>
+<script src="cc-dev.js?v=20261122o" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -1896,7 +1896,8 @@ function privSections(){
 function privOverview(){
   var secs = privSections().filter(function(x){ return x.k !== "over"; }), items = DATA.items.filter(function(i){ return i.tab === "Private"; });
   var textFor = {money: "Money", guard: "Guard, OTS, MBA", ots: "Guard, OTS, MBA", mba: "Guard, OTS, MBA", health: "Health"};
-  return h("div", {class: "pov"}, secs.map(function(x){
+  var pw = null; try { pw = window.CC && CC.personalWidgets ? CC.personalWidgets(CCAPI) : null; } catch (e) { if (window.console) console.error("personal widgets failed", e); }
+  return h("div", null, h("div", {class: "pov"}, secs.map(function(x){
     var first = (x.k === "jobs" ? "Open job search" : x.k === "shoot" ? "Open shooting log" : ""), tier = x.k === "jobs" ? (x.n ? 3 : 0) : x.k === "shoot" ? 0 : (x.n ? 2 : 0);
     if (x.k === "health" || x.k === "guard" || x.k === "money" || x.k === "ots" || x.k === "mba") {
       var m = textFor[x.k], list = items.filter(function(i){ return i.module === m; });
@@ -1904,7 +1905,7 @@ function privOverview(){
       first = list.length ? shortName(list[0].text) : "";
     }
     return h("button", {type: "button", class: "pc t" + tier, onclick: function(){ PSEC = x.k; render(); }}, h("div", {class: "k"}, x.label), h("b", null, x.k === "shoot" ? "Log" : String(x.n)), h("span", {class: "s"}, first));
-  }));
+  })), pw);
 }
 function privateView(){
   loadShots(); loadJobs();
@@ -2566,20 +2567,20 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <div id="loadbar"><i></i></div>
-<script src="cc-motion.js?v=20261122n"></script>
-<script src="views/business.js?v=20261122n" onerror="void 0"></script>
-<script src="views/bizcharts.js?v=20261122n" onerror="void 0"></script>
-<script src="views/bizleads.js?v=20261122n" onerror="void 0"></script>
-<script src="views/timeline.js?v=20261122n" onerror="void 0"></script>
-<script src="views/system.js?v=20261122n" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261122n" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261122n"></script>
-<script src="cc-nurture.js?v=20261122n"></script>
-<script src="cc-crm.js?v=20261122n"></script>
-<script src="cc-biz.js?v=20261122n"></script>
-<script src="cc-sources2.js?v=20261122n"></script>
-<script src="cc-body.js?v=20261122n"></script>
-<script src="cc-pages.js?v=20261122n"></script>
-<link rel="stylesheet" href="views/views.css?v=20261122n">
+<script src="cc-motion.js?v=20261122o"></script>
+<script src="views/business.js?v=20261122o" onerror="void 0"></script>
+<script src="views/bizcharts.js?v=20261122o" onerror="void 0"></script>
+<script src="views/bizleads.js?v=20261122o" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261122o" onerror="void 0"></script>
+<script src="views/system.js?v=20261122o" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261122o" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261122o"></script>
+<script src="cc-nurture.js?v=20261122o"></script>
+<script src="cc-crm.js?v=20261122o"></script>
+<script src="cc-biz.js?v=20261122o"></script>
+<script src="cc-sources2.js?v=20261122o"></script>
+<script src="cc-body.js?v=20261122o"></script>
+<script src="cc-pages.js?v=20261122o"></script>
+<link rel="stylesheet" href="views/views.css?v=20261122o">
 </body>
 </html>

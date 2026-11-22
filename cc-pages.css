@@ -74,3 +74,7 @@
 .sys-tile .sys-name{grid-area:n;justify-content:flex-start}.sys-tile .sys-ring{grid-area:r;width:76px;height:76px}.sys-tile .sys-state{grid-area:s;align-self:end}.sys-tile .sys-meta{grid-area:m;align-self:start}
 .sys-ring-big{font-size:22px}
 .sys-two:has(> :only-child){grid-template-columns:minmax(0,1fr)}
+.pv-wr{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,1fr);gap:12px;margin-top:12px;align-items:start}
+@media (max-width:980px){.pv-wr{grid-template-columns:minmax(0,1fr)}}
+.pv-side{display:flex;flex-direction:column;gap:10px;min-width:0}.pv-side .wd{padding:10px 14px}
+.ov-rs.pl .ov-r{grid-template-columns:74px minmax(0,1fr)}.ov-rs.pl .ov-r span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
