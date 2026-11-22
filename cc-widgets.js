@@ -331,10 +331,18 @@
       bars = card("wd-bars", "Recent replies", null, h("div", {class: "wd-b"}, h("div", {class: "rh-bars"}, st.series.map(function (x) { return h("i", {style: "height:" + (10 + Math.sqrt(x.wait / mxw) * 90) + "%;background:" + col(waitScore(x.wait)), title: F().stamp(x.replied) + ": " + CC.inbox.waitText(x.wait)}); })),
         h("div", {class: "wchips"}, chip(b.u1 + " under 1 hr", 1), chip(b.h4 + " 1 to 4 hr", 0.5), chip(b.d1 + " 4 to 24 hr", 0.2), chip(b.over + " over a day", 0.04))), 0.6);
     }
-    var row;
-    if (st.n) row = h("div", {class: "wdgrid g4"}, tWait, tUnder, tTyp, bars);
-    else { tWait.classList.add("slim"); row = h("div", {class: "wdgrid g1"}, tWait); }
-    return h("div", {class: "wdpage tight"}, chipRow, h("div", {class: "gl-2"}, W.bizPipeline(api), ol.length || st.n ? row : null));
+    tWait.classList.add("slim");
+    var strip = null;
+    if (st.n) {
+      var bk = st.buckets, mx2 = Math.max.apply(null, st.series.map(function (x) { return x.wait; }).concat([3600000]));
+      strip = h("section", {class: "wd slim wd-reply"}, h("div", {class: "wd-h nd"}, h("span", {class: "wd-t"}, "Reply speed"), h("small", null, st.n + " replies")),
+        h("div", {class: "rp"},
+          h("div", {class: "rp-i"}, ring(Math.round(st.under1h * 100), st.under1h, Math.round(st.under1h * 100) + "%", "", 64), h("small", null, "under 1 hr")),
+          h("div", {class: "rp-i"}, h("b", {style: "color:" + col(rs)}, fmtW(typ)), h("small", null, "typical")),
+          h("div", {class: "rh-bars sm"}, st.series.map(function (x) { return h("i", {style: "height:" + (10 + Math.sqrt(x.wait / mx2) * 90) + "%;background:" + col(waitScore(x.wait)), title: F().stamp(x.replied) + ": " + CC.inbox.waitText(x.wait)}); })),
+          h("div", {class: "wchips"}, chip(bk.u1 + " fast", 1), chip(bk.h4 + " 1-4h", 0.5), chip(bk.d1 + " 4-24h", 0.2), chip(bk.over + " 1d+", 0.04))));
+    }
+    return h("div", {class: "wdpage tight"}, chipRow, h("div", {class: "gl-2"}, W.bizPipeline(api), strip), ol.length ? tWait : null);
   };
   CC.views.Business = function (api) {
     var box = h("div", {class: "wdpage"}), items = modItems(api, "Business", null);
