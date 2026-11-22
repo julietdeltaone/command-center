@@ -68,3 +68,9 @@
 .ov{gap:10px}.ov-wr .wd{padding-top:10px;padding-bottom:10px}.ov-w .bd-fig.sm{width:56px}.ov-wr .ov-nums{margin-bottom:4px}
 .ov-side{gap:8px}.ov-side .wd{padding:10px 14px}.ov-hero b{font-size:18px}.ov-side .ov-nums{margin-bottom:4px}.ov-side .wchips{margin-top:2px}
 .bd-r{text-align:left}.bd-r b,.bd-r em{text-align:left}.bd-fig{width:175px}.bd-list{align-content:start}
+/* System: compact crew tiles */
+.sys-hero{gap:10px}
+.sys-tile{display:grid;grid-template-columns:76px minmax(0,1fr);grid-template-areas:"n n" "r s" "r m";column-gap:12px;row-gap:2px;align-items:center;text-align:left;padding:10px 14px 12px;border-radius:16px}
+.sys-tile .sys-name{grid-area:n;justify-content:flex-start}.sys-tile .sys-ring{grid-area:r;width:76px;height:76px}.sys-tile .sys-state{grid-area:s;align-self:end}.sys-tile .sys-meta{grid-area:m;align-self:start}
+.sys-ring-big{font-size:22px}
+.sys-two:has(> :only-child){grid-template-columns:minmax(0,1fr)}

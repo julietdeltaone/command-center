@@ -244,11 +244,12 @@
     }
 
     var sync = syncSources();
+    function deptsAssigned() { return (api.depts || []).some(function (dp) { return api.cfgVal('dept.' + dp[0]); }); }
     function overview() {
       return h('div', {class: 'sys-col'}, usageHero(), window.CC && window.CC.timeline ? window.CC.timeline(api, {key: 'system', span: 'day', layers: ['phone', 'crew', 'routine'], title: 'Crew and routine timeline'}) : null,
         h('div', {class: 'sys-two'},
           h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Crew activity'), h('span', {class: 'sys-count'}, 'last 24 hours')), crewTimeline()),
-          h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Departments'), h('span', {class: 'sys-count'}, 'head and status')), deptMap())));
+          deptsAssigned() ? h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Departments'), h('span', {class: 'sys-count'}, 'head and status')), deptMap()) : null));
     }
     function syncView() {
       return h('div', {class: 'sys-col'}, h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Is everything synced'), h('span', {class: 'sys-count ' + (sync.lates ? 'warn' : 'good')}, sync.lates ? sync.lates + ' behind' : 'All current')), sync.grid),
