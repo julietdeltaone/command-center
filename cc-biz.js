@@ -31,8 +31,13 @@
   function items(api, mod) { return (api.data && api.data.items || []).filter(function (i) { return i.tab === "Business" && (!mod || i.module === mod); }); }
   function newest(arr) { return arr.slice().sort(function (a, b) { return (ms(b.time) || 0) - (ms(a.time) || 0); })[0] || null; }
   function dur(m) { var mi = Math.round(m / 60000); if (mi < 60) return mi + "m"; var hr = Math.floor(mi / 60); if (hr < 48) return hr + "h" + (mi % 60 ? " " + (mi % 60) + "m" : ""); return Math.round(hr / 24) + "d"; }
-  function dayName(t) { return new Date(t).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"}); }
+  function dayName(t) { var o = {weekday: "short", month: "short", day: "numeric"}; if (new Date(t).getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return new Date(t).toLocaleDateString("en-US", o); }
   function when(t) { return new Date(t).toLocaleString("en-US", {weekday: "short", hour: "numeric", minute: "2-digit"}); }
+  function replyWhen(it) {
+    var t = ms(it.time) || Date.now(), m = /at (\d{1,2}):(\d\d) ([AP]M)/i.exec(it.text || "");
+    if (m) { var d = new Date(t), hr = (+m[1] % 12) + (/pm/i.test(m[3]) ? 12 : 0); d.setHours(hr, +m[2], 0, 0); if (d.getTime() > t + 3600000) d.setDate(d.getDate() - 1); t = d.getTime(); }
+    return when(t);
+  }
   function inDays(t) { var d = Math.round((new Date(new Date(t).toDateString()).getTime() - new Date(new Date().toDateString()).getTime()) / DAY); return d === 0 ? "today" : d === 1 ? "tomorrow" : d < 0 ? Math.abs(d) + " days ago" : "in " + d + " days"; }
   function chip(text, score, o) { return W.chip ? W.chip(text, score, o) : h("span", null, text); }
   function pill(t, max, what) { return CC.fresh && t ? CC.fresh.pill(t, max, {what: what}) : null; }
@@ -95,7 +100,7 @@
     var reply = newest(items(api, "Waiting on others"));
     var nuEl = CC.nurture ? CC.nurture.panelEl(api) : null;
     var pipe = panel("b2-pipe", "Pipeline", leads.length ? leads.length + (leads.length === 1 ? " lead" : " leads") : "no leads", h("div", null, funnel, nuEl || h("div", {class: "wsub"}, "No leads in nurturing.")),
-      reply ? h("span", {class: "b2-note", title: reply.text}, "Last client reply " + when(ms(reply.time) || now)) : null);
+      reply ? h("span", {class: "b2-note", title: reply.text}, "Last client reply " + replyWhen(reply)) : null);
 
     /* ---- 3. Shoots (left) ---- */
     var N = budget(), sBody = h("div", {class: "b2-sh"});
@@ -154,7 +159,7 @@
           price != null ? chip(price === "none read" ? "No price moves in 2 days" : "Price move: " + price, price === "none read" ? 1 : 0.5) : null)),
         pill(ms(pulseIt.time), 1440, "Pulse read")));
     }
-    var moves = comp.filter(function (i) { return i !== pulseIt; }).slice(0, Math.min(5, N));
+    var moves = comp.filter(function (i) { return i !== pulseIt; }).slice(0, clamp(Math.floor((window.innerHeight - 760) / 90) + 1, 2, 5));
     if (moves.length) intel.push(panel("b2-moves", "Competitor moves", moves.length + " recent", h("div", {class: "b2-ml"}, moves.map(function (i) {
       var flag = /raised|expired|dropped|cut|new offer|launched/i.test(i.text), bad = /failed|stalled|stale/i.test(i.text);
       return h("div", {class: "b2-mv" + (flag ? " flag" : bad ? " dim" : ""), title: i.text}, h("i"), h("span", null, i.text));
@@ -165,12 +170,12 @@
     items(api, "Marketing").filter(function (i) { return i !== ads && !/no due items/i.test(i.text || ""); }).slice(0, 3).forEach(function (i) { mk.push(chip(i.text, /fail|error|miss/i.test(i.text) ? 0.1 : 0.6, {title: i.text})); });
     if (mk.length) intel.push(panel("b2-mk", "Marketing", null, h("div", {class: "wchips col"}, mk), pill(ads ? ms(ads.time) : null, 2880, "Marketing read")));
 
-    var main = h("div", {class: "b2-grid"}, h("div", {class: "b2-l"}, pipe, shoots), h("div", {class: "b2-r"}, money));
+    var byCls = function (c) { return intel.filter(function (e) { return e.classList.contains(c); })[0] || null; };
+    var main = h("div", {class: "b2-grid"}, h("div", {class: "b2-l"}, pipe, shoots, byCls("b2-moves")), h("div", {class: "b2-r"}, money, byCls("b2-pulse"), byCls("b2-mk")));
     box.appendChild(main);
-    if (intel.length) box.appendChild(h("div", {class: "b2-intel"}, intel));
 
     /* ---- full ledger view inside Business ---- */
-    var fitw = [main, box.querySelector(".b2-intel"), box.querySelector(".b2-wait"), box.querySelector(".b2-need")].filter(Boolean);
+    var fitw = [main, box.querySelector(".b2-wait"), box.querySelector(".b2-need")].filter(Boolean);
     CC._crmOpener = function (id) {
       var prev = box.querySelector(".crm-full"); if (prev) prev.remove();
       var fv = CC.crm.full(api, {select: id, onBack: function () { fv.remove(); fitw.forEach(function (e) { e.style.display = ""; }); window.scrollTo(0, 0); }});
