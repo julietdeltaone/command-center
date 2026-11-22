@@ -160,3 +160,6 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 
 ## Business page layout (final)
 One auto-fit layout, no switcher: chips row on top; left column Waiting, Nurturing, CRM; right rail Pipeline and money, Reply speed, Latest leads, Competitors, Marketing, Other. Below 980px it stacks. Panels never leave blank gaps; Nurturing and CRM scroll inside themselves past about 46% of the screen height.
+
+## Sheet-to-sheet feeds (Atlas, Nov 22)
+Sheets reach the Command Center through Apps Script, not through an AI. The Command Center script (Command Center API, deployment version 5) accepts `action: "ingest"` with an INGEST_KEY and writes Items rows with writer `ledger`. The Projects and Ledger script pushes every project (cancelled ones left out) as `lg-<Project ID>` rows after each save, delete and summary refresh, and hourly. Luna: do not write Ledger rows any more; the script owns them. To add another sheet, give its script a small push function like `ccPush` there and widen the ingest id check in `ingest_`.
