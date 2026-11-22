@@ -201,17 +201,17 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
-<link rel="stylesheet" href="cc-design.css?v=20261122L">
-<link rel="stylesheet" href="cc-skin.css?v=20261122L">
-<link rel="stylesheet" href="cc-widgets.css?v=20261122L">
-<link rel="stylesheet" href="cc-biz.css?v=20261122L">
-<link rel="stylesheet" href="cc-sources2.css?v=20261122L">
-<link rel="stylesheet" href="cc-pages.css?v=20261122L">
-<link rel="stylesheet" href="cc-sources.css?v=20261122L">
-<script src="cc-fresh.js?v=20261122L"></script>
-<script src="cc-inbox.js?v=20261122L"></script>
-<script src="cc-sources.js?v=20261122L"></script>
-<script src="cc-dev.js?v=20261122L" onerror="void 0"></script>
+<link rel="stylesheet" href="cc-design.css?v=20261122M">
+<link rel="stylesheet" href="cc-skin.css?v=20261122M">
+<link rel="stylesheet" href="cc-widgets.css?v=20261122M">
+<link rel="stylesheet" href="cc-biz.css?v=20261122M">
+<link rel="stylesheet" href="cc-sources2.css?v=20261122M">
+<link rel="stylesheet" href="cc-pages.css?v=20261122M">
+<link rel="stylesheet" href="cc-sources.css?v=20261122M">
+<script src="cc-fresh.js?v=20261122M"></script>
+<script src="cc-inbox.js?v=20261122M"></script>
+<script src="cc-sources.js?v=20261122M"></script>
+<script src="cc-dev.js?v=20261122M" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -274,8 +274,8 @@ function lockScreen(name){
     lockBox(),
     h("div", {class: "acts"}, h("button", {class: "btn link", type: "button", onclick: function(){ unlockPrompt(); }}, "Unlock Personal and Work")));
 }
-var TABS = ["Wall", "Today", "Business", "Local", "Status", "Private", "Records", "System", "Sources"];
-var TABLABEL = {Wall: "Overview", Private: "Personal", Status: "JD Status"};
+var TABS = ["Wall", "Today", "Business", "Local", "Status", "Private", "Records", "Sheets", "System", "Sources"];
+var TABLABEL = {Wall: "Overview", Private: "Personal", Status: "JD Status", Sheets: "Sheets"};
 var PAGES = {
   Today: [{name: "Recap", url: "pages/recap.html"}],
   Business: [{name: "Business Pulse", url: "https://julietdeltaone.github.io/business-pulse/"}, {name: "Leads", url: "pages/leads.html"}, {name: "Marketing", url: "pages/marketing.html"}],
@@ -653,7 +653,7 @@ function summaryNote(section, compact){
 }
 function tier2(name){
   var row = ((DATA && DATA.sections) || []).filter(function(r){ return r.section === name; })[0];
-  return row ? Number(row.tier) === 2 : (name === "Private" || name === "Work" || name === "Records");
+  return row ? Number(row.tier) === 2 : (name === "Private" || name === "Work" || name === "Records" || name === "Sheets");
 }
 function cfgName(id, fallback){
   var rows = (DATA && DATA.config) || [];
@@ -2216,7 +2216,7 @@ function render(){
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   document.body.classList.toggle("onwall", TAB === "Wall");
   [].forEach.call(document.querySelectorAll("header .hstrip"), function(n){ n.remove(); });
-  var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TABLABEL[TAB] || TAB);
+  var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TAB === "Sheets" ? "Connected Google Sheets" : (TABLABEL[TAB] || TAB));
   if (TAB === "Wall") { app.appendChild(wall()); renderNav(); fitWall(); return; }
   if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
@@ -2243,6 +2243,7 @@ var ICONS = {
   Business: [["path", "M5 20V10M12 20V4M19 20v-7"]],
   Local: [["path", "M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"], ["circle", {cx: 12, cy: 10, r: 2.5}]],
   Private: [["path", "M5 11h14v10H5zM8 11V8a4 4 0 0 1 8 0v3"]],
+  Sheets: [["path", "M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"]],
   Records: [["path", "M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"], ["path", "M8 13h8M8 16h5"]],
   System: [["path", "M4 7h8M16 7h4M4 17h2M10 17h10"], ["circle", {cx: 14, cy: 7, r: 2}], ["circle", {cx: 8, cy: 17, r: 2}]],
   Sources: [["circle", {cx: 12, cy: 12, r: 2.5}], ["path", "M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M17.7 6.3l-2.1 2.1M8.4 15.6l-2.1 2.1"]],
@@ -2572,23 +2573,24 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <div id="loadbar"><i></i></div>
-<script src="cc-motion.js?v=20261122L"></script>
-<script src="views/business.js?v=20261122L" onerror="void 0"></script>
-<script src="views/bizcharts.js?v=20261122L" onerror="void 0"></script>
-<script src="views/bizleads.js?v=20261122L" onerror="void 0"></script>
-<script src="views/timeline.js?v=20261122L" onerror="void 0"></script>
-<script src="views/system.js?v=20261122L" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261122L" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261122L"></script>
-<script src="cc-nurture.js?v=20261122L"></script>
-<script src="cc-crm.js?v=20261122L"></script>
-<script src="cc-biz.js?v=20261122L"></script>
-<script src="cc-sources2.js?v=20261122L"></script>
-<script src="cc-map.js?v=20261122L"></script>
-<script src="cc-records.js?v=20261122L"></script>
-<script src="cc-body.js?v=20261122L"></script>
-<script src="cc-pages.js?v=20261122L"></script>
-<script src="cc-know.js?v=20261122L"></script>
-<link rel="stylesheet" href="views/views.css?v=20261122L">
+<script src="cc-motion.js?v=20261122M"></script>
+<script src="views/business.js?v=20261122M" onerror="void 0"></script>
+<script src="views/bizcharts.js?v=20261122M" onerror="void 0"></script>
+<script src="views/bizleads.js?v=20261122M" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261122M" onerror="void 0"></script>
+<script src="views/system.js?v=20261122M" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261122M" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261122M"></script>
+<script src="cc-nurture.js?v=20261122M"></script>
+<script src="cc-crm.js?v=20261122M"></script>
+<script src="cc-biz.js?v=20261122M"></script>
+<script src="cc-sources2.js?v=20261122M"></script>
+<script src="cc-map.js?v=20261122M"></script>
+<script src="cc-records.js?v=20261122M"></script>
+<script src="cc-sheets.js?v=20261122M"></script>
+<script src="cc-body.js?v=20261122M"></script>
+<script src="cc-pages.js?v=20261122M"></script>
+<script src="cc-know.js?v=20261122M"></script>
+<link rel="stylesheet" href="views/views.css?v=20261122M">
 </body>
 </html>

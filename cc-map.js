@@ -86,7 +86,7 @@
     {id: "p-repos", links: [["lead-tracker", "https://github.com/julietdeltaone/lead-tracker"], ["CENTCOM-NC", "https://github.com/julietdeltaone/CENTCOM-NC"], ["north-country-circle", "https://github.com/julietdeltaone/north-country-circle"], ["personal-space", "https://github.com/julietdeltaone/personal-space"], ["mobilecontact", "https://github.com/julietdeltaone/mobilecontact"]], name: "Other GitHub apps", how: "none", sub: "lead-tracker, CENTCOM-NC, north-country-circle", plan: "Each needs a one-line answer: does it make data the record should hold, or only read it? Counts feed first.", basis: "GitHub: repos lead-tracker, CENTCOM-NC, north-country-circle, personal-space, mobilecontact. Contents not read."}
   ];
 
-  var SECS = [["Today", "Today"], ["Business", "Business"], ["Local", "Local"], ["Private", "Personal"], ["Records", "Records"], ["System", "System"], ["Sources", "Sources"]];
+  var SECS = [["Today", "Today"], ["Business", "Business"], ["Local", "Local"], ["Private", "Personal"], ["Records", "Records"], ["Sheets", "Sheets"], ["System", "System"], ["Sources", "Sources"]];
 
   function model(api) {
     var D = api.data || {}, now = F().now(), routines = arr(D.routines), items = arr(D.items), used = {};
@@ -132,7 +132,7 @@
       Object.keys(M.carriers).forEach(function (id) { if (order.indexOf(id) < 0) CARS.push(M.carriers[id]); });
       var cy = function (i) { return 92 + i * 100; };
       var XO = 14, WO = 236, XC = 470, XR = 840, YR = 172, XP = 1150, WP = 190;
-      var pageY = function (j) { return 40 + j * 40; };
+      var pageY = function (j) { return 38 + j * 37; };
       var YREC = 360, YQ = 416;
       var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, class: "hm2-svg", role: "img", "aria-label": "Everything that can reach the Command Center, how it gets in, and what reads from the record"});
       var edges = [], nodes = {};
@@ -152,7 +152,7 @@
       /* carriers -> record, or carriers -> pages (direct) */
       CARS.forEach(function (c, i) {
         var col = CLASS[c.cls] ? CLASS[c.cls].color : "#94a3b8", wd = 1.8 + Math.min(4, Math.log(1 + c.routines + 1) * 1.2);
-        if (c.id === "direct") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 380) + " " + cy(i) + " " + (XP - 260) + " " + (pageY(6) + 46) + " " + (XP - 14) + " " + (pageY(6) + 46), "d", col, 2.2, ["c:direct", "k:pages"]);
+        if (c.id === "direct") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 380) + " " + cy(i) + " " + (XP - 260) + " " + (pageY(7) + 42) + " " + (XP - 14) + " " + (pageY(7) + 42), "d", col, 2.2, ["c:direct", "k:pages"]);
         else if (c.id === "manual") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 160) + " " + cy(i) + " " + (XR - 150) + " " + (YR + 40) + " " + (XR - 96) + " " + (YR + 40), "k", col, 1.6, ["c:" + c.id, "k:record"], "3 6");
         else edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 170) + " " + cy(i) + " " + (XR - 160) + " " + (YR + (i - 1) * 8) + " " + (XR - 96) + " " + (YR + (i - 1) * 8), "k", col, wd, ["c:" + c.id, "k:record"]);
       });
