@@ -145,3 +145,13 @@
 @media (max-width:900px){.cd.cp .cd-grid{grid-template-columns:1fr}}
 .pv-left .bd-body .bd-fig{width:185px}.pv-left .bd{padding:10px 14px}.pv-left{gap:8px}
 .cd.cp{padding:7px 14px}.cd.cp .cd-weeks{height:30px}.cd.cp .cd-beat{padding:5px 10px}.pv-left .bd .wh{margin-bottom:4px}.pv-left .bd-body .bd-fig{width:175px}
+/* vitals chips in the cardio panel (replace the 28-day bars when vitals exist) */
+.cd-vt h4{margin:0 0 6px}.cd-vg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.cd-vc{position:relative;padding:6px 9px;border-radius:10px;border:1px solid var(--line);background:var(--inset);display:grid;grid-template-columns:1fr auto;gap:0 6px;align-items:center;min-width:0}
+.cd-vc.good{border-color:color-mix(in srgb,#4ade80 40%,transparent)}.cd-vc.watch{border-color:color-mix(in srgb,#fbbf24 50%,transparent)}
+.cd-vl{grid-column:1 / 3;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd-vv{font-size:17px;font-weight:700;line-height:1.15}.cd-vv small{font-size:10px;font-weight:500;color:var(--muted);margin-left:3px}
+.cd-vd{font-size:11px;color:var(--muted);grid-column:1;grid-row:3}.cd-vc.good .cd-vd{color:#4ade80}.cd-vc.watch .cd-vd{color:#fbbf24}
+.cd-sp{grid-column:2;grid-row:2 / 4;display:flex;gap:2px;align-items:flex-end;height:22px;width:34px}.cd-sp i{flex:1;background:var(--accent);opacity:.7;border-radius:1px;min-height:2px}
+.cd-vc{text-align:left}.cd-vc .cd-vl,.cd-vc .cd-vv,.cd-vc .cd-vd{text-align:left}
+.cd:not(.cp) .cd-weeks{height:38px}.cd:not(.cp) .cd-grid{gap:8px}.cd:not(.cp) .cd-beat{padding:6px 12px}.cd:not(.cp) .cd-ring{width:54px;height:54px}.cd-vc{padding:5px 9px}.cd-vv{font-size:16px}.cd-sp{height:20px}

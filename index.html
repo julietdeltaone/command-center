@@ -201,17 +201,17 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
-<link rel="stylesheet" href="cc-design.css?v=20261122x">
-<link rel="stylesheet" href="cc-skin.css?v=20261122x">
-<link rel="stylesheet" href="cc-widgets.css?v=20261122x">
-<link rel="stylesheet" href="cc-biz.css?v=20261122x">
-<link rel="stylesheet" href="cc-sources2.css?v=20261122x">
-<link rel="stylesheet" href="cc-pages.css?v=20261122x">
-<link rel="stylesheet" href="cc-sources.css?v=20261122x">
-<script src="cc-fresh.js?v=20261122x"></script>
-<script src="cc-inbox.js?v=20261122x"></script>
-<script src="cc-sources.js?v=20261122x"></script>
-<script src="cc-dev.js?v=20261122x" onerror="void 0"></script>
+<link rel="stylesheet" href="cc-design.css?v=20261122z">
+<link rel="stylesheet" href="cc-skin.css?v=20261122z">
+<link rel="stylesheet" href="cc-widgets.css?v=20261122z">
+<link rel="stylesheet" href="cc-biz.css?v=20261122z">
+<link rel="stylesheet" href="cc-sources2.css?v=20261122z">
+<link rel="stylesheet" href="cc-pages.css?v=20261122z">
+<link rel="stylesheet" href="cc-sources.css?v=20261122z">
+<script src="cc-fresh.js?v=20261122z"></script>
+<script src="cc-inbox.js?v=20261122z"></script>
+<script src="cc-sources.js?v=20261122z"></script>
+<script src="cc-dev.js?v=20261122z" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -1888,7 +1888,7 @@ function privSections(){
   out.push({k: "guard", label: "Guard", n: g.Guard.length, body: function(){ return listCard("Guard", g.Guard, "Guard, OTS, MBA"); }});
   out.push({k: "ots", label: "OTS", n: g.OTS.length, body: function(){ return listCard("Air Force OTS", g.OTS, "Guard, OTS, MBA"); }});
   out.push({k: "mba", label: "MBA", n: g.MBA.length, body: function(){ return listCard("MBA", g.MBA, "Guard, OTS, MBA"); }});
-  out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); if (window.CC && CC.body) { try { var top = h("div", {class: "hl-top"}, CC.body.panel(CCAPI), CC.body.cardio(CCAPI)); w.appendChild(top); } catch (e) { if (window.console) console.error("body map failed", e); } } w.appendChild(fitnessCard()); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null && !/^workout\b/i.test(i.text || ""); }); if (rest.length) { var hd = h("details", {class: "hl-fold"}, h("summary", null, "All health items (" + rest.length + ")"), listCard("Health", rest, "Health")); w.appendChild(hd); } return w; }});
+  out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); if (window.CC && CC.body) { try { var top = h("div", {class: "hl-top"}, CC.body.panel(CCAPI), CC.body.cardio(CCAPI)); w.appendChild(top); } catch (e) { if (window.console) console.error("body map failed", e); } } w.appendChild(fitnessCard()); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null && !/^workout\b/i.test(i.text || "") && !/^vitals\b/i.test(i.text || ""); }); if (rest.length) { var hd = h("details", {class: "hl-fold"}, h("summary", null, "All health items (" + rest.length + ")"), listCard("Health", rest, "Health")); w.appendChild(hd); } return w; }});
   out.push({k: "jobs", label: "Job search", always: true, n: jobsNeeds(), alert: true, body: jobsView});
   out.push({k: "shoot", label: "Shooting log", always: true, n: 0, body: function(){ var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }});
   return out.filter(function(x){ return x.always || x.n > 0; });
@@ -2568,21 +2568,21 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <div id="loadbar"><i></i></div>
-<script src="cc-motion.js?v=20261122x"></script>
-<script src="views/business.js?v=20261122x" onerror="void 0"></script>
-<script src="views/bizcharts.js?v=20261122x" onerror="void 0"></script>
-<script src="views/bizleads.js?v=20261122x" onerror="void 0"></script>
-<script src="views/timeline.js?v=20261122x" onerror="void 0"></script>
-<script src="views/system.js?v=20261122x" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261122x" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261122x"></script>
-<script src="cc-nurture.js?v=20261122x"></script>
-<script src="cc-crm.js?v=20261122x"></script>
-<script src="cc-biz.js?v=20261122x"></script>
-<script src="cc-sources2.js?v=20261122x"></script>
-<script src="cc-body.js?v=20261122x"></script>
-<script src="cc-pages.js?v=20261122x"></script>
-<script src="cc-know.js?v=20261122x"></script>
-<link rel="stylesheet" href="views/views.css?v=20261122x">
+<script src="cc-motion.js?v=20261122z"></script>
+<script src="views/business.js?v=20261122z" onerror="void 0"></script>
+<script src="views/bizcharts.js?v=20261122z" onerror="void 0"></script>
+<script src="views/bizleads.js?v=20261122z" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261122z" onerror="void 0"></script>
+<script src="views/system.js?v=20261122z" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261122z" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261122z"></script>
+<script src="cc-nurture.js?v=20261122z"></script>
+<script src="cc-crm.js?v=20261122z"></script>
+<script src="cc-biz.js?v=20261122z"></script>
+<script src="cc-sources2.js?v=20261122z"></script>
+<script src="cc-body.js?v=20261122z"></script>
+<script src="cc-pages.js?v=20261122z"></script>
+<script src="cc-know.js?v=20261122z"></script>
+<link rel="stylesheet" href="views/views.css?v=20261122z">
 </body>
 </html>

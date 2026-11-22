@@ -4,7 +4,12 @@
      tr-abs, tr-quads, tr-hamstrings, tr-glutes, tr-calves, tr-cardio)
      time = the date that group was last trained
      text = "Chest | 14 sets in 14 days | Bench Press 11/19, Incline Press 11/17"
-   Cardio falls back to the daily workout rows (cardio minutes) until tr-cardio rows exist. Counts and names only. */
+   Cardio falls back to the daily workout rows (cardio minutes) until tr-cardio rows exist. Counts and names only.
+   Vitals contract (Luna writes ONE row per day from Apple Health, nothing else; Atlas owns how it displays):
+     tab "Private", module "Health", id "vt-YYYY-MM-DD", source "Apple Health", grade "Exact",
+     time = that day at 12:00 America/New_York,
+     text = "Vitals | Resting HR 65 | Avg HR 73 | HRV 52 ms | Blood oxygen 95.6% | Respiratory rate 16.1"
+     Any field may be left out. A later row for the same day replaces the earlier one. No other text, no extra fields. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -89,6 +94,47 @@
     rows.forEach(function (r) { var a = Math.floor((now - r.t) / 86400000 / 7); if (a >= 0 && a < 4) { weeks[3 - a] += r.min; sess[3 - a]++; } });
     var daily = []; for (var d = 27; d >= 0; d--) daily.push({k: F.ymd(now - d * 86400000), min: days[F.ymd(now - d * 86400000)] || 0});
     return {any: !!last, last: last, days: last ? F.dayDiff(last.t) : null, min: last ? last.min : null, ex: cex, weeks: weeks, sess: sess, daily: daily, week: weeks[3], t: last ? last.t : null};
+  }
+
+  /* Vitals: one row per day, last 7 days, each value compared with the average of the earlier days. */
+  var VFIELDS = [
+    {k: "hr", label: "Resting HR", unit: "bpm", re: /Resting HR\s*([\d.]+)/i, good: -1, flat: 1.5, dp: 0},
+    {k: "hrv", label: "HRV", unit: "ms", re: /HRV\s*([\d.]+)/i, good: 1, flat: 2, dp: 0},
+    {k: "spo2", label: "Blood oxygen", unit: "%", re: /Blood oxygen\s*([\d.]+)/i, good: 0, flat: 0.5, dp: 1},
+    {k: "rr", label: "Respiration", unit: "/min", re: /Respiratory rate\s*([\d.]+)/i, good: -1, flat: 0.4, dp: 1},
+    {k: "avg", label: "Avg HR", unit: "bpm", re: /Avg HR\s*([\d.]+)/i, good: 0, flat: 2, dp: 0},
+    {k: "vo2", label: "VO2 max", unit: "", re: /VO2 max\s*([\d.]+)/i, good: 1, flat: 0.5, dp: 1}
+  ];
+  function vitalsModel(api) {
+    var items = (api.data && api.data.items) || [], F = CC.fresh, by = {};
+    items.forEach(function (i) {
+      if (i.tab !== "Private" || i.module !== "Health" || !/^vitals\b/i.test(i.text || "")) return;
+      var t = ms(i.time); if (t == null) return; var k = F.ymd(t), w = ms(i.written) || t, cur = by[k];
+      if (cur && cur.w > w) return;
+      var d = {k: k, t: t, w: w}; VFIELDS.forEach(function (f) { var m = f.re.exec(i.text || ""); d[f.k] = m ? Number(m[1]) : null; }); by[k] = d;
+    });
+    var days = Object.keys(by).sort().map(function (k) { return by[k]; }).slice(-7);
+    if (!days.length) return null;
+    var latest = days[days.length - 1], prior = days.slice(0, -1);
+    var vals = VFIELDS.map(function (f) {
+      var v = latest[f.k]; if (v == null) return null;
+      var ps = prior.map(function (d) { return d[f.k]; }).filter(function (x) { return x != null; }), base = ps.length ? ps.reduce(function (a, b) { return a + b; }, 0) / ps.length : null;
+      var diff = base == null ? null : v - base, state = diff == null ? "n" : Math.abs(diff) <= f.flat ? "steady" : f.good === 0 ? "move" : (diff * f.good > 0 ? "good" : "watch");
+      return {f: f, v: v, diff: diff, state: state, series: days.map(function (d) { return d[f.k]; })};
+    }).filter(Boolean);
+    return {vals: vals, latest: latest, n: days.length, age: F.dayDiff(latest.t)};
+  }
+  function vitalsBlock(api) {
+    var m = vitalsModel(api); if (!m) return null;
+    var when = m.age <= 0 ? "today" : m.age === 1 ? "yesterday" : new Date(m.latest.t).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"});
+    var chips = m.vals.slice(0, 4).map(function (x) {
+      var f = x.f, mx = Math.max.apply(null, x.series.filter(function (q) { return q != null; })), mn = Math.min.apply(null, x.series.filter(function (q) { return q != null; })), rng = (mx - mn) || 1;
+      var sp = h("span", {class: "cd-sp", "aria-hidden": "true"}, x.series.map(function (q) { return h("i", {style: "height:" + (q == null ? 10 : 22 + (q - mn) / rng * 78) + "%"}); }));
+      var arrow = x.state === "steady" || x.state === "n" ? "steady" : (x.diff > 0 ? "▲ " : "▼ ") + Math.abs(x.diff).toFixed(f.dp ? 1 : 0);
+      return h("div", {class: "cd-vc " + x.state, title: f.label + " " + x.v.toFixed(f.dp) + " " + f.unit + (x.diff != null ? ", " + (x.diff >= 0 ? "+" : "") + x.diff.toFixed(1) + " vs your average of the earlier days" : "")},
+        h("div", {class: "cd-vl"}, f.label), h("div", {class: "cd-vv"}, x.v.toFixed(f.dp), h("small", null, f.unit)), h("div", {class: "cd-vd"}, arrow), sp);
+    });
+    return h("div", {class: "cd-vt"}, h("h4", null, "Vitals · " + when + (m.n > 1 ? " · " + m.n + " days" : "")), h("div", {class: "cd-vg"}, chips));
   }
 
   /* anatomical shapes, left half drawn, right half mirrored */
@@ -197,7 +243,7 @@
       wrap.appendChild(h("div", {class: "cd-grid"}, beat,
         h("div", {class: "cd-r"}, ring, h("div", null, h("h4", null, "This week"), h("div", {class: "rh-sub"}, c.week + " of " + tgt + " min target"), h("div", {class: "rh-sub"}, c.sess[3] + (c.sess[3] === 1 ? " session" : " sessions")))),
         h("div", null, h("h4", null, "Last 4 weeks"), wk, h("div", {class: "rh-sub"}, wkTotal + " min total")),
-        cp ? null : h("div", null, h("h4", null, "Last 28 days"), dl)));
+        cp ? null : (vitalsBlock(api) || h("div", null, h("h4", null, "Last 28 days"), dl))));
       return wrap;
     },
     mini: function (api) {
