@@ -55,6 +55,8 @@
     arr(api.jobsNeeds ? api.jobsNeeds() : []).forEach(function (n) { var t = n.ask || n.blocked || ""; if (!t || PLACEHOLDER.test(t) || PLACEHOLDER.test(n.blocked || "")) return; add(0.4, t.slice(0, 110), "Job search", "Private", {job: true}); });
     /* Routines */
     var bad = arr(D.routines).filter(function (r) { var at = ms(r.last_run), lv = F().level(at, Number(r.cadence_min) || 1440); return lv !== "ok" || (r.last_status && !/^ok|success|clean/i.test(String(r.last_status))); });
+    var alertNames = arr(CC.inbox ? CC.inbox.open() : []).map(function (a) { return String(a.ti || "").toLowerCase(); });
+    bad = bad.filter(function (r) { return !alertNames.some(function (t) { return t.indexOf(String(r.routine).toLowerCase()) > -1; }); });
     if (bad.length) add(bad.some(function (r) { return F().level(ms(r.last_run), Number(r.cadence_min) || 1440) !== "late"; }) ? 0.15 : 0.45, bad.length + (bad.length === 1 ? " routine needs" : " routines need") + " attention", bad[0].routine, "Sources");
     /* Inbox alerts that are not leads (medical dispatches are already filtered out) */
     arr(CC.inbox ? CC.inbox.open() : []).filter(function (a) { return a.kind !== "lead" && a.tab !== "Local" && !/rescue|dispatched|responded to|fire |ambulance|sick call/i.test(String(a.ti || "")); }).forEach(function (a) { add(a.t >= 4 ? 0.05 : a.t === 3 ? 0.2 : 0.45, a.ti, a.rt || "", a.tab, {alert: a}); });
@@ -72,7 +74,7 @@
   function agoShort(t, now) { if (!t) return "never"; var m = Math.round((now - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " hr ago" : Math.round(m / 1440) + " d ago"; }
   CC.hubmap = function (api) {
     var D = api.data || {}, now = api.nowMs ? api.nowMs() : Date.now(), msgs = arr(D.messages), routines = arr(D.routines), crew = api.crew || [];
-    var secs = ["Today", "Business", "Local", "Private", "System"], W = 1000, H = 262, xa = 150, xb = 500, xc = 850, ya = function (i) { return 28 + i * 51; }, yc = function (j) { return 24 + j * 53; };
+    var secs = ["Today", "Business", "Local", "Private", "System"], W = 1500, H = 282, xa = 330, xb = 760, xc = 1190, ya = function (i) { return 30 + i * 54; }, yc = function (j) { return 24 + j * 56; };
     var info = crew.map(function (c) {
       var sent = msgs.filter(function (m) { return m.from === c[0]; }).sort(function (a, b) { return Date.parse(b.time) - Date.parse(a.time); }), last = sent[0] ? Date.parse(sent[0].time) : null;
       var mine = routines.filter(function (r) { return r.writer === c[0]; }), perTab = {}; mine.forEach(function (r) { perTab[r.tab] = (perTab[r.tab] || 0) + 1; });
