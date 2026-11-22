@@ -191,3 +191,6 @@ header .hstrip{margin:0 auto 0 22px;display:flex;align-items:center}header .hstr
 .cd-vg{grid-template-columns:repeat(4,minmax(0,1fr))!important}
 .pbody .wt.slp{padding-top:10px!important;padding-bottom:10px!important}.pbody .wt.slp .rh-big{font-size:34px!important;line-height:1.1}.pbody .wt.slp .rh-bars{height:46px!important}.pbody .wt.slp .wh{margin-bottom:4px}
 .hl-top{margin-bottom:12px!important}.pbody>div>.card,.pbody>div>section{margin-bottom:12px}
+.pbody .card.mod{max-height:calc(100vh - 240px);overflow:auto}
+.pov .pc{padding-top:10px!important;padding-bottom:10px!important}
+.pv-left .bd,.pv-left .cd{margin-bottom:0}
