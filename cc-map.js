@@ -72,20 +72,21 @@
 
   /* Found in Drive and GitHub, not yet carried into the record. */
   var POOL = [
-    {id: "p-origin", name: "Origin export", how: "hand", sub: "finance CSV, recap authority", recap: true, plan: "JD drops the monthly CSV in Drive 04 Recap Inputs. A small script reads it on the 1st. Needs: the folder, one example file.", basis: "Memory and COORDINATION.md: Origin is the finance authority for the monthly recap; JD downloads a fresh CSV when needed."},
-    {id: "p-moodle", name: "Moodle", how: "hand", sub: "MBA grades", recap: true, plan: "No safe automatic route. Keep the handoff doc in Drive 05 School and have Luna file a grades row when JD pastes new grades.", basis: "COORDINATION.md: Moodle is the only grade source; handoff doc is in 05 School / Moodle archive."},
-    {id: "p-voice", name: "Calvary voice notes", how: "hand", sub: "Google Doc, transcripts", recap: true, plan: "An Apps Script can read the Doc directly on a timer and write one row per sermon with the date and a word count. No AI needed.", basis: "Memory: the Faith recap reads the Google Doc 'Calvary Baptist Church Raw Voice Notes 2026'."},
+    {id: "p-records", links: [["Records Registry sheet", "https://docs.google.com/spreadsheets/d/10zFa9fDKeuJcot85RZgl78b7Dc4xJ486zK1gCCFOw_w/edit"], ["06 Records folder", "https://drive.google.com/drive/folders/1wyT-y_U59f6lQ5_x3-6wCRydb30ZuzgP"], ["Notion Subscriptions", "https://app.notion.com/p/331b9da404d28015a43cde7104c9be13"]], name: "Records registry", how: "none", sub: "114 documents and subscriptions", plan: "New. A script reads the registry and pushes counts and the next expiry dates to the record. Hub tab Records is ready for them.", basis: "Built Nov 22 from the room inventory documents and the Notion Subscriptions table. Names and types only, no card numbers."},
+    {id: "p-origin", links: [["Origin exports folder", "https://drive.google.com/drive/folders/1tZaKylRBI7iOfpaBtqNon0gMkHdF7dlo"], ["04 Recap Inputs", "https://drive.google.com/drive/folders/1iqDin6dxg5DRDZUS3ukJdGC12grWGtj_"]], name: "Origin export", how: "hand", sub: "finance CSV, recap authority", recap: true, plan: "JD drops the monthly CSV in Drive 04 Recap Inputs. A small script reads it on the 1st. Needs: the folder, one example file.", basis: "Memory and COORDINATION.md: Origin is the finance authority for the monthly recap; JD downloads a fresh CSV when needed."},
+    {id: "p-moodle", links: [["Moodle handoff doc", "https://docs.google.com/document/d/1xg66tu9dgd1QeRovRb9AmoxDnL1GYfuLWsRsCsL1v8c/edit"], ["Moodle archive", "https://drive.google.com/drive/folders/1J8d7zTdwBE_2-MUDGIp_8Cz9wEBC3g9_"]], name: "Moodle", how: "hand", sub: "MBA grades", recap: true, plan: "No safe automatic route. Keep the handoff doc in Drive 05 School and have Luna file a grades row when JD pastes new grades.", basis: "COORDINATION.md: Moodle is the only grade source; handoff doc is in 05 School / Moodle archive."},
+    {id: "p-voice", links: [["04 Recap Inputs folder", "https://drive.google.com/drive/folders/1iqDin6dxg5DRDZUS3ukJdGC12grWGtj_"]], name: "Calvary voice notes", how: "hand", sub: "Google Doc, transcripts", recap: true, plan: "An Apps Script can read the Doc directly on a timer and write one row per sermon with the date and a word count. No AI needed.", basis: "Memory: the Faith recap reads the Google Doc 'Calvary Baptist Church Raw Voice Notes 2026'."},
     {id: "p-vitals", name: "Apple Health vitals", how: "none", sub: "contract written, no rows yet", plan: "Luna writes one vt- row per day (contract is in COORDINATION.md). Better: a Gmail-watching script reads the phone's email so Luna is not needed.", basis: "The Health page already draws the tiles. The live sheet has zero vitals rows."},
-    {id: "p-adlog", name: "Ad-Lead-Log", how: "none", sub: "Drive sheet, changed today", plan: "Same pattern as the Ledger: a script in that sheet pushes counts to the Command Center script. Confirm what it holds first.", basis: "Drive: sheet '2026-10_Ad-Lead-Log', modified Nov 22, 2026. Contents not read."},
-    {id: "p-drone", name: "Drone flight logs", how: "none", sub: "Part 107 logs, 8 sheets", plan: "A counts feed (flights this month, last flight, currency) pushed by script. Useful for Today and for Part 107 currency.", basis: "Drive: 2026-04_Drone-Flight-Log and FlightLog_MavicPro2 sheets for 2017 to 2023. Contents not read."},
-    {id: "p-exp", name: "Expenses tracker", how: "none", sub: "2026-05 sheet", plan: "Totals only into the Money page, by script. Confirm it is still kept up.", basis: "Drive: sheet '2026-05_Expenses-Tracker', last modified Oct 5. Not read."},
-    {id: "p-cert", name: "Certification tracker", how: "none", sub: "Drive sheet", plan: "Dates only: expirations that need action, shown on Personal > Education and Military.", basis: "Drive: 'Certification Tracker xl2.1'. Not read."},
-    {id: "p-lookup", name: "JDM Tracker Lookup", how: "none", sub: "new public Apps Script", plan: "Made Nov 22. Confirm its purpose. If it serves client project status it belongs on the Ledger side, not the hub.", basis: "Drive: Apps Script project 'JDM Tracker Lookup (public)', created Nov 22. Code not read."},
+    {id: "p-adlog", links: [["Ad-Lead-Log sheet", "https://docs.google.com/spreadsheets/d/1VCdXnsboZgX3dhreAO-D28PbxFnoXWLL6CAoTpUighY/edit"]], name: "Ad-Lead-Log", how: "none", sub: "Drive sheet, changed today", plan: "Same pattern as the Ledger: a script in that sheet pushes counts to the Command Center script. Confirm what it holds first.", basis: "Drive: sheet '2026-10_Ad-Lead-Log', modified Nov 22, 2026. Contents not read."},
+    {id: "p-drone", links: [["2026-04 flight log", "https://docs.google.com/spreadsheets/d/1cHn4ho45cDoiSWn1rwi7fI-namUOVhIYjT7b3c_34Ao/edit"], ["Mavic Pro 2 \u00b7 2017", "https://docs.google.com/spreadsheets/d/1yv54Trjumu81xPopQTY43x-u9QU-erxZDB3iTycNHMs/edit"], ["2020", "https://docs.google.com/spreadsheets/d/1tuCeVmn-kNpicXiV-GljeEVM7_Ntt4qERs3o8k2uDbg/edit"], ["2021", "https://docs.google.com/spreadsheets/d/1pBY-ET9iXBPA_wndHaXpUyTrlsnyp3as_TRVq-uj31Y/edit"], ["2023", "https://docs.google.com/spreadsheets/d/1Q4gmhEwe0IwjcJvPSBUyeWpqjDfNn5k609c0qtC95DU/edit"], ["Flight Log JD Meyers", "https://docs.google.com/spreadsheets/d/1pw3fvp_MCbrE-UFO2pjO6w6E65kCGc8Uc6Gvc2lmk18/edit"]], name: "Drone flight logs", how: "none", sub: "Part 107 logs, 8 sheets", plan: "A counts feed (flights this month, last flight, currency) pushed by script. Useful for Today and for Part 107 currency.", basis: "Drive: 2026-04_Drone-Flight-Log and FlightLog_MavicPro2 sheets for 2017 to 2023. Contents not read."},
+    {id: "p-exp", links: [["2026-05 Expenses tracker", "https://docs.google.com/spreadsheets/d/1YxgeLcbeBxmpIuAQ5yJhnm7TlluskW1aEpYO8GUXyfo/edit"]], name: "Expenses tracker", how: "none", sub: "2026-05 sheet", plan: "Totals only into the Money page, by script. Confirm it is still kept up.", basis: "Drive: sheet '2026-05_Expenses-Tracker', last modified Oct 5. Not read."},
+    {id: "p-cert", links: [["Certification Tracker xl2.1", "https://docs.google.com/spreadsheets/d/143pgnhR6MNi17JUsBRLWqizvfqBFQ0o8w2yCVtk_2Mw/edit"]], name: "Certification tracker", how: "none", sub: "Clarkson staff roster", plan: "This is a Clarkson security-staff roster (licenses, CPR, FEMA ICS), not your own certifications. Treat it as a work source: a count of staff with something expiring. Your own certifications go in Records.", basis: "I opened it. Columns are staff names, license IDs and expiry dates for CPR, Stop the Bleed and FEMA courses."},
+    {id: "p-lookup", links: [["JDM Tracker Lookup script", "https://script.google.com/d/1c_dwmL8Dy4ZC0pOTFaEG6p5PhrkGbY7Bf56mOTEgGQXMRR8e73FTHLD-/edit"]], name: "JDM Tracker Lookup", how: "none", sub: "new public Apps Script", plan: "Made Nov 22. Confirm its purpose. If it serves client project status it belongs on the Ledger side, not the hub.", basis: "Drive: Apps Script project 'JDM Tracker Lookup (public)', created Nov 22. Code not read."},
     {id: "p-queue", name: "Request pool", how: "none", sub: "JD's Queue style tracker", plan: "Need JD to say which app this is and what it should take from the recap. Placed here until then.", basis: "JD mentioned a request pool that fed from the monthly recap. I found the OT/PT task request app (JD's Queue) in memory but could not confirm it is the same one."},
-    {id: "p-repos", name: "Other GitHub apps", how: "none", sub: "lead-tracker, CENTCOM-NC, north-country-circle", plan: "Each needs a one-line answer: does it make data the record should hold, or only read it? Counts feed first.", basis: "GitHub: repos lead-tracker, CENTCOM-NC, north-country-circle, personal-space, mobilecontact. Contents not read."}
+    {id: "p-repos", links: [["lead-tracker", "https://github.com/julietdeltaone/lead-tracker"], ["CENTCOM-NC", "https://github.com/julietdeltaone/CENTCOM-NC"], ["north-country-circle", "https://github.com/julietdeltaone/north-country-circle"], ["personal-space", "https://github.com/julietdeltaone/personal-space"], ["mobilecontact", "https://github.com/julietdeltaone/mobilecontact"]], name: "Other GitHub apps", how: "none", sub: "lead-tracker, CENTCOM-NC, north-country-circle", plan: "Each needs a one-line answer: does it make data the record should hold, or only read it? Counts feed first.", basis: "GitHub: repos lead-tracker, CENTCOM-NC, north-country-circle, personal-space, mobilecontact. Contents not read."}
   ];
 
-  var SECS = [["Today", "Today"], ["Business", "Business"], ["Local", "Local"], ["Private", "Personal"], ["System", "System"], ["Sources", "Sources"]];
+  var SECS = [["Today", "Today"], ["Business", "Business"], ["Local", "Local"], ["Private", "Personal"], ["Records", "Records"], ["System", "System"], ["Sources", "Sources"]];
 
   function model(api) {
     var D = api.data || {}, now = F().now(), routines = arr(D.routines), items = arr(D.items), used = {};
@@ -123,7 +124,7 @@
 
   CC.map = {
     hero: function (api) {
-      var M = model(api), W = 1500, H = 470;
+      var M = model(api), W = 1500, H = 482;
       var oy = function (i) { return 34 + i * (M.origins.length > 14 ? 25 : 27); };
       var order = ["muse", "chatgpt", "script", "manual", "direct"];
       var CARS = [];
@@ -151,7 +152,7 @@
       /* carriers -> record, or carriers -> pages (direct) */
       CARS.forEach(function (c, i) {
         var col = CLASS[c.cls] ? CLASS[c.cls].color : "#94a3b8", wd = 1.8 + Math.min(4, Math.log(1 + c.routines + 1) * 1.2);
-        if (c.id === "direct") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 380) + " " + cy(i) + " " + (XP - 260) + " " + (pageY(5) + 46) + " " + (XP - 14) + " " + (pageY(5) + 46), "d", col, 2.2, ["c:direct", "k:pages"]);
+        if (c.id === "direct") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 380) + " " + cy(i) + " " + (XP - 260) + " " + (pageY(6) + 46) + " " + (XP - 14) + " " + (pageY(6) + 46), "d", col, 2.2, ["c:direct", "k:pages"]);
         else if (c.id === "manual") edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 160) + " " + cy(i) + " " + (XR - 150) + " " + (YR + 40) + " " + (XR - 96) + " " + (YR + 40), "k", col, 1.6, ["c:" + c.id, "k:record"], "3 6");
         else edge("M" + (XC + 30) + " " + cy(i) + " C" + (XC + 170) + " " + cy(i) + " " + (XR - 160) + " " + (YR + (i - 1) * 8) + " " + (XR - 96) + " " + (YR + (i - 1) * 8), "k", col, wd, ["c:" + c.id, "k:record"]);
       });
@@ -165,7 +166,7 @@
       var cols = [[], [], []]; ordered.forEach(function (p, i) { cols[p.recap ? 2 : (i % 2)].push(p); });
       cols.forEach(function (col, ci) {
         col.forEach(function (p, ri) {
-          var x = PX + ci * (PW + 8), y = PYY + ri * 28;
+          var x = PX + ci * (PW + 8), y = PYY + ri * 26;
           var g = sv("g", {class: "hm2-n pool", tabindex: "0", role: "button", "aria-label": p.name + ", not connected"});
           g.appendChild(sv("rect", {x: x, y: y, width: PW, height: 24, rx: 9, class: "hm2-pool"}));
           g.appendChild(tx(x + PW / 2, y + 16, "hm2-pn", p.name, "middle"));
@@ -263,6 +264,8 @@
             body.push(row("What it is", p.sub));
             body.push(row("To connect it", p.plan));
             body.push(row("How I know", p.basis));
+            if (p.links && p.links.length) body.push(h("div", {class: "hm2-r hm2-lk"}, h("span", null, "Open"), h("span", {class: "hm2-links"}, p.links.map(function (l) { return h("a", {href: l[1], target: "_blank", rel: "noopener"}, l[0] + " \u2197"); }))));
+            else body.push(row("Open", "No file yet. Nothing to open."));
           }
         } else if (id === "record") {
           body.push(h("div", {class: "hm2-t"}, "The record"));
