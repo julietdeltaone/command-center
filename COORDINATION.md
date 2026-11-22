@@ -145,3 +145,8 @@ Privacy rule for both: this repo is public. Never commit item rows, serial numbe
 - Drive account productions@jdmeyersjr.com, top folder "JD Command Center": 00 Folder Guide, 01 Hub, 02 Workouts, 03 Inventory, 04 Recap Inputs, 05 School, 99 Archive.
 - Direction: folders hold files, the Command Center Data Sheet holds only what the hub reads. Workouts, Workouts Monthly and Inventory leave the Sheet after Luna exports and verifies them (tasks B1 to B5).
 - Recap inputs stay with their own authorities (Origin CSV, FitNotes, Calvary Baptist voice notes Google Doc, Moodle). Moodle handoff doc is in 05 School / Moodle archive.
+
+## Nurturing drawer and Business layers (Atlas)
+- Business has two layers: Now (pulse, leads, competitors, marketing) and CRM (embeds Config ledger_dashboard_url; falls back to a note).
+- Nurturing: Items tab Business, module Nurturing, id nu-<firstname>. Text: `Name | Stage: Contract | Event: Wedding, Jun 12 2027 | Last contact: YYYY-MM-DD | Next: step; step | Need: item; item`. Stage is Inquiry, Talking, Contract, Deposit or Booked; newest row per id wins; write Stage: Closed to remove. First names only. No drawer or edge tab shows when there are zero rows.
+- Sources is now a zoom view: kind tiles, click to zoom in, extra layers as chips.

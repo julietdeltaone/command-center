@@ -559,6 +559,7 @@ function swap(fn){
 var NEXT_ANIM = false, LAST_GO = 0, GO_PENDING = null;
 /* Fast clicking: only the last tab clicked is drawn, the drawer is closed first, and the page fade-in only plays when the clicks are not rapid. */
 function go(tab){
+  try{ if(window.CC&&CC.nurture) CC.nurture.close(); }catch(e){}
   try { CC.inbox.panel(false); } catch(e){}
   if (tab === TAB && !PSUB) { window.scrollTo(0, 0); return; }
   GO_PENDING = tab;
@@ -2419,6 +2420,7 @@ function preview(){
       I("s4", "Today", "Calendar and deadlines", "Summer and Fall scheduling info due today", "Clarkson overview doc", "Single source", 160, new Date(Date.now() + 8 * 3600000).toISOString()),
       I("s5", "Today", "Weather and drone", "Flyable. Gusts to 16 mph late morning.", "Forecast (one source)", "Single source", 160),
       I("s6", "Business", "Leads", "New portrait inquiry logged", "Form log", "Exact", 180),
+      I("nu-lauren", "Business", "Nurturing", "Lauren | Stage: Contract | Event: Wedding, date to confirm | Last contact: "+new Date(Date.now()-3*86400000).toISOString().slice(0,10)+" | Next: Send contract (tonight) | Need: Second shooter", "Sample", "Exact", 300),
       I("s7", "Business", "Waiting on others", "Booking confirmation draft waiting on your approval", "Draft queue", "Exact", 1500),
       I("s8", "Business", "Competitors", "One tracked account gained 7 followers after a new post", "Instagram snapshot", "Exact", 90),
       I("s9", "Local", "Events", "Winter Farmers Market, Sat 10 AM, 22 Depot St, free, open to the public", "Local listing", "Single source", 160),
@@ -2556,6 +2558,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="views/system.js" onerror="void 0"></script>
 <script src="views/shooting.js" onerror="void 0"></script>
 <script src="cc-widgets.js"></script>
+<script src="cc-nurture.js"></script>
 <link rel="stylesheet" href="views/views.css">
 </body>
 </html>

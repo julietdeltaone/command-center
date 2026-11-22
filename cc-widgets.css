@@ -169,3 +169,41 @@ body.soft #ib-panel .ib-scrim{transition:opacity .25s ease!important}
 #ib-panel.open .ib-card{visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s}
 body.soft #ib-panel:not(.open) .ib-card{transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s!important}
 body.soft #ib-panel.open .ib-card{transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s!important}
+
+/* ---------- Nurturing drawer and edge tab ---------- */
+.nu-edge{position:fixed;right:0;top:42%;z-index:60;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:1px solid var(--line);border-right:0;border-radius:14px 0 0 14px;background:var(--card);color:var(--text);cursor:pointer;box-shadow:-8px 0 24px -12px rgba(0,0,0,.6)}
+.nu-edge b{font:500 18px var(--serif,Georgia,serif);color:var(--accent)}.nu-edge span{writing-mode:vertical-rl;font:700 10.5px var(--font);letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.nu-edge:hover{background:color-mix(in srgb,var(--accent) 10%,var(--card))}
+#nu-panel{position:fixed;inset:0;z-index:9600;pointer-events:none}
+#nu-panel .nu-scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;transition:opacity .25s ease}
+#nu-panel .nu-sheet{position:absolute;top:0;right:0;bottom:0;width:min(460px,100vw);display:flex;flex-direction:column;background:var(--bg);border-left:1px solid var(--line);transform:translateX(104%);visibility:hidden;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s;pointer-events:auto}
+#nu-panel.open{pointer-events:auto}#nu-panel.open .nu-scrim{opacity:1}#nu-panel.open .nu-sheet{transform:none;visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s;box-shadow:-30px 0 70px -30px rgba(0,0,0,.7)}
+body.soft #nu-panel .nu-sheet{transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s!important}body.soft #nu-panel.open .nu-sheet{transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s!important}
+.nu-head{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 12px}.nu-eye{font:700 10.5px var(--font);letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.nu-head h2{margin:4px 0 0;font:500 28px/1.1 var(--serif,Georgia,serif);letter-spacing:-.01em;text-transform:none;color:var(--text)}
+.nu-x{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
+.nu-body{flex:1;overflow:auto;padding:4px 24px 28px;display:flex;flex-direction:column;gap:14px}
+.nu-sum{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.nu-sum b{font:500 18px var(--serif,Georgia,serif);color:var(--text)}
+.nu-none{color:var(--muted);font-size:13px}
+.nu-card{--c:var(--accent);display:flex;flex-direction:column;gap:12px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:16px;background:var(--inset,transparent)}
+.nu-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.nu-top h3{margin:0;font:500 20px var(--serif,Georgia,serif);text-transform:none;color:var(--text)}
+.nu-ev{font-size:12.5px;color:var(--muted)}
+.nu-track{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.nu-s{display:flex;flex-direction:column;align-items:center;gap:5px;position:relative;font:600 9.5px var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.nu-s i{width:100%;height:5px;border-radius:3px;background:var(--line)}
+.nu-s.past i{background:color-mix(in srgb,var(--c) 55%,var(--line))}.nu-s.now i{background:var(--c)}.nu-s.now{color:var(--text)}
+.nu-blk h4{margin:0 0 6px;font:700 10px var(--font);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.nu-st{display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;margin-bottom:6px;border:1px solid var(--line);border-radius:12px;background:none;color:var(--text);font:600 13px var(--font);text-align:left;cursor:pointer}
+.nu-st i{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid var(--c)}
+.nu-st.on{color:var(--muted)}.nu-st.on span{text-decoration:line-through}.nu-st.on i{background:var(--c)}
+.nu-crm{align-self:flex-start;font:700 12px var(--font);color:var(--accent);text-decoration:none}
+body.nu-on{overflow:hidden}
+@media (max-width:760px){.nu-edge{top:auto;bottom:84px}}
+
+/* ---------- Business: layer switcher and CRM frame ---------- */
+.wd-seg{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px}
+.wd-seg button{height:34px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);font:700 12px var(--font);letter-spacing:.04em;cursor:pointer}
+.wd-seg button[aria-pressed=true]{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.crm-frame{width:100%;height:min(72vh,720px);border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.crm-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12px;color:var(--muted)}
+.crm-bar a{font:700 12px var(--font);color:var(--accent);text-decoration:none}

@@ -267,6 +267,8 @@
       if (mo.col) chips.push(chip("$" + mo.col + " collected this year", 1, {big: true}));
       if (mo.sn != null) chips.push(chip(mo.sn + (mo.sn === 1 ? " session" : " sessions") + " in " + mo.sd + " days", mo.sn ? 0.8 : 0.55, {big: true}));
     }
+    var nn = CC.nurture ? CC.nurture.waiting(api) : 0;
+    if (nn) chips.push(chip(nn + (nn === 1 ? " lead to nurture" : " leads to nurture"), 0.5, {big: true, onclick: function () { CC.nurture.open(api); }}));
     var ads = newest(modItems(api, "Business", "Marketing").filter(function (i) { return /conversion upload/i.test(i.text || ""); }));
     if (ads) chips.push(chip(/clean|no errors/i.test(ads.text) ? "Ads upload ran clean" : "Ads upload needs a look", /clean|no errors/i.test(ads.text) ? 1 : 0.3, {big: true}));
     var chipRow = h("section", {class: "wd wd-chiprow"}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Needs you"), stamp(ms((mo.it || newest(modItems(api, "Business", null)) || {}).time), 1440, "Newest Business reading")), h("div", {class: "wchips"}, chips));
@@ -331,9 +333,22 @@
       lcards.push(h("div", {class: "ld", style: "--c:" + col(open ? 0.3 : 0.85)}, h("i"), h("div", null, h("b", null, parts[0].replace(/\s+$/, "")), h("small", null, (i.source || "") + " · logged " + F().stamp(ms(i.time)))), parts[1] ? chip(parts[1].replace(/^\s+/, "").replace(/\.$/, ""), open ? 0.3 : 0.85, {title: "Recommended action"}) : null));
     });
     if (lcards.length) cards.unshift(card("wd-leads", "Latest leads", ol.length ? ol.length + " to answer" : "all answered", h("div", {class: "lds"}, lcards), ol.length ? 0.25 : 1, frOf(api, lds)));
-    var other = items.filter(function (i) { return ["Competitors", "Marketing", "Leads", "Money"].indexOf(i.module) < 0; });
+    var other = items.filter(function (i) { return ["Competitors", "Marketing", "Leads", "Money", "Nurturing"].indexOf(i.module) < 0; });
     if (other.length) cards.push(card("wd-oth", "Other", null, h("div", {class: "wchips col"}, other.slice(0, 8).map(function (i) { return chip(i.text.slice(0, 100), 0.7, {title: i.text}); })), 0.7));
-    box.appendChild(h("div", {class: "wdgrid g3"}, cards));
+    var layer = "now", ledger = ""; try { ledger = api.cfgVal("ledger_dashboard_url") || ""; } catch (e) {}
+    var grid = h("div", {class: "wdgrid g3"}, cards), crm = h("div", {class: "crm-wrap", style: "display:none"});
+    var seg = h("div", {class: "wd-seg", role: "group", "aria-label": "Business layer"});
+    function setLayer(k) {
+      layer = k; grid.style.display = k === "now" ? "" : "none"; crm.style.display = k === "crm" ? "" : "none";
+      Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-k") === k)); });
+      if (k === "crm" && !crm.firstChild) crm.appendChild(ledger
+        ? h("div", null, h("div", {class: "crm-bar"}, h("span", null, "Projects and Ledger, live from the CRM"), h("a", {href: ledger, target: "_blank", rel: "noopener"}, "Open full screen ↗")), h("iframe", {class: "crm-frame", src: ledger, title: "Projects and Ledger CRM", loading: "lazy"}))
+        : h("p", {class: "wsub"}, "The CRM link is not set yet. Luna adds ledger_dashboard_url to Config and this tab fills in."));
+    }
+    [["now", "Now"], ["crm", "CRM"]].forEach(function (x) { seg.appendChild(h("button", {type: "button", "data-k": x[0], "aria-pressed": String(x[0] === layer), onclick: function () { setLayer(x[0]); }}, x[1])); });
+    var edge = CC.nurture ? CC.nurture.handle(api) : null;
+    box.appendChild(seg); box.appendChild(grid); box.appendChild(crm);
+    if (edge) box.appendChild(edge);
     return box;
   };
 

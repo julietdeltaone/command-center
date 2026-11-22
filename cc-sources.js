@@ -219,20 +219,42 @@
   }
 
   CC.views.Sources = function (api) {
-    var D = api.data, page = h("div", {class: "so"});
+    var D = api.data, page = h("div", {class: "so so-zoom"});
     if (!D) return page;
-    var M = model(api);
-    page.appendChild(hero(api, M));
-    page.appendChild(flow(api, M));
-    page.appendChild(section("Origins, by kind", "Each card is one kind of place information starts. The colour is how current its routines are.",
-      h("div", {class: "so-grid"}, M.order.map(function (g) { return groupCard(api, M, g.id); }))));
-    page.appendChild(section("Crew", "Who carries information into the record, and when each last wrote.", h("div", {class: "so-crews"}, M.writers.map(function (w) { return crewCard(api, w); }))));
-    page.appendChild(section("Authoritative sources", "Where the original lives. A copy goes in the Drive folder named on each card, and the record keeps only a summary and a last-stored time.", h("div", {class: "so-sides"}, AUTH.map(authCard))));
-    page.appendChild(section("Outside the record", "These feeds are read by the hub directly. Pointing them at the record is the next step.", h("div", {class: "so-sides"}, sideFeeds(api).map(function (x) { return sideCard(api, x); }))));
-    page.appendChild(section("Planned connections", "Not built yet. Shown so the shape of the whole system is visible.", h("div", {class: "so-sides"}, PLANNED.map(plannedCard))));
-    if (CC.widgets && CC.widgets.fold) page.appendChild(CC.widgets.fold("so-routines", "Every routine", "furthest behind first", function () { return routineTable(M); }, false));
+    var M = model(api), total = M.rr.length, sc = total ? (M.onTime + M.late * 0.5) / total : null;
+    var tail = M.stale ? M.stale + " stale" : M.late ? M.late + " late" : "all on schedule";
+    var top = h("div", {class: "sz-top"}, h("h2", null, "Where information comes from"),
+      h("p", null, M.order.length + " kinds · " + M.srcCount + " sources · " + total + " routines · ", h("em", {style: "color:" + (M.stale ? col(0.1) : M.late ? col(0.5) : col(1))}, tail)));
+    var tiles = h("div", {class: "sz-tiles"}), detail = h("div", {class: "sz-detail"}), zone = h("div", {class: "sz-zone"});
+    function zoomIn(id) {
+      tiles.style.display = "none"; detail.textContent = "";
+      detail.appendChild(h("button", {type: "button", class: "sz-back", onclick: zoomOut}, "← All kinds"));
+      detail.appendChild(groupCard(api, M, id)); detail.style.display = ""; try { window.scrollTo({top: 0}); } catch (e) {}
+    }
+    function zoomOut() { detail.style.display = "none"; tiles.style.display = ""; }
+    M.order.forEach(function (g) {
+      var o = M.groups[g.id], c = o.score == null ? "var(--muted)" : col(o.score), bad = o.routines.filter(function (x) { return x.lv === "stale" || x.lv === "none"; }).length, late = o.routines.filter(function (x) { return x.lv === "late"; }).length;
+      var st = !o.routines.length ? "no routine" : bad ? bad + " stale" : late ? late + " late" : "on schedule";
+      tiles.appendChild(h("button", {type: "button", class: "sz-tile", style: "--c:" + c, onclick: function () { zoomIn(g.id); }},
+        h("span", {class: "sz-gi"}, ico(g.g || g.glyph)), h("b", null, g.n), h("small", null, o.srcList.length + " sources · " + o.routines.length + " routines"), h("em", null, st)));
+    });
+    detail.style.display = "none";
+    var LAYERS = [
+      ["Crew", function () { return h("div", {class: "so-crews"}, M.writers.map(function (w) { return crewCard(api, w); })); }],
+      ["Originals", function () { return h("div", {class: "so-sides"}, AUTH.map(authCard)); }],
+      ["Outside the record", function () { return h("div", {class: "so-sides"}, sideFeeds(api).map(function (x) { return sideCard(api, x); })); }],
+      ["Planned", function () { return h("div", {class: "so-sides"}, PLANNED.map(plannedCard)); }],
+      ["Every routine", function () { return routineTable(M); }]
+    ], cur = null, seg = h("div", {class: "wd-seg", role: "group", "aria-label": "More detail"});
+    function pick(i) {
+      cur = cur === i ? null : i; zone.textContent = "";
+      Array.prototype.forEach.call(seg.children, function (b, j) { b.setAttribute("aria-pressed", String(j === cur)); });
+      if (cur != null) zone.appendChild(LAYERS[cur][1]());
+    }
+    LAYERS.forEach(function (l, i) { seg.appendChild(h("button", {type: "button", "aria-pressed": "false", onclick: function () { pick(i); }}, l[0])); });
+    page.appendChild(top); page.appendChild(tiles); page.appendChild(detail); page.appendChild(seg); page.appendChild(zone);
     return page;
-  }
+  };
 
   /* Overview strip: one line that opens the page. */
   function strip(api) {
