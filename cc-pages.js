@@ -161,7 +161,7 @@
     wrap.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null, CC.body && CC.body.cardio ? CC.body.cardio(api, {compact: true}) : null));
     wrap.appendChild(h("div", {class: "pv-side"}, jobCard,
       card("ov-wm", "Money", function () { api.openSub("money"); }, list(newestOf("Money", 3), "No money rows yet")),
-      card("ov-wg", "Guard, OTS, MBA", function () { api.openSub("guard"); }, list(newestOf("Guard, OTS, MBA", 3), "Nothing current"))));
+      card("ov-wg", "Guard, OTS, MBA", function () { api.openSub("military"); }, list(newestOf("Guard, OTS, MBA", 3), "Nothing current"))));
     return wrap;
   };
 

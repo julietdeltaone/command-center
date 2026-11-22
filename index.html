@@ -201,17 +201,17 @@ td{padding:10px 6px 10px 0;border-top:1px solid var(--line)}
 .ca-feed .st.g{background:#4ade80} .ca-feed .st.y{background:var(--amber)} .ca-feed .st.r{background:var(--red)}
 .ca-feed .who{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap}
 </style>
-<link rel="stylesheet" href="cc-design.css?v=20261122G">
-<link rel="stylesheet" href="cc-skin.css?v=20261122G">
-<link rel="stylesheet" href="cc-widgets.css?v=20261122G">
-<link rel="stylesheet" href="cc-biz.css?v=20261122G">
-<link rel="stylesheet" href="cc-sources2.css?v=20261122G">
-<link rel="stylesheet" href="cc-pages.css?v=20261122G">
-<link rel="stylesheet" href="cc-sources.css?v=20261122G">
-<script src="cc-fresh.js?v=20261122G"></script>
-<script src="cc-inbox.js?v=20261122G"></script>
-<script src="cc-sources.js?v=20261122G"></script>
-<script src="cc-dev.js?v=20261122G" onerror="void 0"></script>
+<link rel="stylesheet" href="cc-design.css?v=20261122H">
+<link rel="stylesheet" href="cc-skin.css?v=20261122H">
+<link rel="stylesheet" href="cc-widgets.css?v=20261122H">
+<link rel="stylesheet" href="cc-biz.css?v=20261122H">
+<link rel="stylesheet" href="cc-sources2.css?v=20261122H">
+<link rel="stylesheet" href="cc-pages.css?v=20261122H">
+<link rel="stylesheet" href="cc-sources.css?v=20261122H">
+<script src="cc-fresh.js?v=20261122H"></script>
+<script src="cc-inbox.js?v=20261122H"></script>
+<script src="cc-sources.js?v=20261122H"></script>
+<script src="cc-dev.js?v=20261122H" onerror="void 0"></script>
 </head>
 <body>
 <div class="wrap" id="wrap">
@@ -1886,23 +1886,22 @@ function privSections(){
   var g = guardSplit(by("Guard, OTS, MBA")), SV = window.CC && window.CC.subviews && window.CC.subviews.shooting, out = [];
   out.push({k: "over", label: "Overview", always: true, n: 0, body: privOverview});
   out.push({k: "money", label: "Money", n: by("Money").length, body: function(){ var w = h("div", null), kn = window.CC && CC.know ? CC.know(CCAPI, "Money") : null; if (kn) w.appendChild(kn); w.appendChild(listCard("Money", by("Money"), "Money")); return w; }});
-  out.push({k: "guard", label: "Guard", n: g.Guard.length, body: function(){ return listCard("Guard", g.Guard, "Guard, OTS, MBA"); }});
-  out.push({k: "ots", label: "OTS", n: g.OTS.length, body: function(){ return listCard("Air Force OTS", g.OTS, "Guard, OTS, MBA"); }});
-  out.push({k: "mba", label: "MBA", n: g.MBA.length, body: function(){ return listCard("MBA", g.MBA, "Guard, OTS, MBA"); }});
   out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); if (window.CC && CC.body) { try { var top = h("div", {class: "hl-top"}, CC.body.panel(CCAPI), CC.body.cardio(CCAPI)); w.appendChild(top); } catch (e) { if (window.console) console.error("body map failed", e); } } w.appendChild(fitnessCard()); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null && !/^workout\b/i.test(i.text || "") && !/^vitals\b/i.test(i.text || ""); }); if (rest.length) { var hd = h("details", {class: "hl-fold"}, h("summary", null, "All health items (" + rest.length + ")"), listCard("Health", rest, "Health")); w.appendChild(hd); } return w; }});
   out.push({k: "jobs", label: "Job search", always: true, n: jobsNeeds(), alert: true, body: jobsView});
   out.push({k: "shoot", label: "Shooting log", always: true, n: 0, body: function(){ var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }});
+  out.push({k: "military", label: "Military", always: true, n: g.Guard.length + g.OTS.length, body: function(){ return h("div", {class: "pgrid2"}, listCard("National Guard", g.Guard, "Guard, OTS, MBA"), listCard("Air Force OTS", g.OTS, "Guard, OTS, MBA")); }});
+  out.push({k: "edu", label: "Education", always: true, n: g.MBA.length, body: function(){ return h("div", {class: "pgrid2"}, listCard("MBA", g.MBA, "Guard, OTS, MBA")); }});
   return out.filter(function(x){ return x.always || x.n > 0; });
 }
 function privOverview(){
   var secs = privSections().filter(function(x){ return x.k !== "over"; }), items = DATA.items.filter(function(i){ return i.tab === "Private"; });
-  var textFor = {money: "Money", guard: "Guard, OTS, MBA", ots: "Guard, OTS, MBA", mba: "Guard, OTS, MBA", health: "Health"};
+  var textFor = {money: "Money", military: "Guard, OTS, MBA", edu: "Guard, OTS, MBA", health: "Health"};
   var pw = null; try { pw = window.CC && CC.personalWidgets ? CC.personalWidgets(CCAPI) : null; } catch (e) { if (window.console) console.error("personal widgets failed", e); }
   return h("div", null, h("div", {class: "pov"}, secs.map(function(x){
     var first = (x.k === "jobs" ? "Open job search" : x.k === "shoot" ? "Open shooting log" : ""), tier = x.k === "jobs" ? (x.n ? 3 : 0) : x.k === "shoot" ? 0 : (x.n ? 2 : 0);
-    if (x.k === "health" || x.k === "guard" || x.k === "money" || x.k === "ots" || x.k === "mba") {
+    if (x.k === "health" || x.k === "military" || x.k === "money" || x.k === "edu") {
       var m = textFor[x.k], list = items.filter(function(i){ return i.module === m; });
-      if (x.k === "guard" || x.k === "ots" || x.k === "mba") list = guardSplit(list)[x.k === "guard" ? "Guard" : x.k === "ots" ? "OTS" : "MBA"];
+      if (x.k === "military") { var gs = guardSplit(list); list = gs.Guard.concat(gs.OTS); } else if (x.k === "edu") list = guardSplit(list).MBA;
       first = list.length ? shortName(list[0].text) : "";
     }
     return h("button", {type: "button", class: "pc t" + tier, onclick: function(){ PSEC = x.k; render(); }}, h("div", {class: "k"}, x.label), h("b", null, x.k === "shoot" ? "Log" : String(x.n)), h("span", {class: "s"}, first));
@@ -2216,13 +2215,14 @@ function render(){
   CC.inbox.loadHistory();
   document.getElementById("wrap").classList.toggle("wide", TAB === "Wall");
   document.body.classList.toggle("onwall", TAB === "Wall");
+  [].forEach.call(document.querySelectorAll("header .hstrip"), function(n){ n.remove(); });
   var h1 = document.querySelector("header h1"); if (h1) h1.textContent = TAB === "Wall" ? "Command Center" : (TABLABEL[TAB] || TAB);
   if (TAB === "Wall") { app.appendChild(wall()); renderNav(); fitWall(); return; }
   if (TAB === "System") app.appendChild(h("div", {class: "wall stripe"}, viewStats(TAB)));
 
   if (tier2(TAB) && !isUnlocked()) { app.appendChild(lockScreen(TAB)); renderNav(); return; }
   if (!(tier2(TAB) && !isUnlocked())) {
-    app.appendChild(freshStrip(TAB));
+    var fsp = freshStrip(TAB); if (TAB === "Private") { var hd = document.querySelector("header"); if (hd) { var hs = document.createElement("div"); hs.className = "hstrip"; hs.appendChild(fsp); hd.insertBefore(hs, hd.querySelector(".hbtns")); } } else app.appendChild(fsp);
     if (TAB === "Business" && !(window.CC && CC.views && CC.views.Business)) app.appendChild(replyHero());
     if (window.CC && CC.pageTop && (TAB === "Business" || TAB === "Today" || TAB === "Local")) { try { var ptop = CC.pageTop(CCAPI, TAB); if (ptop) app.appendChild(ptop); } catch (e) { if (window.console) console.error("page top failed", e); } }
   }
@@ -2571,22 +2571,22 @@ document.addEventListener("visibilitychange", function(){
 })();
 </script>
 <div id="loadbar"><i></i></div>
-<script src="cc-motion.js?v=20261122G"></script>
-<script src="views/business.js?v=20261122G" onerror="void 0"></script>
-<script src="views/bizcharts.js?v=20261122G" onerror="void 0"></script>
-<script src="views/bizleads.js?v=20261122G" onerror="void 0"></script>
-<script src="views/timeline.js?v=20261122G" onerror="void 0"></script>
-<script src="views/system.js?v=20261122G" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261122G" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261122G"></script>
-<script src="cc-nurture.js?v=20261122G"></script>
-<script src="cc-crm.js?v=20261122G"></script>
-<script src="cc-biz.js?v=20261122G"></script>
-<script src="cc-sources2.js?v=20261122G"></script>
-<script src="cc-map.js?v=20261122G"></script>
-<script src="cc-body.js?v=20261122G"></script>
-<script src="cc-pages.js?v=20261122G"></script>
-<script src="cc-know.js?v=20261122G"></script>
-<link rel="stylesheet" href="views/views.css?v=20261122G">
+<script src="cc-motion.js?v=20261122H"></script>
+<script src="views/business.js?v=20261122H" onerror="void 0"></script>
+<script src="views/bizcharts.js?v=20261122H" onerror="void 0"></script>
+<script src="views/bizleads.js?v=20261122H" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261122H" onerror="void 0"></script>
+<script src="views/system.js?v=20261122H" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261122H" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261122H"></script>
+<script src="cc-nurture.js?v=20261122H"></script>
+<script src="cc-crm.js?v=20261122H"></script>
+<script src="cc-biz.js?v=20261122H"></script>
+<script src="cc-sources2.js?v=20261122H"></script>
+<script src="cc-map.js?v=20261122H"></script>
+<script src="cc-body.js?v=20261122H"></script>
+<script src="cc-pages.js?v=20261122H"></script>
+<script src="cc-know.js?v=20261122H"></script>
+<link rel="stylesheet" href="views/views.css?v=20261122H">
 </body>
 </html>

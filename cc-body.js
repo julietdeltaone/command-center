@@ -98,20 +98,33 @@
 
   /* Vitals: one row per day, last 7 days, each value compared with the average of the earlier days. */
   var VFIELDS = [
-    {k: "hr", label: "Resting HR", unit: "bpm", re: /Resting HR\s*([\d.]+)/i, good: -1, flat: 1.5, dp: 0},
-    {k: "hrv", label: "HRV", unit: "ms", re: /HRV\s*([\d.]+)/i, good: 1, flat: 2, dp: 0},
-    {k: "spo2", label: "Blood oxygen", unit: "%", re: /Blood oxygen\s*([\d.]+)/i, good: 0, flat: 0.5, dp: 1},
-    {k: "rr", label: "Respiration", unit: "/min", re: /Respiratory rate\s*([\d.]+)/i, good: -1, flat: 0.4, dp: 1},
-    {k: "avg", label: "Avg HR", unit: "bpm", re: /Avg HR\s*([\d.]+)/i, good: 0, flat: 2, dp: 0},
-    {k: "vo2", label: "VO2 max", unit: "", re: /VO2 max\s*([\d.]+)/i, good: 1, flat: 0.5, dp: 1}
+    {k: "hr", label: "Resting HR", unit: "bpm", re: /Resting HR\s*([\d.,]+)/i, good: -1, flat: 1.5, dp: 0, ic: "heart"},
+    {k: "hrv", label: "HRV", unit: "ms", re: /HRV\s*([\d.,]+)/i, good: 1, flat: 2, dp: 0, ic: "wave"},
+    {k: "spo2", label: "Blood oxygen", unit: "%", re: /Blood oxygen\s*([\d.,]+)/i, good: 0, flat: 0.5, dp: 1, ic: "drop"},
+    {k: "rr", label: "Respiration", unit: "/min", re: /Respiratory rate\s*([\d.,]+)/i, good: -1, flat: 0.4, dp: 1, ic: "wind"},
+    {k: "avg", label: "Avg HR", unit: "bpm", re: /Avg HR\s*([\d.,]+)/i, good: 0, flat: 2, dp: 0, ic: "pulse"},
+    {k: "vo2", label: "VO2 max", unit: "", re: /VO2 max\s*([\d.,]+)/i, good: 1, flat: 0.5, dp: 1, ic: "gauge"},
+    {k: "steps", label: "Steps", unit: "", re: /Steps\s*([\d.,]+)/i, good: 1, flat: 500, dp: 0, ic: "shoe"},
+    {k: "kcal", label: "Active energy", unit: "kcal", re: /Active energy\s*([\d.,]+)/i, good: 1, flat: 50, dp: 0, ic: "flame"},
+    {k: "flt", label: "Flights", unit: "", re: /Flights\s*([\d.,]+)/i, good: 1, flat: 2, dp: 0, ic: "stairs"},
+    {k: "wt", label: "Weight", unit: "lb", re: /Weight\s*([\d.,]+)/i, good: 0, flat: 1, dp: 1, ic: "scale"}
   ];
+  var VIC = {
+    heart: "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.4A4 4 0 0 1 19 10c0 5.6-7 10-7 10z", wave: "M3 12h3l2-6 3 12 3-9 2 3h5", drop: "M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z",
+    wind: "M4 9h10a3 3 0 1 0-3-3M4 14h14a3 3 0 1 1-3 3M4 19h6", pulse: "M3 12h4l2-5 3 10 2-5h7", gauge: "M4 18a8 8 0 1 1 16 0M12 18l4-6", shoe: "M4 17h14a3 3 0 0 0 2-3l-4-1-2-3-3 1v3H4z",
+    flame: "M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z", stairs: "M4 19h4v-4h4v-4h4V7h4", scale: "M5 5h14v14H5zM9 10a3 3 0 0 1 6 0"
+  };
+  function vic(k) {
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg"), p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "cd-ic"); s.setAttribute("aria-hidden", "true"); p.setAttribute("d", VIC[k] || VIC.heart); s.appendChild(p); return s;
+  }
   function vitalsModel(api) {
     var items = (api.data && api.data.items) || [], F = CC.fresh, by = {};
     items.forEach(function (i) {
       if (i.tab !== "Private" || i.module !== "Health" || !/^vitals\b/i.test(i.text || "")) return;
       var t = ms(i.time); if (t == null) return; var k = F.ymd(t), w = ms(i.written) || t, cur = by[k];
       if (cur && cur.w > w) return;
-      var d = {k: k, t: t, w: w}; VFIELDS.forEach(function (f) { var m = f.re.exec(i.text || ""); d[f.k] = m ? Number(m[1]) : null; }); by[k] = d;
+      var d = {k: k, t: t, w: w}; VFIELDS.forEach(function (f) { var m = f.re.exec(i.text || ""); d[f.k] = m ? Number(m[1].replace(/,/g, "")) : null; }); by[k] = d;
     });
     var days = Object.keys(by).sort().map(function (k) { return by[k]; }).slice(-7);
     if (!days.length) return null;
@@ -126,16 +139,15 @@
   }
   function vitalsBlock(api) {
     var m = vitalsModel(api);
-    if (!m) return h("div", {class: "cd-vt"}, h("h4", null, "Vitals · waiting for Apple Health"), h("div", {class: "cd-vg"}, ["Resting HR", "HRV", "Blood oxygen", "Respiration"].map(function (l) { return h("div", {class: "cd-vc n"}, h("div", {class: "cd-vl"}, l), h("div", {class: "cd-vv"}, "\u2014"), h("div", {class: "cd-vd"}, "no data yet")); })));
+    if (!m) return h("div", {class: "cd-vt"}, h("h4", null, "Vitals \u00b7 waiting for Apple Health"), h("div", {class: "cd-vg"}, VFIELDS.slice(0, 4).map(function (f) { return h("div", {class: "cd-vc n"}, h("div", {class: "cd-vl"}, vic(f.ic), f.label), h("div", {class: "cd-vv"}, "\u2014"), h("div", {class: "cd-vd"}, "no data yet")); })));
     var when = m.age <= 0 ? "today" : m.age === 1 ? "yesterday" : new Date(m.latest.t).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"});
-    var chips = m.vals.slice(0, 4).map(function (x) {
-      var f = x.f, mx = Math.max.apply(null, x.series.filter(function (q) { return q != null; })), mn = Math.min.apply(null, x.series.filter(function (q) { return q != null; })), rng = (mx - mn) || 1;
-      var sp = h("span", {class: "cd-sp", "aria-hidden": "true"}, x.series.map(function (q) { return h("i", {style: "height:" + (q == null ? 10 : 22 + (q - mn) / rng * 78) + "%"}); }));
-      var arrow = x.state === "steady" || x.state === "n" ? "steady" : (x.diff > 0 ? "▲ " : "▼ ") + Math.abs(x.diff).toFixed(f.dp ? 1 : 0);
-      return h("div", {class: "cd-vc " + x.state, title: f.label + " " + x.v.toFixed(f.dp) + " " + f.unit + (x.diff != null ? ", " + (x.diff >= 0 ? "+" : "") + x.diff.toFixed(1) + " vs your average of the earlier days" : "")},
-        h("div", {class: "cd-vl"}, f.label), h("div", {class: "cd-vv"}, x.v.toFixed(f.dp), h("small", null, f.unit)), h("div", {class: "cd-vd"}, arrow), sp);
+    var chips = m.vals.slice(0, 8).map(function (x) {
+      var f = x.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
+      var arrow = x.state === "steady" || x.state === "n" ? "steady" : (x.diff > 0 ? "\u25b2 " : "\u25bc ") + fmt(Math.abs(x.diff));
+      return h("div", {class: "cd-vc " + x.state, title: f.label + " " + fmt(x.v) + " " + f.unit + (x.diff != null ? ", " + (x.diff >= 0 ? "+" : "") + x.diff.toFixed(1) + " vs your average of the earlier days" : "")},
+        h("div", {class: "cd-vl"}, vic(f.ic), f.label), h("div", {class: "cd-vv"}, fmt(x.v), f.unit ? h("small", null, f.unit) : null), h("div", {class: "cd-vd"}, arrow));
     });
-    return h("div", {class: "cd-vt"}, h("h4", null, "Vitals · " + when + (m.n > 1 ? " · " + m.n + " days" : "")), h("div", {class: "cd-vg"}, chips));
+    return h("div", {class: "cd-vt"}, h("h4", null, "Vitals \u00b7 " + when + (m.n > 1 ? " \u00b7 " + m.n + " days" : "")), h("div", {class: "cd-vg"}, chips));
   }
 
   /* anatomical shapes, left half drawn, right half mirrored */
