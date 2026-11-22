@@ -46,6 +46,18 @@
     var b = to ? text.indexOf(to, a) : -1;
     return text.slice(a, b < 0 ? text.length : b).replace(/^\s+|\s+$/g, "").replace(/\.$/, "");
   }
+  /* last updated + next planned update, taken from the routines that feed a block */
+  function when(api, re, fallbackT, what, keep) {
+    var F = CC.fresh, rs = ((api.data && api.data.routines) || []).filter(function (r) { return r.tab === "Business" && re.test(r.routine); }), last = null, next = null, rh = null;
+    rs.forEach(function (r) { var at = ms(r.last_run), c = Number(r.cadence_min) || 1440; rh = rh == null ? c : Math.min(rh, c); if (at) { last = Math.max(last || 0, at); var d = at + c * 60000; next = next == null ? d : Math.min(next, d); } });
+    var t = last || fallbackT; if (!t) return keep || null;
+    var now = F.now(), nx = null;
+    if (next != null) {
+      var late = next < now, same = F.ymd(next) === F.ymd(now), dl = same ? "" : new Date(next).toLocaleDateString("en-US", {weekday: "short", timeZone: "America/New_York"}) + " ";
+      nx = h("span", {class: "b2-nx" + (late ? " late" : ""), title: "Planned from the routine rhythm"}, late ? "next run due now" : "next ~" + dl + F.clock(next));
+    }
+    return h("span", {class: "b2-when"}, pill(t, rh || 1440, what), nx, keep || null);
+  }
   function panel(cls, title, sub, body, extra) {
     return h("section", {class: "wd slim b2-p " + (cls || "")}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, title), sub ? h("span", {class: "wd-s"}, sub) : null, extra || null), body);
   }
@@ -100,7 +112,7 @@
     var reply = newest(items(api, "Waiting on others"));
     var nuEl = CC.nurture ? CC.nurture.panelEl(api) : null;
     var pipe = panel("b2-pipe", "Pipeline", leads.length ? leads.length + (leads.length === 1 ? " lead" : " leads") : "no leads", h("div", null, funnel, nuEl || h("div", {class: "wsub"}, "No leads in nurturing.")),
-      reply ? h("span", {class: "b2-note", title: reply.text}, "Last client reply " + replyWhen(reply)) : null);
+      when(api, /Form inquiry|Contact-drop|Client-event/, null, "Lead intake", reply ? h("span", {class: "b2-note", title: reply.text}, "Last client reply " + replyWhen(reply)) : null));
 
     /* ---- 3. Shoots (left) ---- */
     var N = budget(), sBody = h("div", {class: "b2-sh"});
@@ -124,7 +136,7 @@
           h("span", {class: "b2-k"}, p.balance ? chip(usd(p.balance) + " unpaid", 0.15) : null)));
       });
     }
-    var shoots = panel("b2-shoots", "Shoots", soon.length ? soon.length + " in 14 days" : null, sBody);
+    var shoots = panel("b2-shoots", "Shoots", soon.length ? soon.length + " in 14 days" : null, sBody, when(api, /Ledger items/, ledgerAt || null, "Ledger refresh"));
 
     /* ---- 4. Money (right) ---- */
     function num(label, v, sc, sub) { return h("div", {class: "b2-n", style: "--c:" + col(sc)}, h("b", null, v), h("span", null, label), sub ? h("small", null, sub) : null); }
@@ -142,7 +154,7 @@
       h("button", {type: "button", class: "crm-open", onclick: function () { CC.crm.focus(""); }}, "Open full ledger ", h("span", {"aria-hidden": "true"}, "↗")));
     var money = panel("b2-money", "Money", ledgerAt && CC.fresh ? null : null, h("div", null,
       h("div", {class: "b2-nums"}, num("collected this year", usd(collected), 1), num("past due", usd(pastSum), pastSum ? 0.08 : 1, pastSum ? past.length + (past.length === 1 ? " project" : " projects") : null), num("owed on booked work", usd(futSum), futSum ? 0.55 : 1)), rows, more),
-      pill(ledgerAt, 1440, "Ledger sync"));
+      when(api, /Ledger items|Square payment/, ledgerAt || null, "Ledger and payments"));
 
     /* ---- 5. Market intel (bottom) ---- */
     var comp = items(api, "Competitors").sort(function (a, b) { return (ms(b.time) || 0) - (ms(a.time) || 0); });
@@ -154,21 +166,21 @@
       var jd = seg(pulseIt.text, "JD Meyers Productions:", null), jm = jd ? /(\d[\d,]*) followers, (down|up) (\d+)/.exec(jd) : null, mxf = Math.max.apply(null, fol.map(function (x) { return x.d; }).concat([1]));
       var price = seg(pulseIt.text, "Pricing moves in the last 2 days:", "JD Meyers Productions");
       intel.push(panel("b2-pulse", "Business Pulse", "competitors", h("div", {class: "b2-pb"},
-        jm ? h("div", {class: "b2-me"}, h("b", null, jm[1]), h("span", null, "your followers"), chip((jm[2] === "up" ? "up " : "down ") + jm[3] + " in 7 days", jm[2] === "up" ? 1 : 0.2)) : null,
+        jm ? h("div", {class: "b2-me"}, h("b", null, jm[1]), h("span", null, "your followers"), chip((jm[2] === "up" ? "up " : "down ") + jm[3] + " in 7 days", jm[2] === "up" ? 1 : 0.2), price != null ? chip(price === "none read" ? "No price moves, 2 days" : "Price move: " + price, price === "none read" ? 1 : 0.5) : null) : null,
         h("div", {class: "b2-gr"}, fol.slice(0, 3).map(function (x) { return h("div", {class: "pu-r"}, h("span", null, x.n), h("div", {class: "pu-bar"}, h("i", {style: "width:" + Math.round(x.d / mxf * 100) + "%"})), h("b", null, "+" + x.d)); }),
-          price != null ? chip(price === "none read" ? "No price moves in 2 days" : "Price move: " + price, price === "none read" ? 1 : 0.5) : null)),
-        pill(ms(pulseIt.time), 1440, "Pulse read")));
+          jm || price == null ? null : chip(price === "none read" ? "No price moves, 2 days" : "Price move: " + price, price === "none read" ? 1 : 0.5))),
+        when(api, /Business Pulse sync/, ms(pulseIt.time), "Pulse read")));
     }
     var moves = comp.filter(function (i) { return i !== pulseIt; }).slice(0, clamp(Math.floor((window.innerHeight - 760) / 90) + 1, 2, 5));
     if (moves.length) intel.push(panel("b2-moves", "Competitor moves", moves.length + " recent", h("div", {class: "b2-ml"}, moves.map(function (i) {
       var flag = /raised|expired|dropped|cut|new offer|launched/i.test(i.text), bad = /failed|stalled|stale/i.test(i.text);
       return h("div", {class: "b2-mv" + (flag ? " flag" : bad ? " dim" : ""), title: i.text}, h("i"), h("span", null, i.text));
-    })), pill(ms(moves[0].time), 2880, "Competitor read")));
+    })), when(api, /Competitor deep-dive|Competitor Facebook/, ms(moves[0].time), "Competitor read")));
     var ads = newest(items(api, "Marketing").filter(function (i) { return /conversion upload/i.test(i.text || ""); }));
     var mk = [];
     if (ads) { var okAds = /clean|no errors/i.test(ads.text); mk.push(chip(okAds ? "Google Ads upload ran clean" : "Google Ads upload needs a look", okAds ? 1 : 0.15, {title: ads.text})); }
-    items(api, "Marketing").filter(function (i) { return i !== ads && !/no due items/i.test(i.text || ""); }).slice(0, 3).forEach(function (i) { mk.push(chip(i.text, /fail|error|miss/i.test(i.text) ? 0.1 : 0.6, {title: i.text})); });
-    if (mk.length) intel.push(panel("b2-mk", "Marketing", null, h("div", {class: "wchips col"}, mk), pill(ads ? ms(ads.time) : null, 2880, "Marketing read")));
+    items(api, "Marketing").filter(function (i) { return i !== ads && !/no due items/i.test(i.text || "") && !(ads && /google ads/i.test(i.text || "")); }).slice(0, 3).forEach(function (i) { mk.push(chip(i.text, /fail|error|miss/i.test(i.text) ? 0.1 : 0.6, {title: i.text})); });
+    if (mk.length) intel.push(panel("b2-mk", "Marketing", null, h("div", {class: "wchips"}, mk), when(api, /Google Ads/, ads ? ms(ads.time) : null, "Marketing read")));
 
     var byCls = function (c) { return intel.filter(function (e) { return e.classList.contains(c); })[0] || null; };
     var main = h("div", {class: "b2-grid"}, h("div", {class: "b2-l"}, pipe, shoots, byCls("b2-moves")), h("div", {class: "b2-r"}, money, byCls("b2-pulse"), byCls("b2-mk")));

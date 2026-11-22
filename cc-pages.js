@@ -64,8 +64,88 @@
     try { var all = CC.needs(api); return all.filter(function (n) { return n.tab === tab && !n.job; }).length; } catch (e) { return null; }
   };
 
+
+  /* ---------- hub and spoke: crew -> the record -> sections ---------- */
+  var CREWCOL = {claude: "#7c8cff", muse: "#b48cff", chatgpt: "#4ade80", "claude-jdm": "#fbbf24", iphone: "#22d3ee"};
+  function sv(tag, props) { var e = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.keys(props || {}).forEach(function (k) { e.setAttribute(k, props[k]); }); return e; }
+  function stx(x, y, cls, text, anchor) { var t = sv("text", {x: x, y: y, class: cls}); if (anchor) t.setAttribute("text-anchor", anchor); t.textContent = text; return t; }
+  function agoShort(t, now) { if (!t) return "never"; var m = Math.round((now - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " hr ago" : Math.round(m / 1440) + " d ago"; }
+  CC.hubmap = function (api) {
+    var D = api.data || {}, now = api.nowMs ? api.nowMs() : Date.now(), msgs = arr(D.messages), routines = arr(D.routines), crew = api.crew || [];
+    var secs = ["Today", "Business", "Local", "Private", "System"], W = 1000, H = 262, xa = 150, xb = 500, xc = 850, ya = function (i) { return 28 + i * 51; }, yc = function (j) { return 24 + j * 53; };
+    var info = crew.map(function (c) {
+      var sent = msgs.filter(function (m) { return m.from === c[0]; }).sort(function (a, b) { return Date.parse(b.time) - Date.parse(a.time); }), last = sent[0] ? Date.parse(sent[0].time) : null;
+      var mine = routines.filter(function (r) { return r.writer === c[0]; }), perTab = {}; mine.forEach(function (r) { perTab[r.tab] = (perTab[r.tab] || 0) + 1; });
+      var rl = mine.map(function (r) { return ms(r.last_run); }).filter(Boolean), lastRun = rl.length ? Math.max.apply(null, rl) : null;
+      var bad = mine.filter(function (r) { var lv = F().level(ms(r.last_run), Number(r.cadence_min) || 1440); return lv !== "ok"; }).length;
+      return {id: c[0], name: c[1], role: c[2], last: last, lastRun: lastRun, mine: mine.length, perTab: perTab, day: sent.filter(function (m) { return now - Date.parse(m.time) < 86400000; }).length, bad: bad};
+    });
+    var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, class: "hm-svg", role: "img", "aria-label": "Who feeds the record and which sections read from it"});
+    info.forEach(function (a, i) {
+      Object.keys(a.perTab).forEach(function (t) { var j = secs.indexOf(t); if (j < 0) return; svg.appendChild(sv("path", {d: "M" + (xa + 26) + " " + ya(i) + " C" + (xa + 190) + " " + ya(i) + " " + (xc - 190) + " " + (yc(j) + 16) + " " + (xc - 70) + " " + (yc(j) + 16), class: "hm-e rt", "stroke-width": 1 + Math.min(4, a.perTab[t] / 2)})); });
+    });
+    var hubY = H / 2;
+    info.forEach(function (a, i) {
+      var col = a.last && now - a.last < 3600000 ? "#4ade80" : a.last && now - a.last < 86400000 ? "#fbbf24" : "rgba(255,255,255,.28)";
+      svg.appendChild(sv("path", {d: "M" + (xa + 26) + " " + ya(i) + " C" + (xa + 120) + " " + ya(i) + " " + (xb - 130) + " " + hubY + " " + (xb - 84) + " " + hubY, class: "hm-e mg", stroke: col, "stroke-width": 1.5 + Math.min(4, a.day / 3)}));
+    });
+    secs.forEach(function (n, j) { svg.appendChild(sv("path", {d: "M" + (xb + 84) + " " + hubY + " C" + (xb + 150) + " " + hubY + " " + (xc - 130) + " " + (yc(j) + 16) + " " + (xc - 70) + " " + (yc(j) + 16), class: "hm-e rd"})); });
+    var routOk = routines.filter(function (r) { return F().level(ms(r.last_run), Number(r.cadence_min) || 1440) === "ok"; }).length;
+    var hub = sv("g", {class: "hm-hub", tabindex: "0", role: "button", "aria-label": "Open Sources"}); hub.addEventListener("click", function () { api.go("Sources"); }); hub.addEventListener("keydown", function (e) { if (e.key === "Enter") api.go("Sources"); });
+    hub.appendChild(sv("rect", {x: xb - 84, y: hubY - 54, width: 168, height: 108, rx: 18, class: "hm-hubr"}));
+    hub.appendChild(stx(xb, hubY - 26, "hm-ht", "The record", "middle")); hub.appendChild(stx(xb, hubY - 8, "hm-hs", "Command Center Data sheet", "middle"));
+    hub.appendChild(stx(xb, hubY + 12, "hm-hs", arr(D.items).length + " facts · " + msgs.length + " messages", "middle"));
+    hub.appendChild(stx(xb, hubY + 30, "hm-hs " + (routOk === routines.length ? "ok" : "warn"), routOk + " of " + routines.length + " routines on time", "middle"));
+    svg.appendChild(hub);
+    info.forEach(function (a, i) {
+      var ring = a.bad ? "#fbbf24" : a.lastRun || a.last ? "#4ade80" : "rgba(255,255,255,.3)", c = CREWCOL[a.id] || "#94a3b8";
+      var g = sv("g", {class: "hm-n", tabindex: "0", role: "button", "aria-label": a.name + ", " + a.role}); g.addEventListener("click", function () { api.go("System"); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") api.go("System"); });
+      g.appendChild(sv("circle", {cx: xa, cy: ya(i), r: 22, fill: "none", stroke: ring, "stroke-width": 2.5}));
+      g.appendChild(sv("circle", {cx: xa, cy: ya(i), r: 17, fill: c, "fill-opacity": ".22"}));
+      g.appendChild(stx(xa, ya(i) + 6, "hm-ini", a.name.charAt(0), "middle"));
+      g.appendChild(stx(xa - 32, ya(i) - 3, "hm-nm", a.name, "end"));
+      g.appendChild(stx(xa - 32, ya(i) + 12, "hm-sub", a.role + (a.lastRun ? " · ran " + agoShort(a.lastRun, now) : a.last ? " · spoke " + agoShort(a.last, now) : " · silent"), "end"));
+      svg.appendChild(g);
+    });
+    secs.forEach(function (n, j) {
+      var st = api.summaryStatus ? api.summaryStatus(n) : null, sc = st === "good" ? "#4ade80" : st === "alert" ? "#fb7185" : st ? "#fbbf24" : "rgba(255,255,255,.3)";
+      var nc = (CC.needsCount ? CC.needsCount(api, n) : 0) || 0, rc = routines.filter(function (r) { return r.tab === n; }).length;
+      var g = sv("g", {class: "hm-n", tabindex: "0", role: "button", "aria-label": TL[n] || n}); g.addEventListener("click", function () { api.go(n); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") api.go(n); });
+      g.appendChild(sv("rect", {x: xc - 70, y: yc(j), width: 190, height: 34, rx: 12, class: "hm-sec"}));
+      g.appendChild(sv("circle", {cx: xc - 54, cy: yc(j) + 17, r: 5.5, fill: sc}));
+      g.appendChild(stx(xc - 40, yc(j) + 21, "hm-snm", TL[n] || n));
+      g.appendChild(stx(xc + 114, yc(j) + 21, "hm-sub" + (nc ? " need" : ""), nc ? nc + " need you" : rc + " routines", "end"));
+      svg.appendChild(g);
+    });
+    var key = h("div", {class: "hm-key"}, h("span", null, h("i", {style: "background:#4ade80"}), "spoke in the last hour"), h("span", null, h("i", {style: "background:#fbbf24"}), "last day"), h("span", null, "thicker line = more activity or routines"));
+    return h("section", {class: "wd hm"}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "How it all connects"), h("span", {class: "wd-s"}, "crew, the record, sections. Tap any node."), key), svg);
+  };
+
+  /* ---------- widgets row ---------- */
+  function dayWord(d) { return d <= 0 ? "Today" : d === 1 ? "Tomorrow" : new Date(Date.now() + d * 86400000).toLocaleDateString("en-US", {weekday: "short", timeZone: "America/New_York"}); }
+  function widgetsRow(api) {
+    var W = CC.widgets || {}, now = api.nowMs ? api.nowMs() : Date.now(), cards = [];
+    function card(cls, title, go, body) { return h("section", {class: "wd ov-w " + cls}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, title), go ? h("button", {type: "button", class: "ov-go", onclick: function () { go(); }}, "Open ↗") : null), body); }
+    /* Today agenda */
+    var di = W.dayInfo ? W.dayInfo(api) : null, rows = [];
+    if (di) { di.upcoming.slice(0, 3).forEach(function (e) { rows.push(h("div", {class: "ov-r"}, h("b", null, di.fmtHr(e.start)), h("span", null, e.label))); }); di.dues.slice(0, 2).forEach(function (e) { rows.push(h("div", {class: "ov-r due"}, h("b", null, "Due"), h("span", null, e.label))); }); }
+    cards.push(card("ov-wt", "Today's clock", function () { api.go("Today"); }, rows.length ? h("div", {class: "ov-rs"}, rows) : h("div", {class: "ov-empty"}, "Nothing else on your clock today")));
+    /* Body and sleep */
+    var sl = api.sleepNights ? api.sleepNights() : [], last = sl[sl.length - 1], body = CC.body ? CC.body.mini(api) : null;
+    cards.push(card("ov-wb", "Body", function () { api.openSub("health"); }, h("div", null, body, last ? h("div", {class: "ov-line"}, h("span", null, "Slept " + Math.floor(last.mins / 60) + "h " + (last.mins % 60) + "m last night")) : null)));
+    /* Job search */
+    var js = api.jobsStats ? api.jobsStats() : null;
+    if (!js && api.loadJobs && !(api.jobsReady && api.jobsReady())) { try { api.loadJobs(); } catch (e) {} }
+    var jneeds = arr(api.jobsNeeds ? api.jobsNeeds() : []);
+    cards.push(card("ov-wj", "Job search", function () { api.openSub("jobs"); }, js ? h("div", null, h("div", {class: "ov-nums"}, [["applied", js.sent + (js.target ? "/" + js.target : ""), js.target && js.sent >= js.target ? 1 : 0.55], ["past 7 days", js.week, js.week ? 1 : 0.2], ["interviews", js.interview + js.offer, js.interview ? 1 : 0.4]].map(function (n) { return h("div", {class: "ov-num", style: "--c:" + col(n[2])}, h("b", null, String(n[1])), h("span", null, n[0])); })), h("div", {class: "ov-line"}, h("span", null, jneeds.length ? jneeds.length + " question" + (jneeds.length === 1 ? "" : "s") + " for you" : "No open questions"))) : h("div", {class: "ov-empty"}, "Loading the tracker")));
+    /* Local */
+    var lr = api.lrows ? api.lrows() : [], seen = {}, ev = lr.filter(function (r) { return r.it.module === "Events" && r.whenKey >= 0 && r.whenKey < 700; }).sort(function (a, b) { return a.whenKey - b.whenKey; }).filter(function (r) { var k = String(r.what || r.it.text).slice(0, 30).toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });
+    cards.push(card("ov-wl", "Around town", function () { api.go("Local"); }, ev.length ? h("div", {class: "ov-rs"}, ev.slice(0, 3).map(function (r) { return h("div", {class: "ov-r"}, h("b", null, dayWord(Math.floor(r.whenKey / 100))), h("span", null, String(r.what || r.it.text).slice(0, 60))); }), h("div", {class: "ov-line"}, h("span", null, ev.length + " events in the next 7 days"))) : h("div", {class: "ov-empty"}, "No events listed this week")));
+    return h("div", {class: "ov-wr"}, cards);
+  }
+
   CC.views.Wall = function (api) {
-    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(5, Math.min(12, Math.floor((window.innerHeight - 330) / 62)));
+    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(4, Math.min(8, Math.floor((window.innerHeight - 640) / 56)));
     var page = h("div", {class: "ov"});
 
     /* ---- needs you ---- */
@@ -108,6 +188,8 @@
     var routines = arr(api.data.routines), badR = routines.filter(function (r) { return F().level(ms(r.last_run), Number(r.cadence_min) || 1440) !== "ok"; }).length;
     strip.appendChild(h("button", {type: "button", class: "ov-h", style: "--c:" + col(badR ? 0.15 : 1), onclick: function () { api.go("Sources"); }}, h("i"), h("span", null, h("b", null, "Sources"), h("small", null, badR ? badR + " of " + routines.length + " routines need attention" : "All " + routines.length + " routines on schedule"))));
     page.appendChild(strip);
+    page.appendChild(CC.hubmap(api));
+    page.appendChild(widgetsRow(api));
     return page;
   };
 })();

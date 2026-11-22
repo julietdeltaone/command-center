@@ -38,6 +38,9 @@
   var GRADE_NOTE = {ex: "Exact: read directly from the system of record", ss: "Single source: one origin, not cross-checked", im: "Read from image: taken from a screenshot", xx: "Ungraded"};
   function gcls(g) { return GRADE[g] || "xx"; }
 
+  var WCOLS = {claude: "#7c8cff", muse: "#b48cff", chatgpt: "#4ade80", "claude-jdm": "#fbbf24", iphone: "#22d3ee", ledger: "#f472b6"};
+  function WCOL(w) { return WCOLS[String(w || "").toLowerCase()] || "#94a3b8"; }
+  function RCOL(m) { return m <= 60 ? "#22d3ee" : m <= 360 ? "#60a5fa" : m <= 1440 ? "#a78bfa" : m <= 10080 ? "#f472b6" : "#fb923c"; }
   /* ---------- model ---------- */
   function build(api) {
     var D = api.data || {}, now = F().now(), items = arr(D.items), gx = S().groupOf, kinds = {};
@@ -161,8 +164,8 @@
         var sel = state.sel && state.sel.kind === x.kind && state.sel.name === x.name;
         var rowEl = routine
           ? h("button", {type: "button", class: "s2-r rt" + (sel ? " sel" : ""), onclick: function () { state.sel = x; paintTable(); paintSide(); }},
-              dot(x.lv), h("span", {class: "s2-n"}, x.name, x.lv !== "ok" ? h("small", {style: "color:" + col(LEVEL[x.lv].score)}, LEVEL[x.lv].label) : null), h("span", {class: "s2-k"}, kind), h("span", {class: "s2-w"}, x.wname), h("span", {class: "s2-c"}, F().cadence(x.rh)),
-              h("span", {class: "s2-t"}, x.at ? F().stamp(x.at) : "never"), h("span", {class: "s2-t", style: x.lv !== "ok" ? "color:" + col(LEVEL[x.lv].score) : ""}, dueText(x)))
+              dot(x.lv), h("span", {class: "s2-n"}, x.name, x.lv !== "ok" ? h("small", {style: "color:" + col(LEVEL[x.lv].score)}, LEVEL[x.lv].label) : null), h("span", {class: "s2-k"}, kind), h("span", {class: "s2-w"}, h("span", {class: "s2-cc", style: "--k:" + WCOL(x.writer)}, h("i"), x.wname)), h("span", {class: "s2-c"}, h("span", {class: "s2-cc", style: "--k:" + RCOL(x.rh)}, F().cadence(x.rh))),
+              h("span", {class: "s2-t"}, h("span", {class: "s2-cc ls", style: "--k:" + col(LEVEL[x.lv].score)}, h("i"), x.at ? F().stamp(x.at) : "never")), h("span", {class: "s2-t", style: x.lv !== "ok" ? "color:" + col(LEVEL[x.lv].score) : ""}, dueText(x)))
           : h("button", {type: "button", class: "s2-r sr" + (sel ? " sel" : ""), onclick: function () { state.sel = x; paintTable(); paintSide(); }},
               dot(x.lv), h("span", {class: "s2-n"}, x.name), h("span", {class: "s2-k"}, kind), h("span", {class: "s2-t r"}, String(x.count)), h("span", {class: "s2-c"}, gradeBar(x.grades)), h("span", {class: "s2-t"}, x.newest ? F().stamp(x.newest) : "never"),
               h("span", {class: "s2-c s2-fed"}, x.fed.length ? x.fed.length + (x.fed.length === 1 ? " routine" : " routines") : "No routine"));
