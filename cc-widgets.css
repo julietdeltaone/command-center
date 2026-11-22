@@ -261,3 +261,4 @@ body.nu-on{overflow:hidden}
 .wd-reply .rp{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.wd-reply .rp-i b{font-size:30px}.wd-reply .rh-bars.sm{height:46px;flex:1 1 140px}
 .lay-sw{display:none}
 @media (max-height:760px){.biz-fit{gap:8px}.biz-fit .wd{padding-top:8px;padding-bottom:10px}}
+.bf-more{grid-column:1/-1;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}.bf-more:empty{display:none}
