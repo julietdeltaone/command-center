@@ -182,8 +182,8 @@
       if (!m.any) wrap.appendChild(h("div", {class: "bd-note"}, "Colors fill in once the morning FitNotes read writes one row per muscle group (tr-chest, tr-back, and so on)."));
       return wrap;
     },
-    cardio: function (api) {
-      var c = model(api).cardio, wrap = h("section", {class: "wt cd"});
+    cardio: function (api, opts) {
+      var c = model(api).cardio, cp = !!(opts && opts.compact), wrap = h("section", {class: "wt cd" + (cp ? " cp" : "")});
       var sc = c.days == null ? null : score(c.days), tgt = 150, pct = Math.min(1, c.week / tgt);
       wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Cardio"), h("span", {class: "bd-sub"}, c.any ? "heart and lungs, separate from lifting" : "waiting on cardio data")));
       var beat = h("div", {class: "cd-beat", style: sc == null ? "" : "--c:" + col(sc)}, heart(54), h("div", null, h("div", {class: "cd-big"}, c.days == null ? "No data" : c.days <= 0 ? "Today" : c.days === 1 ? "Yesterday" : c.days + " days ago"), h("div", {class: "rh-sub"}, c.last ? (c.min ? c.min + " min" : "session") + (c.ex ? " · " + c.ex : "") : "No session logged")));
@@ -197,7 +197,7 @@
       wrap.appendChild(h("div", {class: "cd-grid"}, beat,
         h("div", {class: "cd-r"}, ring, h("div", null, h("h4", null, "This week"), h("div", {class: "rh-sub"}, c.week + " of " + tgt + " min target"), h("div", {class: "rh-sub"}, c.sess[3] + (c.sess[3] === 1 ? " session" : " sessions")))),
         h("div", null, h("h4", null, "Last 4 weeks"), wk, h("div", {class: "rh-sub"}, wkTotal + " min total")),
-        h("div", null, h("h4", null, "Last 28 days"), dl)));
+        cp ? null : h("div", null, h("h4", null, "Last 28 days"), dl)));
       return wrap;
     },
     mini: function (api) {
