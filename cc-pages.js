@@ -147,7 +147,7 @@
   }
 
   CC.views.Wall = function (api) {
-    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(4, Math.min(8, Math.floor((window.innerHeight - 725) / 56)));
+    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(3, Math.min(8, Math.floor((window.innerHeight - 725) / 56)));
     var page = h("div", {class: "ov"});
 
     /* ---- needs you ---- */
