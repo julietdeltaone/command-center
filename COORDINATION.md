@@ -175,3 +175,11 @@ Sheets reach the Command Center through Apps Script, not through an AI. The Comm
 - Cardio is its own panel (heart, weekly ring against 150 min, 4-week bars, 28-day bars). Reads tr-cardio plus the daily workout rows' cardio minutes.
 - cc-know.js (new): CC.pageTop adds a Know row (computed numbers) to Business, Today, Local, Sources and Money. Local also gets scored picks and a Maybe tray. Reads existing data only.
 - Cache stamp is 20261122p. Bump it on every push.
+
+## Vitals contract (Luna: data only, no page or code edits)
+One row per day in Command Center Data, Items sheet, from Apple Health:
+- tab: Private | module: Health | id: vt-YYYY-MM-DD | source: Apple Health | grade: Exact
+- time: that day at 12:00 America/New_York
+- text: Vitals | Resting HR 65 | HRV 52 ms | Blood oxygen 95.6% | Respiratory rate 16.1
+Leave out any field you do not have. A later row for the same id replaces the earlier one. Nothing else in the text.
+Atlas owns how it displays (Cardio panel on Personal > Health). Do not touch index.html, cc-*.js or cc-*.css.
