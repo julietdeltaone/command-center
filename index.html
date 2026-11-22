@@ -1888,7 +1888,7 @@ function privSections(){
   out.push({k: "guard", label: "Guard", n: g.Guard.length, body: function(){ return listCard("Guard", g.Guard, "Guard, OTS, MBA"); }});
   out.push({k: "ots", label: "OTS", n: g.OTS.length, body: function(){ return listCard("Air Force OTS", g.OTS, "Guard, OTS, MBA"); }});
   out.push({k: "mba", label: "MBA", n: g.MBA.length, body: function(){ return listCard("MBA", g.MBA, "Guard, OTS, MBA"); }});
-  out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); if (window.CC && CC.body) { try { var top = h("div", {class: "hl-top"}, CC.body.panel(CCAPI), CC.body.cardio(CCAPI)); w.appendChild(top); } catch (e) { if (window.console) console.error("body map failed", e); } } w.appendChild(fitnessCard()); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null && !/^workout\b/i.test(i.text || "") && !/^vitals\b/i.test(i.text || ""); }); if (rest.length) { var hd = h("details", {class: "hl-fold"}, h("summary", null, "All health items (" + rest.length + ")"), listCard("Health", rest, "Health")); w.appendChild(hd); } return w; }});
+  out.push({k: "health", label: "Health", n: by("Health").length, body: function(){ var w = h("div", null); if (window.CC && CC.body) { try { var top = h("div", {class: "hl-top"}, CC.body.panel(CCAPI), CC.body.cardio(CCAPI)); w.appendChild(top); } catch (e) { if (window.console) console.error("body map failed", e); } } w.appendChild(fitnessCard()); w.appendChild(sleepCard()); var rest = by("Health").filter(function(i){ return sleepMins(i.text) == null && !/^workout\b/i.test(i.text || ""); }); if (rest.length) { var hd = h("details", {class: "hl-fold"}, h("summary", null, "All health items (" + rest.length + ")"), listCard("Health", rest, "Health")); w.appendChild(hd); } return w; }});
   out.push({k: "jobs", label: "Job search", always: true, n: jobsNeeds(), alert: true, body: jobsView});
   out.push({k: "shoot", label: "Shooting log", always: true, n: 0, body: function(){ var fv = null; try { fv = SV && SV.full ? SV.full(CCAPI) : null; } catch (e) { if (window.console) console.error("shooting view module failed", e); } return (fv && fv.nodeType) ? fv : shotView(); }});
   return out.filter(function(x){ return x.always || x.n > 0; });
@@ -2455,7 +2455,6 @@ function preview(){
       I("s31", "Private", "Health", "Phone check 8:00 AM: battery 92%, charging no, Wi-Fi connected, Focus on, home", "Orion Beta", "Exact", 360),
       I("s32", "Private", "Health", "Phone check 10:00 AM: battery 71%, charging no, Wi-Fi connected, Focus off, away", "Orion Beta", "Exact", 240),
       I("s33", "Private", "Health", "Phone check 12:00 PM: battery 48%, charging no, Wi-Fi connected, Focus off, away", "Orion Beta", "Exact", 120),
-      I("s68", "Private", "Health", "Vitals | Resting HR 64 | Avg HR 72 | HRV 54 ms | Blood oxygen 96% | Respiratory rate 15.8", "Apple Health", "Exact", 300),
       I("s24", "Private", "Health", "Workout: 4 exercises, 13 sets, 25 cardio min", "FitNotes", "Exact", 1500),
       I("s25", "Private", "Health", "Workout: 4 exercises, 10 sets", "FitNotes", "Exact", 2940),
       I("s26", "Private", "Health", "Workout: 3 exercises, 9 sets", "FitNotes", "Exact", 4380),
@@ -2581,7 +2580,7 @@ document.addEventListener("visibilitychange", function(){
 <script src="cc-crm.js?v=20261122x"></script>
 <script src="cc-biz.js?v=20261122x"></script>
 <script src="cc-sources2.js?v=20261122x"></script>
-<script src="cc-body.js?v=20261122y"></script>
+<script src="cc-body.js?v=20261122x"></script>
 <script src="cc-pages.js?v=20261122x"></script>
 <script src="cc-know.js?v=20261122x"></script>
 <link rel="stylesheet" href="views/views.css?v=20261122x">
