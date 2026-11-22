@@ -266,5 +266,5 @@
         h("span", null, M.order.length + " kinds · " + M.srcCount + " sources · " + total + " routines · "), h("em", {style: "color:" + (M.stale ? col(0.1) : M.late ? col(0.5) : col(1))}, tail)),
       h("button", {type: "button", class: "so-open", onclick: function () { api.go("Sources"); }}, "Open Sources →"));
   }
-  CC.sources = {panel: strip, strip: strip, model: model};
+  CC.sources = {panel: strip, strip: strip, model: model, GROUPS: GROUPS, groupOf: groupOf, SIDE: SIDE, PLANNED: PLANNED, AUTH: AUTH, sideFeeds: sideFeeds, stampFor: stampFor, wname: wname};
 })();
