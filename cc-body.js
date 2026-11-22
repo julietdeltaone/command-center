@@ -102,7 +102,7 @@
       if (i.tab !== "Private" || i.module !== "Health") return;
       if (!/^vitals\b/i.test(i.text || "")) return;
       var t = ms(i.time), w = ms(i.written) || t || 0;
-      if (!best || w > best.w) best = {t: t, w: w, text: i.text};
+      if (!best || w >= best.w) best = {t: t, w: w, text: i.text};
     });
     if (!best) return null;
     var x = best.text, rows = [], v;
