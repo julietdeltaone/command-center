@@ -194,3 +194,4 @@ header .hstrip{margin:0 auto 0 22px;display:flex;align-items:center}header .hstr
 .pbody .card.mod{max-height:calc(100vh - 240px);overflow:auto}
 .pov .pc{padding-top:10px!important;padding-bottom:10px!important}
 .pv-left .bd,.pv-left .cd{margin-bottom:0}
+.pnav{margin-bottom:10px!important;padding-bottom:8px!important}

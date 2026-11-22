@@ -109,6 +109,7 @@
     });
     /* Routines that matched no origin are still sources: gather them so nothing hides. */
     var stray = routines.filter(function (r) { return !used[r.routine]; });
+    if (stray.length) origins.push({id: "other", name: "Other routines (" + stray.length + ")", sub: "not sorted yet", car: "muse", cls: "ai", routines: stray, items: 0, level: stray.some(function (r) { return F().level(ms(r.last_run), Number(r.cadence_min) || 1440) !== "ok"; }) ? "late" : "ok", last: null, bad: 0, lands: "various", basis: "Routines in the table that Atlas has not placed in a group yet. Tell Atlas the routine name and it gets a row."});
     origins.forEach(function (o) {
       var id = o.car, c = car(id, id === "script" ? "Apps Script" : id === "direct" ? "Hub reads it" : (nm[id] || id), o.cls === "ai" ? "ai" : o.cls);
       c.n++; c.routines += o.routines.length; c.bad += o.bad;
@@ -123,7 +124,7 @@
   CC.map = {
     hero: function (api) {
       var M = model(api), W = 1500, H = 470;
-      var oy = function (i) { return 34 + i * 27; };
+      var oy = function (i) { return 34 + i * (M.origins.length > 14 ? 25 : 27); };
       var order = ["muse", "chatgpt", "script", "manual", "direct"];
       var CARS = [];
       order.forEach(function (id) { if (M.carriers[id]) CARS.push(M.carriers[id]); });

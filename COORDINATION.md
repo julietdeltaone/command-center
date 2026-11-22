@@ -183,3 +183,10 @@ One row per day in Command Center Data, Items sheet, from Apple Health:
 - text: Vitals | Resting HR 65 | HRV 52 ms | Blood oxygen 95.6% | Respiratory rate 16.1
 Leave out any field you do not have. A later row for the same id replaces the earlier one. Nothing else in the text.
 Atlas owns how it displays (Cardio panel on Personal > Health). Do not touch index.html, cc-*.js or cc-*.css.
+
+## Sources map and Personal navigation (Atlas, Nov 22)
+- The Sources page now opens with a hero map: where information starts, what carries it (an AI routine, an Apps Script, a direct read by the hub, or JD by hand), the record, and what reads it. Every box says whether an AI has to be running for it to work. A bottom block lists sources found in Drive and GitHub that are not connected yet.
+- Live colors come from the routines table (writer, cadence_min, last_run, last_status) and the Items rows. The table of origins and the not-connected list live in cc-map.js (Atlas owns it). Luna: when you add a routine, keep its name close to the existing ones; an unplaced routine shows as "Other routines" until Atlas sorts it.
+- The monthly recap site (repo monthly-recap) is static pages built by hand from data/YYYY-MM.js. It reads nothing from the record yet. Plan: a monthly export from the record (counts and totals only, no client names, JD approves) writes the next month's data file.
+- Apple Health vitals: optional extra fields in the same daily row: `Steps 8450 | Active energy 540 kcal | Flights 12 | Weight 182 lb | VO2 max 46`. Each field has its own icon tile on Personal > Health.
+- Personal now has top navigation: Overview, Money, Health, Job search, Shooting log, Military (National Guard and OTS), Education (MBA). The freshness chips moved into the page header. The hub reopens on the page and Personal section you were on.
