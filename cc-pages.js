@@ -159,7 +159,7 @@
     var jobCard = card("ov-wj", "Job search", function () { api.openSub("jobs"); }, js ? h("div", null, h("div", {class: "ov-nums"}, [["applied", js.sent + (js.target ? "/" + js.target : ""), js.target && js.sent >= js.target ? 1 : 0.55], ["past 7 days", js.week, js.week ? 1 : 0.2], ["interviews", js.interview + js.offer, js.interview ? 1 : 0.4]].map(function (n) { return h("div", {class: "ov-num", style: "--c:" + col(n[2])}, h("b", null, String(n[1])), h("span", null, n[0])); })), h("div", {class: "ov-line"}, h("span", null, jneeds.length ? jneeds.length + " question" + (jneeds.length === 1 ? "" : "s") + " for you" : "No open questions"), js.last ? h("span", null, "Last applied " + js.last) : null)) : h("div", {class: "ov-empty"}, "Loading the tracker"));
     var wrap = h("div", {class: "pv-wr"});
     wrap.appendChild(CC.body ? CC.body.panel(api) : h("div"));
-    wrap.appendChild(h("div", {class: "pv-side"}, jobCard,
+    wrap.appendChild(h("div", {class: "pv-side"}, jobCard, CC.body && CC.body.cardio ? CC.body.cardio(api) : null,
       card("ov-wm", "Money", function () { api.openSub("money"); }, list(newestOf("Money", 3), "No money rows yet")),
       card("ov-wg", "Guard, OTS, MBA", function () { api.openSub("guard"); }, list(newestOf("Guard, OTS, MBA", 3), "Nothing current"))));
     return wrap;
