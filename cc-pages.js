@@ -159,9 +159,45 @@
     var jobCard = card("ov-wj", "Job search", function () { api.openSub("jobs"); }, js ? h("div", null, h("div", {class: "ov-nums"}, [["applied", js.sent + (js.target ? "/" + js.target : ""), js.target && js.sent >= js.target ? 1 : 0.55], ["past 7 days", js.week, js.week ? 1 : 0.2], ["interviews", js.interview + js.offer, js.interview ? 1 : 0.4]].map(function (n) { return h("div", {class: "ov-num", style: "--c:" + col(n[2])}, h("b", null, String(n[1])), h("span", null, n[0])); })), h("div", {class: "ov-line"}, h("span", null, jneeds.length ? jneeds.length + " question" + (jneeds.length === 1 ? "" : "s") + " for you" : "No open questions"), js.last ? h("span", null, "Last applied " + js.last) : null)) : h("div", {class: "ov-empty"}, "Loading the tracker"));
     var wrap = h("div", {class: "pv-wr"});
     wrap.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null, CC.body && CC.body.cardio ? CC.body.cardio(api, {compact: true}) : null));
+    /* ---- Social card: counts from Social Tracker via reader API ---- */
+    var socBody = h("div", {class: "ov-empty"}, "Loading social data…");
+    var socCard = card("ov-ws", "Social", function () {
+      /* navigate to Connected Sheets with Social Tracker selected */
+      try { localStorage.setItem("cc_sheets", JSON.stringify({sel: "1FMaZUjc2wp4GAJQMgciyGWtBfVykMbWvFHf2Nn4pJnU", tab: null})); } catch (e) {}
+      api.go("Sheets");
+    }, socBody);
+    (function loadSocial() {
+      var cfgRows = (D.config) || [];
+      var su = (cfgRows.filter(function (x) { return x.key === "sheets_url"; })[0] || {}).value;
+      if (!su) { socBody.textContent = "sheets_url not configured"; return; }
+      var socId = "1FMaZUjc2wp4GAJQMgciyGWtBfVykMbWvFHf2Nn4pJnU";
+      function gt(gid) { return fetch(su + (su.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(socId) + "&tab=" + gid + "&from=0&n=500").then(function (r) { return r.json(); }); }
+      Promise.all([gt("1792731531"), gt("1625729906"), gt("1243149427")]).then(function (res) {
+        var msgYrs = res[0], fbOv = res[1], igExp = res[2];
+        /* latest year from FB Message Years */
+        var lastMsg = msgYrs.rows && msgYrs.rows.length ? msgYrs.rows[msgYrs.rows.length - 1] : null;
+        var msgYear = lastMsg ? lastMsg[0] : "?", msgCount = lastMsg ? lastMsg[1] : "?";
+        /* latest year from FB Overview */
+        var lastFb = fbOv.rows && fbOv.rows.length ? fbOv.rows[fbOv.rows.length - 1] : null;
+        var fbYear = lastFb ? lastFb[0] : "?", fbAdded = lastFb ? lastFb[1] : "?", fbRemoved = lastFb ? lastFb[2] : "?";
+        /* latest IG export */
+        var lastIg = igExp.rows && igExp.rows.length ? igExp.rows[igExp.rows.length - 1] : null;
+        var igFollowing = lastIg ? lastIg[4] : "?", igDate = lastIg ? lastIg[1] : "";
+        /* build the display */
+        socBody.textContent = "";
+        function numRow(label, val) { return h("div", {class: "ov-r"}, h("b", null, String(val)), h("span", null, label)); }
+        socBody.className = "ov-rs pl";
+        socBody.appendChild(numRow("FB messages in " + msgYear, msgCount));
+        socBody.appendChild(numRow("friends added in " + fbYear, fbAdded));
+        socBody.appendChild(numRow("friends removed in " + fbYear, fbRemoved));
+        socBody.appendChild(numRow("IG following (" + (igDate ? igDate.slice(0, 7) : "latest") + ")", igFollowing));
+      }).catch(function () { socBody.textContent = "Could not reach Social Tracker"; });
+    })();
+
     wrap.appendChild(h("div", {class: "pv-side"}, jobCard,
       card("ov-wm", "Money", function () { api.openSub("money"); }, list(newestOf("Money", 3), "No money rows yet")),
-      card("ov-wg", "Guard, OTS, MBA", function () { api.openSub("military"); }, list(newestOf("Guard, OTS, MBA", 3), "Nothing current"))));
+      card("ov-wg", "Guard, OTS, MBA", function () { api.openSub("military"); }, list(newestOf("Guard, OTS, MBA", 3), "Nothing current")),
+      socCard));
     return wrap;
   };
 
