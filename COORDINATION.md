@@ -201,12 +201,13 @@ Luna: write the group rows from the Registry counts when JD asks. Registry colum
 
 ## Apps Script register (Atlas, Nov 22)
 Naming rule: scripts that belong to the Command Center start with `CC `. Everything else is named for what it does. Unused scripts start with `UNUSED`. Names and purposes only here. No URLs, keys or IDs.
-Account johndavidmeyers@gmail.com (16 projects):
+Account johndavidmeyers@gmail.com (17 projects):
 - CC Connected Sheets Reader: read-only reader behind the Sheets tab. Serves only sheets listed in the Connected Sheets tab. Bound to Command Center Data.
 - CC Command Center API: the hub's main data API (Items, routines, config). Renamed from "Command Center API".
 - AFOQT LESSON, Council desk, RSVP PRO, NC CIRCLE, Personal Space Backend, Room Inventory API, Sports Tracker, SLCRC26, HAYRIDE_Z, Master Data, JD Shot Log: already named for their project. Unchanged.
 - JDM Ad Photos Bulk Rename (one-off): renames the JD Meyers Productions ad photos in Drive. Finished. Was "Untitled project".
 - Docs Run Brief from YAML (Dec 2025): Google Docs add-on that inserts a run brief from YAML. Was "Untitled project".
+- CC File Inventory Scan (personal Drive) (one-off, Nov 22): metadata-only scan that appended the personal Drive to the File Inventory sheet. Finished. Not bound to anything. Safe to delete after the file cleanup.
 - UNUSED Empty Project (Sep 22 2026): blank project, no code. Safe to delete when JD decides. Was "Untitled project".
 Account productions@jdmeyersjr.com: not yet reviewed. Needs a separate pass (Projects and Ledger script, JDM Tracker Lookup, others).
 Rule for new scripts: name it before the first save, with the `CC ` prefix if it feeds the hub, and add one line here.
