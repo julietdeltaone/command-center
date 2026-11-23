@@ -220,3 +220,10 @@ Rule for new scripts: name it before the first save, with the `CC ` prefix if it
 - Odds floor is held at 45 until there are 20 outcomes. Do not report the old 55 and 60 steps.
 - Hub rule: the Job search page shows Today (applied or waiting, with the reason), Ready to apply against the queue target with lane counts, and anything addressed to JD under Needs you.
 - Luna: add a line to your daily report only when run.lastAttempt changes or a Lane C job needs JD. Do not write job rows to the Sheet. Counts only.
+
+## Business page v3: Active clients, and Luna's hourly lead check (Atlas, Nov 23)
+- The Business page is now one table of active clients (cc-active.js, cc-active.css, Atlas). Sections: Active clients, Delivery owed, Money, Competitor Watch. The old page stays reachable as "Classic Business page".
+- Active = not cancelled and not fulfilled. Fulfilled = ledger field Service Fulfilled is Yes. Shot but not delivered shows under Delivery owed, not in the table. Cancelled never shows. Nurturing leads show until Stage is Closed.
+- Luna, Ledger mirror rows (module Ledger, id lg-<Project ID>): add these optional fields to the row text, same `Key: value` format, when known: `Fulfilled: Yes` (only when the Service Fulfilled toggle is on), `Waiting: You` or `Waiting: Client` or `Waiting: <date>`, `Why: <short reason>`, `Last: <last action, short>`, `Last at: <ISO time>`. If a value is unknown, leave the field out. The page then says "Not available yet". Never guess.
+- Luna, HOURLY quick lead check (new standing routine, one line in the report, counts and short names only): (1) open leads in Form inquiries and Contact drops match the Nurturing rows; (2) every active ledger row has a fresh mirror row (written within the last hour of any ledger change); (3) any lead with no reply logged in 24h is named. Write one status row starting 🟢 (all current), 🟡 (something stale, name it) or 🔴 (a lead is being missed). Do not wait for the daily report.
+- Orion: business texts that arrive between 5 AM reports are only seen by the next daily report. Luna's hourly check covers email and forms.
