@@ -211,3 +211,12 @@ Account johndavidmeyers@gmail.com (17 projects):
 - UNUSED Empty Project (Sep 22 2026): blank project, no code. Safe to delete when JD decides. Was "Untitled project".
 Account productions@jdmeyersjr.com: not yet reviewed. Needs a separate pass (Projects and Ledger script, JDM Tracker Lookup, others).
 Rule for new scripts: name it before the first save, with the `CC ` prefix if it feeds the hub, and add one line here.
+
+## Job search (updated Nov 23, 2026)
+
+- Source of truth: repo julietdeltaone/job-search, files data/jobs.json and inbox/blockers.md. The hub reads both. Atlas (Claude) owns data/jobs.json and the Job search page here. Luna (Muse) only reports from it and keeps the job-search dashboard page. Nobody else edits data/jobs.json.
+- Two stages. Stage 1 (cloud, 10:47 AM) finds, checks and scores jobs and keeps 10 ready in the queue. Stage 2 (local task on JD's Mac, 12:41 PM) applies to one job a day with his Chrome. It tries up to 5 jobs and moves on after any failure.
+- New fields per job: lane (A employer Greenhouse, Lever or Ashby form; B Indeed Apply or a simple form; C needs an account, never automated, shown to JD), applyVia, attempts. New top-level: queueTarget, run.lastAttempt.
+- Odds floor is held at 45 until there are 20 outcomes. Do not report the old 55 and 60 steps.
+- Hub rule: the Job search page shows Today (applied or waiting, with the reason), Ready to apply against the queue target with lane counts, and anything addressed to JD under Needs you.
+- Luna: add a line to your daily report only when run.lastAttempt changes or a Lane C job needs JD. Do not write job rows to the Sheet. Counts only.

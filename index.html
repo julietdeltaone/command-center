@@ -1726,7 +1726,7 @@ function loadJobs(){
     fetch(BLOCK_URL, {cache: "no-store"}).then(function(r){ return r.ok ? r.text() : ""; }).catch(function(){ return ""; })
   ]).then(function(res){
     var j = res[0], g = j.goal; if (typeof g === "number") g = {target: g}; else if (g && typeof g === "object") g = {target: Number(g.target || g.count || g.applications) || null, by: g.by || g.deadline || null};
-    JOBS = {state: "live", jobs: (j.jobs || []), model: j.model || null, goal: g || null, needs: parseBlockers(res[1]), at: nowMs()};
+    JOBS = {state: "live", jobs: (j.jobs || []), model: j.model || null, goal: g || null, needs: parseBlockers(res[1]), run: j.run || null, qt: j.queueTarget || 10, at: nowMs()};
     document.body.classList.remove("loading"); renderNav(); if ((TAB === "Private" && PSEC === "jobs") || TAB === "Wall") softRender();
   }).catch(function(){ document.body.classList.remove("loading"); JOBS.state = JOBS.jobs.length ? "stale" : "error"; if (TAB === "Private" && PSEC === "jobs") softRender(); });
 }
@@ -1751,6 +1751,10 @@ function jobsStats(){
   });
   st.sent = st.applied + st.interview + st.offer;
   st.last = last; st.target = JOBS.goal && JOBS.goal.target; st.by = JOBS.goal && JOBS.goal.by; st.floor = jobsFloor();
+  var td = new Intl.DateTimeFormat("en-CA", {timeZone: "America/New_York"}).format(new Date(nowMs()));
+  st.today = last === td; st.qt = JOBS.qt || 10; st.lanes = {A: 0, B: 0, C: 0};
+  js.forEach(function(j){ if (j.status === "Found" && st.lanes[j.lane] != null) st.lanes[j.lane]++; });
+  var la = JOBS.run && JOBS.run.lastAttempt; st.attempt = la ? {date: la.date, result: la.result, reason: la.reason} : null;
   return st;
 }
 function jdate(d){ if (!d) return "–"; var x = new Date(d + "T12:00:00"); return isNaN(x.getTime()) ? d : (x.getMonth() + 1) + "/" + x.getDate() + "/" + x.getFullYear(); }
@@ -1779,8 +1783,8 @@ function jobsView(){
   wrap.appendChild(h("div", {class: "jtop"},
     h("section", {class: "card mod jgoal"}, h("div", {class: "mhead"}, h("h3", null, "Goal")), ring(pct, st.sent + "/" + (st.target || "?"), st.by ? "applied by " + jdate(st.by) : "applied")),
     h("section", {class: "card mod"}, h("div", {class: "mhead"}, h("h3", null, "Pipeline")), fun),
-    h("section", {class: "card mod"}, h("div", {class: "mhead"}, h("h3", null, "Pace")), h("div", {class: "shtiles two"}, tile("Past 7 days", String(st.week)), tile("Last applied", jdate(st.last)), tile("Ready to apply", String(st.found)), tile("Odds floor", st.floor == null ? "–" : String(st.floor))))));
-  var cols = [["status", "Status", function(j){ return JRANK[j.status] != null ? JRANK[j.status] : 4; }], ["company", "Company", function(j){ return String(j.company || "").toLowerCase(); }], ["role", "Role", function(j){ return String(j.role || "").toLowerCase(); }],
+    h("section", {class: "card mod"}, h("div", {class: "mhead"}, h("h3", null, "Pace")), h("div", {class: "shtiles two"}, tile("Today", st.today ? "Applied" : (st.attempt && st.attempt.date === new Intl.DateTimeFormat("en-CA", {timeZone: "America/New_York"}).format(new Date(nowMs())) ? "Not yet" : "Waiting"), st.today ? "Last applied " + jdate(st.last) : (st.attempt ? st.attempt.reason : "Runs 12:41 PM")), tile("Ready to apply", st.found + " of " + st.qt, "A " + st.lanes.A + " · B " + st.lanes.B + " · C " + st.lanes.C), tile("Past 7 days", String(st.week), "Last applied " + jdate(st.last)), tile("Odds floor", st.floor == null ? "–" : String(st.floor), "Held until 20 outcomes")))));
+  var cols = [["status", "Status", function(j){ return JRANK[j.status] != null ? JRANK[j.status] : 4; }], ["lane", "Lane", function(j){ return j.lane || "Z"; }], ["company", "Company", function(j){ return String(j.company || "").toLowerCase(); }], ["role", "Role", function(j){ return String(j.role || "").toLowerCase(); }],
     ["odds", "Odds", function(j){ return j.odds == null ? -1 : Number(j.odds); }], ["pay", "Pay", function(j){ return Number(j.payMin) || 0; }], ["found", "Found", function(j){ return j.dateFound || ""; }], ["applied", "Applied", function(j){ return j.dateApplied || ""; }], ["link", "Posting", function(j){ return j.link ? 0 : 1; }]];
   var card = h("section", {class: "card mod ltab shtab"});
   function paint(){
@@ -1791,7 +1795,7 @@ function jobsView(){
     card.appendChild(h("div", {class: "lscroll", style: "height:auto;max-height:calc(100vh - 660px);min-height:100px"}, h("table", {class: "ltbl sht"},
       h("thead", null, h("tr", null, cols.map(function(c){ var on = JSORT.k === c[0]; return h("th", {"aria-sort": on ? (JSORT.dir > 0 ? "ascending" : "descending") : "none"}, h("button", {type: "button", onclick: function(){ if (JSORT.k === c[0]) JSORT.dir = -JSORT.dir; else { JSORT.k = c[0]; JSORT.dir = 1; } paint(); }}, c[1], h("b", null, on ? (JSORT.dir > 0 ? "▲" : "▼") : ""))); }))),
       h("tbody", null, shown.map(function(j){
-        return h("tr", {style: "--c:" + (JSTAT[j.status] || "var(--muted)")}, h("td", null, h("span", {class: "ltag"}, j.status || "–")), h("td", null, j.company || ""), h("td", null, j.role || ""),
+        return h("tr", {style: "--c:" + (JSTAT[j.status] || "var(--muted)")}, h("td", null, h("span", {class: "ltag"}, j.status || "–")), h("td", null, j.lane ? h("span", {class: "ltag", title: (j.applyVia || "") + (j.lane === "C" ? " (needs you)" : ""), style: "--c:" + (j.lane === "A" ? "var(--green)" : j.lane === "B" ? "var(--accent)" : "var(--amber)")}, j.lane) : "–"), h("td", null, j.company || ""), h("td", null, j.role || ""),
           h("td", null, j.odds == null ? "–" : h("span", {class: "jodds"}, h("i", {style: "width:" + Math.max(0, Math.min(100, j.odds)) + "%"}), h("b", null, String(j.odds)))), h("td", null, j.pay || "–"), h("td", null, jdate(j.dateFound)), h("td", null, jdate(j.dateApplied)),
           h("td", null, j.link ? h("a", {href: j.link, target: "_blank", rel: "noopener"}, "Open ↗") : "–"));
       })))));
