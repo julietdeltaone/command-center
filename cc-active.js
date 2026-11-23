@@ -3,7 +3,7 @@
    One table of active clients: confirmed bookings and nurturing leads. Who holds the ball, why, and the last action.
    Sections inside the page: Active clients, Delivery owed, Money, Competitor Watch.
    Active rule: not cancelled, not fulfilled. A ledger row is fulfilled when its "Fulfilled" field starts with Y; when the mirror has no
-   Fulfilled field, a project whose service date is more than a day past counts as fulfilled. Fulfilled but not delivered = Delivery owed.
+   Fulfilled field, a project whose service date is more than a day past counts as fulfilled. Fulfilled closes the client out; it shows under Delivery owed only if the row's Delivery field says owed or pending.
    Optional ledger-mirror fields (Luna): Fulfilled | Waiting: You, Client, or a date | Why | Last | Last at (ISO). Missing = "Not available yet".
    Nothing here is hard-coded: every name and number is read from Items rows at run time. */
 (function () {
@@ -38,7 +38,8 @@
     if (p.fulfilled != null && p.fulfilled !== "") return /^y/i.test(p.fulfilled);
     return p.dateMs != null && p.dateMs < sod(now) - DAY;
   }
-  function delivered(p) { return /gallery is ready|delivered|complete/i.test(String(p.status || "") + " " + String(p.delivery || "")); }
+  /* Service Fulfilled closes a client out. A fulfilled job only shows under Delivery owed when the ledger row says so in its Delivery field. */
+  function delivered(p) { return !/owed|pending|not delivered|not yet delivered|awaiting|editing/i.test(String(p.delivery || "")); }
 
   /* One row per active client, from ledger rows plus nurturing leads */
   function model(api) {
