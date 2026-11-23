@@ -87,10 +87,11 @@
   }
 
   function kpis(m) {
-    var c = {you: 0, client: 0, sched: 0}, due = 0;
-    m.rows.forEach(function (r) { c[r.group]++; if (r.group !== "nurt") due += r.balance; });
-    function k(l, v, cls) { return h("div", {class: "ac-k " + (cls || "")}, h("b", null, v), h("span", null, l)); }
-    return h("div", {class: "ac-kpis"}, k("On you", String(c.you), c.you ? "r" : "g"), k("Waiting on clients", String(c.client), "a"), k("Scheduled", String(c.sched), "b"), k("To collect", usd(due), due ? "a" : "g"));
+    var c = {you: 0, client: 0, sched: 0}, due = 0, nx = null;
+    m.rows.forEach(function (r) { c[r.group]++; due += r.balance; if (r.d != null && r.d >= 0 && (!nx || r.d < nx.d)) nx = r; });
+    function k(l, v, cls) { return h("span", {class: "ac-k " + (cls || "")}, h("b", null, v), h("span", null, l)); }
+    return h("div", {class: "ac-kpis"}, nx ? k("next shoot, " + nx.name, nx.d === 0 ? "today" : nx.d === 1 ? "1 day" : nx.d + " days", nx.d <= 1 ? "r" : nx.d <= 7 ? "a" : "b") : k("next shoot", "none", ""),
+      k("on you", String(c.you), c.you ? "r" : "g"), k("waiting on clients", String(c.client), c.client ? "a" : "g"), k("scheduled", String(c.sched), "b"), k("to collect", usd(due), due ? "a" : "g"));
   }
 
   function track(r, now) {
@@ -111,7 +112,7 @@
         tbl.appendChild(h("button", {type: "button", class: "ac-row " + g[0], title: "Open " + r.name + " in the ledger", onclick: function () { ctx.ledger(r.id); }},
           h("span", {class: "ac-c"}, h("b", null, r.name), h("small", null, [r.kind, r.svc].filter(Boolean).join(" · "))),
           h("span", {class: "ac-s"}, r.stage),
-          h("span", {class: "ac-w"}, h("em", null, r.wait), h("small", null, r.why)),
+          h("span", {class: "ac-w"}, h("em", {class: "ac-st " + g[0]}, g[0] === "you" ? "Waiting on you" : g[0] === "client" ? "Waiting on " + r.name.split(" ")[0] : r.wait), h("small", null, r.why)),
           h("span", {class: "ac-l"}, r.last ? r.last : NA, r.lastAt ? h("small", null, CC.fresh ? CC.fresh.stamp(r.lastAt) : "") : null),
           h("span", {class: "ac-hide"}, track(r, m.now)),
           h("span", {class: "ac-r"}, r.balance > 0 ? usd(r.balance) : r.total ? "Paid" : "–")));
@@ -186,9 +187,8 @@
       var m = model(api), body = view === "owed" ? owedView(api, m, ctx) : view === "money" ? moneyView(api, m, ctx) : view === "comp" ? compView(api) : activeView(api, m, ctx);
       var led = items(api, "Ledger").map(function (i) { return ms(i.time); }).filter(Boolean).sort(function (a, b) { return b - a; })[0];
       box.innerHTML = "";
-      box.appendChild(h("header", {class: "ac-hd"}, h("div", null, h("small", null, "Business"), h("h2", null, {active: "Active clients", owed: "Delivery owed", money: "Money", comp: "Competitor Watch"}[view])),
-        h("div", {class: "ac-tags"}, led ? fresh(led, 1440, "Ledger") : h("small", null, "Ledger: " + NA))));
-      box.appendChild(nav(api, m, ctx));
+      var title = {active: "Active clients", owed: "Delivery owed", money: "Money", comp: "Competitor Watch"}[view];
+      box.appendChild(h("div", {class: "ac-top"}, h("h2", null, title), nav(api, m, ctx), led ? fresh(led, 1440, "Ledger") : null));
       if (view === "active") box.appendChild(kpis(m));
       box.appendChild(body);
       box.appendChild(h("div", {class: "ac-foot"}, h("button", {type: "button", class: "ac-lnk", onclick: function () { ctx.ledger(null); }}, "Open full ledger \u2197")));
