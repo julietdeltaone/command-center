@@ -207,7 +207,7 @@ Account johndavidmeyers@gmail.com (17 projects):
 - AFOQT LESSON, Council desk, RSVP PRO, NC CIRCLE, Personal Space Backend, Room Inventory API, Sports Tracker, SLCRC26, HAYRIDE_Z, Master Data, JD Shot Log: already named for their project. Unchanged.
 - JDM Ad Photos Bulk Rename (one-off): renames the JD Meyers Productions ad photos in Drive. Finished. Was "Untitled project".
 - Docs Run Brief from YAML (Dec 2025): Google Docs add-on that inserts a run brief from YAML. Was "Untitled project".
-- CC File Inventory Scan (personal Drive) (one-off, Nov 22): metadata-only scan that appended the personal Drive to the File Inventory sheet. Finished. Not bound to anything. Safe to delete after the file cleanup.
+- CC File Inventory Scan (personal Drive) (Nov 22): metadata-only scan of the personal Drive plus the Records tools: Task Queue builder, Records Levels rules, and the Records Audit web app (keyboard review of Records files, owner-only). The hub reads its link and progress from Config keys audit_url and audit_progress. Not bound to anything. Keep until the file cleanup is done.
 - UNUSED Empty Project (Sep 22 2026): blank project, no code. Safe to delete when JD decides. Was "Untitled project".
 Account productions@jdmeyersjr.com: not yet reviewed. Needs a separate pass (Projects and Ledger script, JDM Tracker Lookup, others).
 Rule for new scripts: name it before the first save, with the `CC ` prefix if it feeds the hub, and add one line here.

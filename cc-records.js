@@ -106,6 +106,15 @@
 
     /* side */
     var side = h("div", {class: "rc-side"});
+    var cfg = (api && api.data && api.data.config) || [];
+    function cv(k) { var r = cfg.filter(function (x) { return x.key === k; })[0]; return r && r.value ? String(r.value) : ""; }
+    var au = cv("audit_url"), ap = cv("audit_progress").split("|");
+    var ad = h("div", {class: "rc-card"}, h("h4", null, "Audit"));
+    if (au) {
+      var dn = num(ap[0]), fl2 = num(ap[1]), tt = num(ap[2]);
+      ad.appendChild(h("div", {class: "rc-lk"}, a("Open Audit ↗", au), h("i", null, tt ? dn + " of " + tt + " files decided" + (fl2 ? " · " + fl2 + " flagged" : "") : "keyboard review")));
+    } else ad.appendChild(h("div", {class: "rc-none"}, "Audit link not set yet."));
+    side.appendChild(ad);
     var ex = h("div", {class: "rc-card"}, h("h4", null, "Expiring and renewing"));
     if (R.exp.length) R.exp.slice(0, 7).forEach(function (e) { var n = dayDiff(e.due); ex.appendChild(h("div", {class: "rc-ex" + (n != null && n < 0 ? " bad" : (n != null && n <= 90 ? " hot" : ""))}, h("span", null, e.name), h("i", null, when(e.due)))); });
     else ex.appendChild(h("div", {class: "rc-none"}, has ? "No dates reported yet." : "Dates appear here once the registry feeds in."));
