@@ -1,5 +1,5 @@
 /* Command Center Business page, v3: Active clients. Owner: Atlas (claude).
-   Replaces CC.views.Business from cc-biz.js (kept as CC.views.BusinessClassic and reachable from the page footer). Load after cc-biz.js.
+   Replaces CC.views.Business from cc-biz.js (kept only as CC.views.BusinessClassic, not linked from anywhere). Load after cc-biz.js.
    One table of active clients: confirmed bookings and nurturing leads. Who holds the ball, why, and the last action.
    Sections inside the page: Active clients, Delivery owed, Money, Competitor Watch.
    Active rule: not cancelled, not fulfilled. A ledger row is fulfilled when its "Fulfilled" field starts with Y; when the mirror has no
@@ -30,6 +30,9 @@
   function sod(t) { return new Date(new Date(t).toDateString()).getTime(); }
   function dayDelta(t, now) { return Math.round((sod(t) - sod(now)) / DAY); }
   function rel(d) { return d === 0 ? "today" : d === 1 ? "tomorrow" : d === -1 ? "yesterday" : d > 0 ? "in " + d + " days" : -d + " days ago"; }
+  /* First name plus last initial. A single name stays as written (the row then needs a last initial from the feed). */
+  function nm(n) { var t = String(n || "").replace(/\s+/g, " ").trim().split(" "); if (t.length < 2) return t[0] || ""; var l = t[t.length - 1].replace(/\./g, ""); return t[0] + " " + (l ? l.charAt(0).toUpperCase() + "." : ""); }
+  function first(n) { return String(n || "").trim().split(/\s+/)[0].toLowerCase(); }
   function items(api, mod) { return (api.data && api.data.items || []).filter(function (i) { return i.tab === "Business" && (!mod || i.module === mod); }); }
   function fresh(t, max, what) { return CC.fresh && t ? CC.fresh.pill(t, max, {what: what}) : null; }
   function cfg(api, k) { try { return api.cfgVal(k) || ""; } catch (e) { return ""; } }
@@ -55,14 +58,20 @@
       else if (p.balance > 0 && d != null && d <= 14) { group = "you"; why = why || "Balance open before the service"; }
       else { group = "sched"; }
       wait = group === "you" ? "You" : group === "client" ? "Client" : (d != null ? (d <= 0 ? "Service due" : rel(d)) : "Scheduled");
-      rows.push({id: p.id, name: p.client || p.id, stage: p.status || "Confirmed", kind: "Confirmed", group: group, wait: wait, why: why || (group === "sched" && d != null ? "Service " + rel(d) : NA),
+      rows.push({explicit: !!(p.waiting || p.why), id: p.id, name: nm(p.client || p.id), stage: p.status || "Confirmed", kind: "Confirmed", group: group, wait: wait, why: why || (group === "sched" && d != null ? "Service " + rel(d) : NA),
         last: p.last || null, lastAt: ms(p.last_at), dateMs: p.dateMs, d: d, balance: p.balance, total: p.total, collected: p.collected, svc: p.service});
     });
     leads.forEach(function (n) {
-      var open = n.next.concat(n.need), group = open.length ? "you" : "client", d = n.event ? null : null;
-      rows.push({id: n.id, name: n.name, stage: (n.stage || "Nurturing"), kind: "Nurturing", group: group, wait: group === "you" ? "You" : "Client",
-        why: open.length ? String(open[0]).replace(/\s*\(.*$/, "") : "Waiting for their reply", last: n.last || null, lastAt: n.lastMs, dateMs: null, d: null,
-        balance: 0, total: 0, collected: 0, svc: n.event});
+      var open = n.next.concat(n.need), w = String(n.waiting || ""), group = /^you/i.test(w) ? "you" : /^client/i.test(w) ? "client" : (open.length ? "you" : "client");
+      var why = n.why || (open.length ? String(open[0]).replace(/\s*\(.*$/, "") : "Waiting for their reply"), lastAt = ms(n.last_at) || n.lastMs;
+      var twin = null, same = rows.filter(function (r) { return r.kind === "Confirmed" && first(r.name) === first(n.name); });
+      if (same.length === 1 && String(n.name || "").trim().split(/\s+/).length === 1) twin = same[0];
+      if (twin) { /* the same person: one row, keep the ledger name and money, take the lead's next step */
+        twin.kind = "Confirmed"; if (!twin.explicit && (open.length || n.waiting)) { twin.group = group; twin.wait = group === "you" ? "You" : "Client"; twin.why = why; }
+        if (n.last && (!twin.lastAt || (lastAt || 0) >= twin.lastAt)) twin.last = n.last; if (lastAt && (!twin.lastAt || lastAt > twin.lastAt)) twin.lastAt = lastAt; return;
+      }
+      rows.push({id: n.id, name: nm(n.name), stage: (n.stage || "Nurturing"), kind: "Nurturing", group: group, wait: group === "you" ? "You" : "Client",
+        why: why, last: n.last || null, lastAt: lastAt, dateMs: null, d: null, balance: 0, total: 0, collected: 0, svc: n.event});
     });
     rows.sort(function (a, b) { return (a.lastAt || 0) - (b.lastAt || 0); });
     return {now: now, rows: rows, owed: owed, led: led};
@@ -168,9 +177,11 @@
   CC.views.Business = function (api) {
     var box = h("div", {class: "wdpage ac"}), ctx = {};
     ctx.ledger = function (id) {
-      var classic = CC.views.BusinessClassic(api); box.replaceWith(classic);
-      if (CC._crmOpener) CC._crmOpener(id);
+      var prev = box.querySelector(".crm-full"); if (prev) prev.remove();
+      var kids = Array.prototype.slice.call(box.children), fv = CC.crm.full(api, {select: id, onBack: function () { fv.remove(); kids.forEach(function (e) { e.style.display = ""; }); window.scrollTo(0, 0); }});
+      kids.forEach(function (e) { e.style.display = "none"; }); box.appendChild(fv); window.scrollTo(0, 0);
     };
+    CC._crmOpener = ctx.ledger;
     ctx.paint = function () {
       var m = model(api), body = view === "owed" ? owedView(api, m, ctx) : view === "money" ? moneyView(api, m, ctx) : view === "comp" ? compView(api) : activeView(api, m, ctx);
       var led = items(api, "Ledger").map(function (i) { return ms(i.time); }).filter(Boolean).sort(function (a, b) { return b - a; })[0];
@@ -180,8 +191,7 @@
       box.appendChild(nav(api, m, ctx));
       if (view === "active") box.appendChild(kpis(m));
       box.appendChild(body);
-      box.appendChild(h("div", {class: "ac-foot"}, h("button", {type: "button", class: "ac-lnk", onclick: function () { ctx.ledger(null); }}, "Open full ledger ↗"),
-        h("button", {type: "button", class: "ac-lnk", onclick: function () { box.replaceWith(CC.views.BusinessClassic(api)); }}, "Classic Business page")));
+      box.appendChild(h("div", {class: "ac-foot"}, h("button", {type: "button", class: "ac-lnk", onclick: function () { ctx.ledger(null); }}, "Open full ledger \u2197")));
     };
     ctx.paint();
     return box;
