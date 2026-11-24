@@ -230,12 +230,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261124">
-<link rel="stylesheet" href="cc-skin.css?v=20261124">
-<link rel="stylesheet" href="cc-widgets.css?v=20261124">
-<link rel="stylesheet" href="cc-pages.css?v=20261124">
-<link rel="stylesheet" href="cc-sources2.css?v=20261124">
-<link rel="stylesheet" href="views/views.css?v=20261124">
+<link rel="stylesheet" href="cc-design.css?v=20261124c">
+<link rel="stylesheet" href="cc-skin.css?v=20261124c">
+<link rel="stylesheet" href="cc-widgets.css?v=20261124c">
+<link rel="stylesheet" href="cc-pages.css?v=20261124c">
+<link rel="stylesheet" href="cc-sources2.css?v=20261124c">
+<link rel="stylesheet" href="views/views.css?v=20261124c">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -1229,31 +1229,31 @@ function loadData(){
 </script>
 
 <!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing -->
-<script src="cc-fresh.js?v=20261124" onerror="void 0"></script>
-<script src="cc-inbox.js?v=20261124" onerror="void 0"></script>
-<script src="cc-motion.js?v=20261124" onerror="void 0"></script>
+<script src="cc-fresh.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-inbox.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-motion.js?v=20261124c" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script src="views/timeline.js?v=20261124" onerror="void 0"></script>
-<script src="views/system.js?v=20261124" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261124" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261124" onerror="void 0"></script>
-<script src="cc-nurture.js?v=20261124" onerror="void 0"></script>
-<script src="cc-crm.js?v=20261124" onerror="void 0"></script>
-<script src="cc-active.js?v=20261124" onerror="void 0"></script>
-<script src="cc-sources2.js?v=20261124" onerror="void 0"></script>
-<script src="cc-map.js?v=20261124" onerror="void 0"></script>
-<script src="cc-records.js?v=20261124" onerror="void 0"></script>
-<script src="cc-sheets.js?v=20261124" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261124c" onerror="void 0"></script>
+<script src="views/system.js?v=20261124c" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-nurture.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-crm.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-active.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-sources2.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-map.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-records.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-sheets.js?v=20261124c" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script src="cc-body.js?v=20261124" onerror="void 0"></script>
-<script src="cc-pages.js?v=20261124" onerror="void 0"></script>
-<script src="cc-know.js?v=20261124" onerror="void 0"></script>
+<script src="cc-body.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-pages.js?v=20261124c" onerror="void 0"></script>
+<script src="cc-know.js?v=20261124c" onerror="void 0"></script>
 </body>
 </html>
