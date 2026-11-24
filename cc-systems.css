@@ -1,0 +1,16 @@
+/* Systems page tiles. Owner: Atlas (claude). Uses skin variables so dark and light both work. */
+.sy{display:flex;flex-direction:column;gap:12px;font-family:var(--font)}
+.sy-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sy-top h2{margin:0;font-size:20px;font-weight:700}
+.sy-sub{color:var(--muted);font-size:12px}
+.sy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.sy-tile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0;border-top:3px solid var(--muted)}
+.sy-tile.lv-ok{border-top-color:var(--green)}.sy-tile.lv-warn{border-top-color:var(--amber)}.sy-tile.lv-bad{border-top-color:var(--red)}
+.sy-hd{display:flex;align-items:center;gap:8px}
+.sy-hd b{flex:1;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.sy-dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.lv-ok .sy-dot{background:var(--green)}.lv-warn .sy-dot{background:var(--amber)}.lv-bad .sy-dot{background:var(--red)}
+.sy-open{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;font-size:12px;padding:2px 0}
+.sy-big{font:600 34px ui-monospace,"JetBrains Mono",monospace}
+.sy-big small{font:400 13px var(--font);color:var(--muted)}
+.sy-ln{font-size:13px}.sy-note{color:var(--muted);font-size:13px}
