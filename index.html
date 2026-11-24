@@ -21,22 +21,14 @@
   --r: 10px;
   color-scheme: dark;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg:#f0f2f7; --bg2:#e8ebf2; --panel:#fff; --panel2:#f5f7fb;
-    --line:#d8dce6; --line2:#c8cdd8; --text:#1a1e2a; --muted:#5a6478;
-    --accent:#3b7ae0; --violet:#8a5ec8; --amber:#c08520; --red:#d04050;
-    --green:#2a9a55; --ring:#a0a8b8; --cyan:#2a8a9a;
-    color-scheme: light;
-  }
-}
-:root[data-theme="light"] {
-  --bg:#f0f2f7; --bg2:#e8ebf2; --panel:#fff; --panel2:#f5f7fb;
-  --line:#d8dce6; --line2:#c8cdd8; --text:#1a1e2a; --muted:#5a6478;
-  --accent:#3b7ae0; --violet:#8a5ec8; --amber:#c08520; --red:#d04050;
-  --green:#2a9a55; --ring:#a0a8b8; --cyan:#2a8a9a;
-  color-scheme: light;
-}
+/* Light/dark is owned by cc-skin.css now (dark by default on bare :root,
+   light only via explicit data-theme="light" — never auto from the OS).
+   The old @media(prefers-color-scheme:light) override that used to live
+   here was MORE specific than cc-skin.css's bare :root rule, so on any
+   browser or OS defaulting to light it silently won the cascade and
+   overrode the real design system back to a washed-out light theme
+   regardless of load order. Removed; data-theme="light" is the only way
+   to get light mode now, matching cc-skin.css's own stated contract. */
 *,*::before,*::after{box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0;font-size:13px;line-height:1.45;min-height:100vh;-webkit-font-smoothing:antialiased}
 
@@ -86,6 +78,23 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .sh{display:flex;align-items:center;gap:6px;margin:14px 0 6px}
 .sh h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0}
 .sh::after{content:'';flex:1;height:1px;background:var(--line)}
+
+/* Wall view toggle (Map / Grid) */
+.wall-toggle{display:inline-flex;gap:2px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px;margin-bottom:10px}
+.wall-toggle button{all:unset;padding:5px 14px;font-size:11px;font-weight:700;border-radius:7px;color:var(--muted);cursor:pointer}
+.wall-toggle button.sel{background:var(--accent);color:#fff}
+
+/* Wall grid view: fixed 3x2 zones, each scrolls internally */
+.wg-grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:minmax(220px,1fr);gap:10px}
+.wg-zone{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;min-height:0;cursor:pointer;transition:border-color .15s}
+.wg-zone:hover{border-color:var(--line2)}
+.wg-zh{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.wg-zt{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.wg-body{flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px;min-height:0}
+.wg-item{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:11.5px}
+.wg-t1{display:flex;justify-content:space-between;gap:6px;font-weight:600}
+.wg-t2{color:var(--muted);font-size:10.5px;margin-top:2px}
+@media(max-width:900px){.wg-grid{grid-template-columns:1fr}}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .card-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
@@ -690,6 +699,69 @@ function vWall(){
   return el;
 }
 
+/* ── WALL: GRID VIEW ──
+   Fixed six-zone overview, same screen position every time. Each zone
+   reads the exact same data the full tabs do (its/sumOf/parseLed/D.*),
+   just condensed to 3 lines so the zone never grows past its box — the
+   zone scrolls internally instead of pushing its neighbors around. */
+function wgZone(key,title,dotClass,pillClass,pillText,rows){
+  var z=h("div",{class:"wg-zone"});
+  var zh=h("div",{class:"wg-zh"},h("span",{class:"dot "+dotClass}),h("span",{class:"wg-zt"},title),h("div",{class:"spacer"}));
+  if(pillText)zh.appendChild(h("span",{class:"pill "+pillClass},pillText));
+  z.appendChild(zh);
+  var body=h("div",{class:"wg-body"});
+  (rows||[]).forEach(function(r){
+    body.appendChild(h("div",{class:"wg-item"},
+      h("div",{class:"wg-t1"},h("span",null,r.t),r.badge?h("span",{class:"pill "+(r.badgeClass||"dim")},r.badge):null),
+      r.sub?h("div",{class:"wg-t2"},r.sub):null
+    ));
+  });
+  if(!rows||!rows.length)body.appendChild(h("div",{class:"empty"},"Nothing here"));
+  z.appendChild(body);
+  z.addEventListener("click",function(e){if(e.target.tagName!=="BUTTON")go(key)});
+  return z;
+}
+function vWallGrid(){
+  var el=h("div",{class:"wg-grid"});
+
+  var di=its("Today").filter(function(i){return i.due});
+  el.appendChild(wgZone("wall","Needs You","bad",di.length?"bad":"ok",di.length?di.length+" open":"clear",
+    di.slice(0,4).map(function(i){return {t:i.text,sub:i.due?"Due "+new Date(i.due).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):ago(i.time),badge:"due",badgeClass:"warn"}})
+  ));
+
+  var sToday=sumOf("Today");
+  el.appendChild(wgZone("today","Today","info",sToday&&sToday.status==="good"?"ok":"info",sToday?sToday.headline:"",
+    its("Today").slice(0,4).map(function(i){return {t:i.text,sub:i.src+" · "+ago(i.time)}})
+  ));
+
+  var led=parseLed(),ytd=0,due=0;led.forEach(function(l){ytd+=l.collected;due+=l.balance});
+  var leads=its("Business","Leads");
+  el.appendChild(wgZone("biz","Business","ok",due>0?"warn":"ok",usd(ytd)+" YTD",
+    [{t:"Past due",sub:null,badge:usd(due),badgeClass:due>0?"warn":"ok"}]
+    .concat(leads.slice(0,3).map(function(i){return {t:i.text.split("Recommended action:")[0].trim(),sub:ago(i.time)}}))
+  ));
+
+  el.appendChild(wgZone("priv","Private","ok","dim","",
+    its("Private").slice(0,4).map(function(i){return {t:i.text,sub:ago(i.time)}})
+  ));
+
+  var probs=D.problems||[];
+  var late=(D.routines||[]).filter(function(r){return r.st==="fail"||r.st==="late"});
+  el.appendChild(wgZone("sys","System",probs.length?"warn":"ok",probs.length?"warn":"ok",probs.length+" problems",
+    probs.slice(0,3).map(function(p){return {t:p.p,sub:p.own}})
+    .concat(late.slice(0,2).map(function(r){return {t:r.routine,sub:"behind",badge:r.st,badgeClass:"bad"}}))
+  ));
+
+  el.appendChild(wgZone("crew","Crew","info","info",CREW.length+" active",
+    (D.usage||[]).map(function(u){
+      var c=CREW.find(function(cr){return cr.k===u.w})||{n:u.w};
+      return {t:c.n,sub:"Resets "+new Date(u.reset).toLocaleDateString([],{month:"short",day:"numeric"}),badge:u.pct+"%",badgeClass:u.pct>=90?"bad":u.pct>=70?"warn":"ok"};
+    })
+  ));
+
+  return el;
+}
+
 /* ── TODAY ── */
 function vToday(){
   var el=h("div");
@@ -718,6 +790,16 @@ function vBiz(){
   var el=h("div");
   var led=parseLed(),ytd=0,due=0,od=0;
   led.forEach(function(l){ytd+=l.collected;due+=l.balance;if(l.balance>0)od++});
+
+  /* The Ledger dashboard is the one CRM — this page only glances at it
+     (counts, days-since) and gets out of the way. Never echo its detail. */
+  var ldUrl=cfgVal("ledger_dashboard_url"),lsUrl=cfgVal("ledger_sheet_url");
+  if(ldUrl||lsUrl){
+    el.appendChild(h("div",{style:"display:flex;gap:8px;margin-bottom:10px"},
+      ldUrl?h("a",{href:ldUrl,target:"_blank",rel:"noopener",class:"btn link",style:"text-decoration:none"},"Open Ledger ↗"):null,
+      lsUrl?h("a",{href:lsUrl,target:"_blank",rel:"noopener",class:"btn",style:"text-decoration:none"},"Open sheet ↗"):null
+    ));
+  }
 
   el.appendChild(h("div",{class:"stats",style:"margin-bottom:10px"},
     h("div",{class:"stat"},h("div",{class:"stat-v"},usd(ytd),tr([8200,9100,10400,11600,ytd])),h("div",{class:"stat-l"},"Collected YTD"),h("div",{class:"stat-sp"},sp([8200,9100,10400,11600,ytd],56,18,"var(--green)"))),
@@ -960,10 +1042,28 @@ function vCrew(){
 }
 
 /* ══════════ RENDER ══════════ */
+/* Wall has two interchangeable home views: Map (the hub-and-spoke graph,
+   CC.views.Wall from cc-pages.js — unlimited sections, scales by adding a
+   node) and Grid (a fixed six-zone overview built here in the shell —
+   reads the same data, hits a ceiling at six zones). Persisted per device
+   like the theme toggle. */
+function getWallView(){try{return localStorage.getItem("cc_wall_view")||"map"}catch(e){return "map"}}
+function setWallView(v){try{localStorage.setItem("cc_wall_view",v)}catch(e){}render()}
+
 function render(){
   var app=document.getElementById("app");app.innerHTML="";
   if(!D){var sk=h("div",{class:"sk"});for(var i=0;i<3;i++)sk.appendChild(h("div",{class:"skl",style:"width:"+(55+Math.random()*35)+"%"}));sk.appendChild(h("div",{class:"stats"},h("div",{class:"sks"}),h("div",{class:"sks"}),h("div",{class:"sks"}),h("div",{class:"sks"})));for(var j=0;j<4;j++)sk.appendChild(h("div",{class:"skl",style:"width:"+(45+Math.random()*40)+"%;margin-top:8px"}));app.appendChild(sk);return}
   document.getElementById("stag").hidden=!D.sample;
+
+  if(TAB==="wall"){
+    var wv=getWallView();
+    var toggle=h("div",{class:"wall-toggle"},
+      h("button",{class:wv==="map"?"sel":"",onclick:function(){setWallView("map")}},"Map"),
+      h("button",{class:wv==="grid"?"sel":"",onclick:function(){setWallView("grid")}},"Grid")
+    );
+    app.appendChild(toggle);
+    if(wv==="grid"){app.appendChild(vWallGrid());return}
+  }
 
   /* Check for external view overrides (CC.views.Business etc.) */
   var TAB_MAP = {wall:"Wall",today:"Today",biz:"Business",priv:"Private",sys:"System",crew:"Crew"};
