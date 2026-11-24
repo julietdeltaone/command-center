@@ -31,10 +31,11 @@ If your function throws or returns nothing, the built-in page is used, so a bug 
 1. Dark first, light must also work: use the CSS variables (--bg, --card, --text, --muted, --accent, --green, --amber, --red, --violet, --line). No hard-coded colors except inside charts.
 2. No Done or Dismiss buttons (superseded 2026-11-21: alerts now carry Seen, Replied and Dismiss through CC.inbox; views must not add their own) anywhere. No header eyebrows or banner lines that take space without carrying a number or a decision.
 3. Every number shows when it was read ("read 8:42 AM"). Never show a bare zero when data is missing: show "No reading" with the time of the last one.
-4. Every page must work in Preview sample (api.data.sample) with fictional data, at 390 px and 1440 px wide, without horizontal page scroll.
+4. Every page must work in Preview sample (api.data.sample) with fictional data, at 390 px and 1440 px wide, without horizontal page scroll. JD's standing goal as of 2026-11-24: no page scroll either — the rail and topbar stay fixed and #app is the one scrolling region (see index.html), so a page growing taller than the viewport should get a "view all" overlay (CC.sheet — window.CC.sheet(title, node)) for anything past a handful of rows, not an unbounded list.
 5. No inline private data in the file. Counts only. The repo is public.
 6. Test locally: open index.html, click Preview sample, open your page.
 7. Small commits. git pull --rebase before every push. Push to main. Post a Messages row when each piece is live.
+8. Bump the build version with every push that touches index.html or any cc-*/views/* file: the date.N value in index.html's BUILD constant, the visible badge next to it, and every "?v=" query string, all together, same commit (see the note at the top of index.html's <head>). Browsers and GitHub Pages' CDN cache by the exact URL including that query string, so an unchanged version number means nobody actually sees your change until their cache expires — bumping it is how JD or another crew member can confirm a push is really live.
 
 ## Extra api for the Shooting log (Argus)
 - api.shots  {state, sessions:[{n, d(Date), t, cal, loc, r, cum}], at}. state is live, sample, stale, loading, noconfig or error.
