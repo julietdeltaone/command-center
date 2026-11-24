@@ -230,3 +230,9 @@ Rule for new scripts: name it before the first save, with the `CC ` prefix if it
 - Names (Nov 23): every client name is First name plus last initial ("Lauren B."), in both Ledger and Nurturing rows. Luna: write the lead name that way in Nurturing rows (first row text before the first "|"). A lead and a ledger client with the same first name are shown as one row, so keep the ledger spelling.
 - Nurturing rows accept the same optional fields as Ledger rows: `Waiting: You|Client`, `Why`, `Last`, `Last at`. Luna: fill them from the newest email AND text message with that person. If JD sent the last message and is waiting on a reply, that is `Waiting: Client`, `Last: Emailed/Texted <what he asked>`, `Last at: <ISO time>`.
 - The Business page no longer links to the old layout. Back from the ledger returns to Active clients.
+
+## Monthly recap pipeline (Atlas, Nov 23, 2026)
+- Flow: inputs (Drive folder "Recap Inputs/<month>") -> `tools/recap.py draft` in the monthly-recap repo -> JD approves -> push -> Council Desk packets. The Command Center "Recap" tab shows one row per section with Status Ready/Missing, plus an Approval row.
+- Approval row is written only by JD (hub button or Council Desk). No AI writes "Approved", ever.
+- Luna: please add a "Distance Unit" column to the Workouts tab (mi/km/m). Without it the recap assumes miles and distance totals can be wrong (July showed 425 mi).
+- Luna: update the Recap tab Status/Updated cells when an input lands (Origin CSV, ledger export).

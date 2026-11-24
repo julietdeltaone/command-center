@@ -54,6 +54,26 @@
 
   var TILES = [
     {
+      key: "recap", title: "Monthly recap", sheet: /^command center data/i, tabHint: /^recap$/i,
+      build: function (d) {
+        var t = table(d, /^Section$/i), iM = col(t.header, /^Month$/i), iS = col(t.header, /^Section$/i), iT = col(t.header, /^Status$/i), iN = col(t.header, /^Note$/i);
+        var rows = t.rows.filter(function (r) { return r[iS]; });
+        var month = rows.length ? rows[0][iM] : "";
+        var sec = rows.filter(function (r) { return !/^approval$/i.test(r[iS]); });
+        var appr = rows.filter(function (r) { return /^approval$/i.test(r[iS]); })[0];
+        var ready = sec.filter(function (r) { return /^ready/i.test(r[iT]); }).length;
+        var missing = sec.filter(function (r) { return !/^ready/i.test(r[iT]); }).map(function (r) { return r[iS]; });
+        var ok = appr && /^approved/i.test(appr[iT]);
+        return {
+          level: ok ? "ok" : ready === sec.length ? "warn" : "warn",
+          big: ready + "/" + sec.length, unit: "sections ready, " + month, lines: [
+            missing.length ? "Waiting on: " + missing.join(", ") : "All inputs in",
+            "Approval: " + (appr ? appr[iT] : "unknown") + ". Only you can approve."
+          ]
+        };
+      }
+    },
+    {
       key: "records", title: "Records", sheet: /records registry/i, tabHint: null,
       build: function (d) {
         var t = table(d, /^Name$/i), iN = col(t.header, /^Name$/i), iE = col(t.header, /expires/i), iS = col(t.header, /^Status$/i);
