@@ -255,7 +255,28 @@
       return h('div', {class: 'sys-col'}, h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Is everything synced'), h('span', {class: 'sys-count ' + (sync.lates ? 'warn' : 'good')}, sync.lates ? sync.lates + ' behind' : 'All current')), sync.grid),
         h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Links')), links()));
     }
-    var pipeEl = null; function pipeView() { pipeEl = pipeline(); return h('div', {class: 'sys-col'}, pipeEl); } pipeView(); var secs = [['overview', 'Overview', overview, 0], ['pipe', 'Sources', pipeView, pipeline.bad || 0], ['sync', 'Sync and links', syncView, sync.lates], ['routines', 'Routines', function () { return api.routineWeek(); }, 0], ['diag', 'Diagnostics', diagnostics, (d.problems || []).length]];
+    /* ---- routines: every tracked routine, grouped by the tab it feeds, with cadence and last run ----
+       2026-11-24: this tab called api.routineWeek(), a method that was never added anywhere in the
+       app — every render of "Routines" threw and the tab showed a blank page. Replaced with a real
+       view built from the same `routines`/`agoTxt`/`stCol` data this file already uses elsewhere
+       (diagnostics() groups the same way), so no other section's behavior changes. */
+    function routineWeek() {
+      var groups = [['Business', ['Business']], ['Local', ['Local']], ['Personal', ['Private']], ['Crew and system', ['System', 'Today', 'Work']]];
+      var cadTxt = function (min) { if (!min) return ''; return min < 60 ? min + ' min' : min % 1440 === 0 ? (min / 1440) + 'd' : Math.round(min / 60) + ' hr'; };
+      var stLabel = {ok: 'On time', late: 'Late', fail: 'Failed', stale: 'Stale', nodata: 'No data'};
+      var panels = groups.map(function (g) {
+        var rs = routines.filter(function (r) { return g[1].indexOf(r.tab) > -1; });
+        var bad = rs.filter(function (r) { return r.st === 'fail' || r.st === 'late' || r.st === 'stale'; }).length;
+        var rows = rs.map(function (r) {
+          return h('div', {class: 'ov-r'}, h('b', {style: 'color:' + stCol(r.st)}, stLabel[r.st] || r.st || '—'),
+            h('span', null, r.routine, cadTxt(r.cad) ? '  ·  every ' + cadTxt(r.cad) : '', '  ·  ' + agoTxt(time(r.last))));
+        });
+        return h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, g[0]), h('span', {class: 'sys-count ' + (bad ? 'warn' : rs.length ? 'good' : '')}, rs.length ? (bad ? bad + ' need attention' : 'all on time') : 'none')),
+          rs.length ? h('div', {class: 'ov-rs'}, rows) : h('div', {class: 'sys-meta'}, 'No routines linked'));
+      });
+      return h('div', {class: 'sys-diagw'}, panels);
+    }
+    var pipeEl = null; function pipeView() { pipeEl = pipeline(); return h('div', {class: 'sys-col'}, pipeEl); } pipeView(); var secs = [['overview', 'Overview', overview, 0], ['pipe', 'Sources', pipeView, pipeline.bad || 0], ['sync', 'Sync and links', syncView, sync.lates], ['routines', 'Routines', routineWeek, 0], ['diag', 'Diagnostics', diagnostics, (d.problems || []).length]];
     var body = h('div', {class: 'sys-body'}, (secs.filter(function (x) { return x[0] === SEC; })[0] || secs[0])[2]());
     var nav = h('nav', {class: 'pnav', 'aria-label': 'System sections'}, secs.map(function (x) {
       return h('button', {type: 'button', class: 'pn' + (x[3] ? ' alert' : ''), 'data-k': x[0], 'aria-current': String(x[0] === SEC), onclick: function () {

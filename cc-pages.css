@@ -72,7 +72,8 @@
 .sys-hero{gap:10px}
 .sys-tile{display:grid;grid-template-columns:76px minmax(0,1fr);grid-template-areas:"n n" "r s" "r m";column-gap:12px;row-gap:2px;align-items:center;text-align:left;padding:10px 14px 12px;border-radius:16px}
 .sys-tile .sys-name{grid-area:n;justify-content:flex-start}.sys-tile .sys-ring{grid-area:r;width:76px;height:76px}.sys-tile .sys-state{grid-area:s;align-self:end}.sys-tile .sys-meta{grid-area:m;align-self:start}
-.sys-ring-big{font-size:22px}
+/* .sys-ring-big's real size lives in views/views.css (shared) — this duplicate used to
+   silently win/lose depending on load order against that file's own rule. One definition now. */
 .sys-two:has(> :only-child){grid-template-columns:minmax(0,1fr)}
 .pv-wr{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,1fr);gap:12px;margin-top:12px;align-items:start}
 @media (max-width:980px){.pv-wr{grid-template-columns:minmax(0,1fr)}}
