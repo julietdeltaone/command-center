@@ -4,7 +4,7 @@
 :root{
   --bg:#090b14; --card:rgba(255,255,255,.05); --panel:rgba(255,255,255,.04); --panel2:rgba(255,255,255,.08);
   --line:rgba(255,255,255,.10); --text:#eef1fb; --muted:#a3abc2; --accent:#8f9bff; --violet:#c084fc;
-  --green:#4ade80; --amber:#f0b450; --red:#ff6b7a; --ring:#5b6384; --inset:rgba(0,0,0,.22);
+  --green:#4ade80; --amber:#f0b450; --red:#ff6b7a; --cyan:#5ec8d8; --ring:#5b6384; --inset:rgba(0,0,0,.22);
   --bgfx:radial-gradient(900px 520px at 12% -10%,#23305e 0%,transparent 60%),radial-gradient(800px 520px at 100% 110%,#34205a 0%,transparent 55%),#090b14;
   --railbg:rgba(255,255,255,.04); --navbg:rgba(9,11,20,.82);
   --surf-1:var(--card); --surf-2:rgba(255,255,255,.08);
@@ -18,7 +18,7 @@
 :root[data-theme="light"]{
   --bg:#dde2f5; --card:rgba(255,255,255,.82); --panel:rgba(255,255,255,.68); --panel2:rgba(255,255,255,.96);
   --line:rgba(24,28,48,.26); --text:#141828; --muted:#3d4460; --accent:#3a2bd0; --violet:#7a24d8;
-  --green:#0b7a4b; --amber:#9a6200; --red:#c22f3a; --ring:#646c8c; --inset:rgba(24,28,48,.07);
+  --green:#0b7a4b; --amber:#9a6200; --red:#c22f3a; --cyan:#0e7490; --ring:#646c8c; --inset:rgba(24,28,48,.07);
   --bgfx:linear-gradient(135deg,#d0d8f8 0%,#e3d5fa 48%,#c9e2f4 100%);
   --railbg:rgba(255,255,255,.72); --navbg:rgba(219,224,245,.94);
   --surf-2:rgba(255,255,255,.95);

@@ -68,7 +68,7 @@
 
 
   /* ---------- hub and spoke: crew -> the record -> sections ---------- */
-  var CREWCOL = {claude: "#7c8cff", muse: "#b48cff", chatgpt: "#4ade80", "claude-jdm": "#fbbf24", iphone: "#22d3ee"};
+  var CREWCOL = {claude: "var(--accent)", muse: "var(--violet)", chatgpt: "var(--green)", "claude-jdm": "var(--amber)", iphone: "var(--cyan)"};
   function sv(tag, props) { var e = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.keys(props || {}).forEach(function (k) { e.setAttribute(k, props[k]); }); return e; }
   function stx(x, y, cls, text, anchor) { var t = sv("text", {x: x, y: y, class: cls}); if (anchor) t.setAttribute("text-anchor", anchor); t.textContent = text; return t; }
   function agoShort(t, now) { if (!t) return "never"; var m = Math.round((now - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " hr ago" : Math.round(m / 1440) + " d ago"; }
@@ -80,7 +80,11 @@
       var mine = routines.filter(function (r) { return r.writer === c[0]; }), perTab = {}; mine.forEach(function (r) { perTab[r.tab] = (perTab[r.tab] || 0) + 1; });
       var rl = mine.map(function (r) { return ms(r.last_run); }).filter(Boolean), lastRun = rl.length ? Math.max.apply(null, rl) : null;
       var bad = mine.filter(function (r) { var lv = F().level(ms(r.last_run), Number(r.cadence_min) || 1440); return lv !== "ok"; }).length;
-      return {id: c[0], name: c[1], role: c[2], last: last, lastRun: lastRun, mine: mine.length, perTab: perTab, day: sent.filter(function (m) { return now - Date.parse(m.time) < 86400000; }).length, bad: bad};
+      /* c is [key, name, color, role] (see crewTuples() in index.html) — this used to read c[2]
+         (the color) as the role, so the hub map's crew labels showed a raw color string like
+         "var(--accent)" instead of "Ops lead". Pre-existing index-off-by-one bug, not something
+         the 2026-11-24 color-token pass introduced, just made obvious instead of quietly wrong. */
+      return {id: c[0], name: c[1], role: c[3], last: last, lastRun: lastRun, mine: mine.length, perTab: perTab, day: sent.filter(function (m) { return now - Date.parse(m.time) < 86400000; }).length, bad: bad};
     });
     var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, class: "hm-svg", role: "img", "aria-label": "Who feeds the record and which sections read from it"});
     info.forEach(function (a, i) {
@@ -88,7 +92,7 @@
     });
     var hubY = H / 2;
     info.forEach(function (a, i) {
-      var col = a.last && now - a.last < 3600000 ? "#4ade80" : a.last && now - a.last < 86400000 ? "#fbbf24" : "rgba(255,255,255,.28)";
+      var col = a.last && now - a.last < 3600000 ? "var(--green)" : a.last && now - a.last < 86400000 ? "var(--amber)" : "rgba(255,255,255,.28)";
       svg.appendChild(sv("path", {d: "M" + (xa + 26) + " " + ya(i) + " C" + (xa + 120) + " " + ya(i) + " " + (xb - 130) + " " + hubY + " " + (xb - 84) + " " + hubY, class: "hm-e mg", stroke: col, "stroke-width": 1.5 + Math.min(4, a.day / 3)}));
     });
     secs.forEach(function (n, j) { svg.appendChild(sv("path", {d: "M" + (xb + 84) + " " + hubY + " C" + (xb + 150) + " " + hubY + " " + (xc - 130) + " " + (yc(j) + 16) + " " + (xc - 70) + " " + (yc(j) + 16), class: "hm-e rd"})); });
@@ -100,7 +104,7 @@
     hub.appendChild(stx(xb, hubY + 30, "hm-hs " + (routOk === routines.length ? "ok" : "warn"), routOk + " of " + routines.length + " routines on time", "middle"));
     svg.appendChild(hub);
     info.forEach(function (a, i) {
-      var ring = a.bad ? "#fbbf24" : a.lastRun || a.last ? "#4ade80" : "rgba(255,255,255,.3)", c = CREWCOL[a.id] || "#94a3b8";
+      var ring = a.bad ? "var(--amber)" : a.lastRun || a.last ? "var(--green)" : "rgba(255,255,255,.3)", c = CREWCOL[a.id] || "#94a3b8";
       var g = sv("g", {class: "hm-n", tabindex: "0", role: "button", "aria-label": a.name + ", " + a.role}); g.addEventListener("click", function () { api.go("System"); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") api.go("System"); });
       g.appendChild(sv("circle", {cx: xa, cy: ya(i), r: 22, fill: "none", stroke: ring, "stroke-width": 2.5}));
       g.appendChild(sv("circle", {cx: xa, cy: ya(i), r: 17, fill: c, "fill-opacity": ".22"}));
@@ -110,7 +114,7 @@
       svg.appendChild(g);
     });
     secs.forEach(function (n, j) {
-      var st = api.summaryStatus ? api.summaryStatus(n) : null, sc = st === "good" ? "#4ade80" : st === "alert" ? "#fb7185" : st ? "#fbbf24" : "rgba(255,255,255,.3)";
+      var st = api.summaryStatus ? api.summaryStatus(n) : null, sc = st === "good" ? "var(--green)" : st === "alert" ? "var(--red)" : st ? "var(--amber)" : "rgba(255,255,255,.3)";
       var nc = (CC.needsCount ? CC.needsCount(api, n) : 0) || 0, rc = routines.filter(function (r) { return r.tab === n; }).length;
       var g = sv("g", {class: "hm-n", tabindex: "0", role: "button", "aria-label": TL[n] || n}); g.addEventListener("click", function () { api.go(n); }); g.addEventListener("keydown", function (e) { if (e.key === "Enter") api.go(n); });
       g.appendChild(sv("rect", {x: xc - 70, y: yc(j), width: 190, height: 34, rx: 12, class: "hm-sec"}));

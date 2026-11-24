@@ -3,6 +3,20 @@
    <link rel="stylesheet" href="https://julietdeltaone.github.io/command-center/cc-design.css">
    Tokens, depth, motion and layout rules live here only. */
 
+/* ---------- type scale ----------
+   2026-11-24 beautification pass: the house scale going forward. New rules should pick
+   one of these rather than a one-off px value; existing rules get migrated as they're
+   touched. Chart/diagram/graph text (SVG axis labels, sparkline numbers, etc.) is exempt —
+   those stay whatever size reads best for that specific drawing. */
+:root{
+  --fs-eyebrow:11px;   /* uppercase section/panel labels, e.g. .wd-t */
+  --fs-body:12.5px;    /* row text, descriptions, list items */
+  --fs-meta:11.5px;    /* secondary/muted inline text */
+  --fs-num-sm:13px;    /* small inline numbers, compact stat labels */
+  --fs-num-md:20px;    /* glance-tile headline numbers, e.g. .ov-num b */
+  --fs-num-lg:28px;    /* section hero numbers */
+  --fs-num-xl:44px;    /* page-level hero numbers, e.g. .wbig */
+}
 :root{
   --rail:76px;
   --ease:cubic-bezier(.2,.8,.2,1);

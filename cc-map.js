@@ -29,7 +29,7 @@
   function ms(x) { var t = x ? Date.parse(x) : NaN; return isNaN(t) ? null : t; }
   function F() { return CC.fresh; }
 
-  var OK = "#4ade80", WARN = "#fbbf24", BAD = "#fb7185", DIM = "rgba(255,255,255,.3)";
+  var OK = "var(--green)", WARN = "var(--amber)", BAD = "var(--red)", DIM = "rgba(255,255,255,.3)";
   var CLASS = {
     ai: {label: "AI-run", color: "#b48cff", note: "An AI routine does this. If the AI stops, this stops."},
     script: {label: "Script-run", color: "#22d3ee", note: "A Google Apps Script does this on its own timer. No AI needed."},

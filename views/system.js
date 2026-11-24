@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   var NS = 'http://www.w3.org/2000/svg';
-  var crew = [['muse','Luna','var(--violet)'],['claude','Atlas','var(--accent)'],['chatgpt','Argus','var(--green)'],['claude-jdm','Athena','var(--amber)'],['iphone','Orion','#5ec8d8']];
+  var crew = [['muse','Luna','var(--violet)'],['claude','Atlas','var(--accent)'],['chatgpt','Argus','var(--green)'],['claude-jdm','Athena','var(--amber)'],['iphone','Orion','var(--cyan)']];
   var ALIAS = {orion: 'iphone', iphone: 'iphone'};
   function id(v) { v = String(v || '').trim().toLowerCase(); if (ALIAS[v]) return ALIAS[v]; var c = crew.find(function (c) { return c[0] === v || c[1].toLowerCase() === v; }); return c ? c[0] : v; }
   function time(v) {
@@ -237,7 +237,13 @@
       svg.appendChild(S('rect', {x: xe + 96, y: H / 2 - 34, width: 84, height: 68, rx: 18, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2}));
       svg.appendChild(T(xe + 138, H / 2 - 2, 'Hub', {'text-anchor': 'middle', class: 'sys-node'}));
       svg.appendChild(T(xe + 138, H / 2 + 14, 'this page', {'text-anchor': 'middle', class: 'sys-axis'}));
-      var list = h('div', {class: 'sys-pipe-l'}, rowsS.map(function (r) { return h('div', {class: 'sys-src ' + (r.s.st === 'none' ? '' : r.s.st)}, h('span', {class: 'dot ' + (r.s.st === 'none' ? 'none' : r.s.st)}), h('b', null, r.label), h('small', null, nameOf(r.s.owner) + ' · ' + agoTxt(r.s.at))); }));
+      function srcRow(r) { return h('div', {class: 'sys-src ' + (r.s.st === 'none' ? '' : r.s.st)}, h('span', {class: 'dot ' + (r.s.st === 'none' ? 'none' : r.s.st)}), h('b', null, r.label), h('small', null, nameOf(r.s.owner) + ' · ' + agoTxt(r.s.at))); }
+      /* 2026-11-24 no-scroll pass: this list only shows on narrow screens (the SVG above takes over
+         on desktop) — cap it so it doesn't push a phone screen into a long scroll, and hand the rest
+         to the shared "view all" overlay. */
+      var SRC_VIS = 5;
+      var list = h('div', {class: 'sys-pipe-l'}, rowsS.slice(0, SRC_VIS).map(srcRow),
+        rowsS.length > SRC_VIS && window.CC && window.CC.sheet ? h('button', {type: 'button', class: 'cc-more', onclick: function () { CC.sheet('Where information comes from · ' + rowsS.length, h('div', {class: 'sys-pipe-l'}, rowsS.map(srcRow))); }}, 'View all ' + rowsS.length + ' ↓') : null);
       var bad = rowsS.filter(function (r) { return r.s.st === 'late' || r.s.st === 'fail'; }).length, none = rowsS.filter(function (r) { return r.s.st === 'none'; }).length;
       pipeline.bad = bad;
       return h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, 'Where information comes from'), h('span', {class: 'sys-count ' + (bad ? 'warn' : 'good')}, bad ? bad + ' late' : 'all current' + (none ? ' · ' + none + ' not linked' : ''))), svg, list);
@@ -264,15 +270,19 @@
       var groups = [['Business', ['Business']], ['Local', ['Local']], ['Personal', ['Private']], ['Crew and system', ['System', 'Today', 'Work']]];
       var cadTxt = function (min) { if (!min) return ''; return min < 60 ? min + ' min' : min % 1440 === 0 ? (min / 1440) + 'd' : Math.round(min / 60) + ' hr'; };
       var stLabel = {ok: 'On time', late: 'Late', fail: 'Failed', stale: 'Stale', nodata: 'No data'};
+      function routineRow(r) {
+        return h('div', {class: 'ov-r'}, h('b', {style: 'color:' + stCol(r.st)}, stLabel[r.st] || r.st || '—'),
+          h('span', null, r.routine, cadTxt(r.cad) ? '  ·  every ' + cadTxt(r.cad) : '', '  ·  ' + agoTxt(time(r.last))));
+      }
+      /* 2026-11-24 no-scroll pass: cap each group to 3 rows inline; a group with more hands the rest
+         to the shared "view all" overlay instead of stretching the page taller. */
+      var ROW_VIS = 3;
       var panels = groups.map(function (g) {
         var rs = routines.filter(function (r) { return g[1].indexOf(r.tab) > -1; });
         var bad = rs.filter(function (r) { return r.st === 'fail' || r.st === 'late' || r.st === 'stale'; }).length;
-        var rows = rs.map(function (r) {
-          return h('div', {class: 'ov-r'}, h('b', {style: 'color:' + stCol(r.st)}, stLabel[r.st] || r.st || '—'),
-            h('span', null, r.routine, cadTxt(r.cad) ? '  ·  every ' + cadTxt(r.cad) : '', '  ·  ' + agoTxt(time(r.last))));
-        });
         return h('section', {class: 'sys-panel'}, h('div', {class: 'sys-ph'}, h('h3', null, g[0]), h('span', {class: 'sys-count ' + (bad ? 'warn' : rs.length ? 'good' : '')}, rs.length ? (bad ? bad + ' need attention' : 'all on time') : 'none')),
-          rs.length ? h('div', {class: 'ov-rs'}, rows) : h('div', {class: 'sys-meta'}, 'No routines linked'));
+          rs.length ? h('div', {class: 'ov-rs'}, rs.slice(0, ROW_VIS).map(routineRow)) : h('div', {class: 'sys-meta'}, 'No routines linked'),
+          rs.length > ROW_VIS && window.CC && window.CC.sheet ? h('button', {type: 'button', class: 'cc-more', onclick: function () { CC.sheet(g[0] + ' routines · ' + rs.length, h('div', {class: 'ov-rs'}, rs.map(routineRow))); }}, 'View all ' + rs.length + ' ↓') : null);
       });
       return h('div', {class: 'sys-diagw'}, panels);
     }

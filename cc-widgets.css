@@ -2,6 +2,18 @@
 :root{--hs:72%;--hl:62%}
 :root[data-theme="light"]{--hs:78%;--hl:34%}
 
+/* "view all" overlay — see CC.sheet() in index.html. The no-scroll pass's stand-in for paging
+   a long list down a tall page: trim the inline list, hand the rest here. */
+.ccsheet{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:24px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.ccsheet-card{width:min(640px,100%);max-height:min(80vh,720px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:var(--r,22px);box-shadow:var(--edge),var(--shadow-2);overflow:hidden}
+.ccsheet-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.ccsheet-t{font:700 var(--fs-eyebrow,11px) var(--font);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);flex:1}
+.ccsheet-x{all:unset;cursor:pointer;color:var(--muted);padding:4px 6px;border-radius:8px;line-height:1}
+.ccsheet-x:hover{color:var(--text);background:var(--inset)}
+.ccsheet-b{overflow:auto;padding:14px 16px 18px}
+.cc-more{all:unset;cursor:pointer;display:block;text-align:center;font:600 var(--fs-meta,11.5px) var(--font);color:var(--accent);padding:8px 0 2px}
+.cc-more:hover{text-decoration:underline}
+
 .wdpage{display:flex;flex-direction:column;gap:14px;text-align:left}
 .wdpage.tight{gap:12px;margin-bottom:14px}
 .wdgrid{display:grid;gap:14px}

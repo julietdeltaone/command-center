@@ -38,7 +38,7 @@
   var GRADE_NOTE = {ex: "Exact: read directly from the system of record", ss: "Single source: one origin, not cross-checked", im: "Read from image: taken from a screenshot", xx: "Ungraded"};
   function gcls(g) { return GRADE[g] || "xx"; }
 
-  var WCOLS = {claude: "#7c8cff", muse: "#b48cff", chatgpt: "#4ade80", "claude-jdm": "#fbbf24", iphone: "#22d3ee", ledger: "#f472b6"};
+  var WCOLS = {claude: "var(--accent)", muse: "var(--violet)", chatgpt: "var(--green)", "claude-jdm": "var(--amber)", iphone: "var(--cyan)", ledger: "#f472b6"};
   function WCOL(w) { return WCOLS[String(w || "").toLowerCase()] || "#94a3b8"; }
   function RCOL(m) { return m <= 60 ? "#22d3ee" : m <= 360 ? "#60a5fa" : m <= 1440 ? "#a78bfa" : m <= 10080 ? "#f472b6" : "#fb923c"; }
   /* ---------- model ---------- */

@@ -30,14 +30,22 @@
    regardless of load order. Removed; data-theme="light" is the only way
    to get light mode now, matching cc-skin.css's own stated contract. */
 *,*::before,*::after{box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0;font-size:13px;line-height:1.45;min-height:100vh;-webkit-font-smoothing:antialiased}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0;font-size:13px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
 
 /* Aurora bg */
 body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 60% 50% at 20% 20%,rgba(122,167,255,.06) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 80% 70%,rgba(177,140,255,.05) 0%,transparent 70%),radial-gradient(ellipse 40% 60% at 50% 90%,rgba(95,212,138,.04) 0%,transparent 70%);animation:aurora 30s ease-in-out infinite alternate}
 @keyframes aurora{0%{opacity:.7;transform:scale(1)}100%{opacity:1;transform:scale(1.05)}}
 
 /* ═══════════════ SHELL ═══════════════ */
-.shell{display:flex;min-height:100vh}
+/* 2026-11-24 no-scroll pass: the rail and topbar stay put; #app is the one thing that scrolls,
+   so switching tabs never means scrolling back up to reach the nav. Doesn't by itself make a
+   page's content fit without its own scrollbar — see the per-view trims (Crew log, System
+   Sources/Routines) for that part. */
+.shell{display:flex;height:100vh;overflow:hidden}
+.main{display:flex;flex-direction:column;min-height:0}
+.topbar{flex:0 0 auto}
+#app{flex:1;min-height:0;overflow:auto}
 .rail{width:52px;min-height:100vh;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:10px 0 6px;position:fixed;top:0;left:0;z-index:100}
 .rail-logo{width:26px;height:26px;border-radius:7px;background:var(--accent);display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;margin-bottom:12px}
 .rail-tabs{display:flex;flex-direction:column;gap:1px;flex:1}
@@ -283,6 +291,22 @@ var lastLoadTime=null;
 
 /* ══════════ DOM ══════════ */
 function h(t,p){var e=document.createElement(t);if(p)for(var k in p){var v=p[k];if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k.indexOf("on")===0)e.addEventListener(k.slice(2),v);else e.setAttribute(k,v)}for(var i=2;i<arguments.length;i++){var c=arguments[i];if(c==null||c===false)continue;if(Array.isArray(c))c.forEach(function(x){if(x)e.appendChild(typeof x==="string"?document.createTextNode(x):x)});else e.appendChild(typeof c==="string"?document.createTextNode(c):c)}return e}
+/* 2026-11-24 beautification pass: shared "view all" overlay. Any view can trim a long list down
+   to a few rows and hand the full content to CC.sheet(title, node) instead of letting the page
+   grow taller than the viewport — the alternative-to-scrolling navigation the no-scroll pass needs.
+   Closes on backdrop click, the X, or Escape. */
+CC.sheet=function(title,node){
+  var old=document.getElementById("ccsheet");if(old)old.remove();
+  var wrap=h("div",{id:"ccsheet",class:"ccsheet",onclick:function(e){if(e.target===wrap)close()}});
+  function close(){wrap.remove();document.removeEventListener("keydown",onKey)}
+  function onKey(e){if(e.key==="Escape")close()}
+  document.addEventListener("keydown",onKey);
+  var card=h("div",{class:"ccsheet-card"},
+    h("div",{class:"ccsheet-h"},h("span",{class:"ccsheet-t"},title),h("button",{type:"button",class:"ccsheet-x",onclick:close,"aria-label":"Close"},"✕")),
+    h("div",{class:"ccsheet-b"},node));
+  wrap.appendChild(card);document.body.appendChild(wrap);
+  return close;
+};
 function iso(m){return new Date(Date.now()-m*60000).toISOString()}
 function ago(s){if(!s)return"—";var m=Math.round((Date.now()-new Date(s).getTime())/60000);if(m<1)return"now";if(m<60)return m+"m";var hr=Math.round(m/60);if(hr<48)return hr+"h";return Math.round(hr/24)+"d"}
 function usd(n){return"$"+Math.round(n).toLocaleString("en-US")}
@@ -639,11 +663,11 @@ function vWall(){
   var uPct=0;var uA=(D.usage||[]).find(function(u){return u.w==="claude"});if(uA)uPct=uA.pct;
 
   el.appendChild(h("div",{class:"ov-nums"},
-    h("div",{class:"ov-num",style:"--c:"+(di?"#f0b450":"#5fd48a")},h("b",null,String(di)),h("span",null,"Needs you")),
-    h("div",{class:"ov-num",style:"--c:#5fd48a"},h("b",null,usd(ytd)),h("span",null,"Collected YTD")),
-    h("div",{class:"ov-num",style:"--c:#f0b450"},h("b",null,usd(due)),h("span",null,"Outstanding")),
-    h("div",{class:"ov-num",style:"--c:#7cc4ff"},h("b",null,rok+"/"+rtot),h("span",null,"Routines OK")),
-    h("div",{class:"ov-num",style:"--c:"+(uPct>=90?"#ff6b7a":uPct>=70?"#f0b450":"#5fd48a")},h("b",null,uPct+"%"),h("span",null,"Atlas usage"))
+    h("div",{class:"ov-num",style:"--c:"+(di?"var(--amber)":"var(--green)")},h("b",null,String(di)),h("span",null,"Needs you")),
+    h("div",{class:"ov-num",style:"--c:var(--green)"},h("b",null,usd(ytd)),h("span",null,"Collected YTD")),
+    h("div",{class:"ov-num",style:"--c:var(--amber)"},h("b",null,usd(due)),h("span",null,"Outstanding")),
+    h("div",{class:"ov-num",style:"--c:var(--accent)"},h("b",null,rok+"/"+rtot),h("span",null,"Routines OK")),
+    h("div",{class:"ov-num",style:"--c:"+(uPct>=90?"var(--red)":uPct>=70?"var(--amber)":"var(--green)")},h("b",null,uPct+"%"),h("span",null,"Atlas usage"))
   ));
 
   var two=h("div",{class:"wdgrid g2",style:"margin-top:10px"});
@@ -656,7 +680,7 @@ function vWall(){
   })));
   two.appendChild(tc);
 
-  var bc=h("section",{class:"wd",style:"--c:#5fd48a"});
+  var bc=h("section",{class:"wd",style:"--c:var(--green)"});
   bc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Business"),fp(newest(its("Business")),60)));
   var aLed=led.filter(function(l){return l.balance>0||!l.status||(l.status||"").indexOf("Complete")<0}).slice(0,4);
   bc.appendChild(h("div",{class:"ov-rs"},aLed.length?aLed.map(function(l){
@@ -671,7 +695,7 @@ function vWall(){
   el.appendChild(two);
 
   var br=h("div",{class:"wdgrid g2",style:"margin-top:10px"});
-  var cc=h("section",{class:"wd",style:"--c:#b18cff"});
+  var cc=h("section",{class:"wd",style:"--c:var(--violet)"});
   cc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Crew pulse")));
   cc.appendChild(h("div",{class:"ov-rs"},(D.messages||[]).slice(0,6).map(function(m){
     var f=CREW.find(function(c){return c.k===m.from})||{n:m.from,c:"var(--muted)"};
@@ -681,7 +705,7 @@ function vWall(){
   })));
   br.appendChild(cc);
 
-  var pc=h("section",{class:"wd",style:"--c:"+(D.problems&&D.problems.length?"#f0b450":"#5fd48a")});
+  var pc=h("section",{class:"wd",style:"--c:"+(D.problems&&D.problems.length?"var(--amber)":"var(--green)")});
   var probs=D.problems||[];
   pc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Open problems"),h("span",{class:"wd-s"},String(probs.length))));
   pc.appendChild(probs.length?h("div",{class:"ov-rs"},probs.map(function(p){return h("div",{class:"ov-r"},h("b",null,p.own),h("span",null,p.p));})):h("div",{class:"ov-empty"},"No problems open"));
@@ -690,7 +714,7 @@ function vWall(){
 
   var late=(D.routines||[]).filter(function(r){return r.st==="fail"||r.st==="late"});
   if(late.length){
-    var wc=h("section",{class:"wd",style:"--c:#f0b450;margin-top:10px"});
+    var wc=h("section",{class:"wd",style:"--c:var(--amber);margin-top:10px"});
     wc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t",style:"color:var(--amber)"},"⚠ Routines behind"),h("span",{class:"wd-s"},String(late.length))));
     wc.appendChild(h("div",{class:"ov-rs"},late.map(function(r){return h("div",{class:"ov-r"},h("b",null,r.st==="fail"?"FAILED":ago(r.last)),h("span",null,r.routine));})));
     el.appendChild(wc);
@@ -706,7 +730,7 @@ function vWall(){
    2026-11-24 design pass: moved onto .wd (same panel the Map view and
    every other page use) instead of its own one-off .wg-zone box, so
    switching Map/Grid doesn't also switch visual language. */
-var ZONE_COLOR={bad:"#ff6b7a",warn:"#f0b450",ok:"#5fd48a",info:"#7cc4ff",dim:"#8792a6"};
+var ZONE_COLOR={bad:"var(--red)",warn:"var(--amber)",ok:"var(--green)",info:"var(--accent)",dim:"var(--muted)"};
 function wgZone(key,title,dotClass,pillClass,pillText,rows){
   var c=ZONE_COLOR[dotClass]||ZONE_COLOR.dim;
   var z=h("section",{class:"wd",style:"--c:"+c+";cursor:pointer"});
@@ -768,11 +792,11 @@ function vWallGrid(){
 function vToday(){
   var el=h("div",{class:"wdpage"});
   var s=sumOf("Today");
-  if(s)el.appendChild(h("section",{class:"wd",style:"--c:"+(s.status==="good"?"#5fd48a":"#f0b450")},h("div",{style:"font-weight:700;font-size:13px"},s.headline)));
+  if(s)el.appendChild(h("section",{class:"wd",style:"--c:"+(s.status==="good"?"var(--green)":"var(--amber)")},h("div",{style:"font-weight:700;font-size:13px"},s.headline)));
 
   var di=its("Today").filter(function(i){return i.due});
   if(di.length){
-    var dc=h("section",{class:"wd",style:"--c:#f0b450"});
+    var dc=h("section",{class:"wd",style:"--c:var(--amber)"});
     dc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Due today")));
     dc.appendChild(h("div",{class:"ov-rs"},di.map(function(it){
       var ip=it.due&&new Date(it.due)<new Date();
@@ -841,8 +865,8 @@ function vPriv(){
   hc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Health & Fitness"),fp(newest(its("Private","Health")),1440)));
   hc.appendChild(h("div",{class:"ov-nums"},
     h("div",{class:"ov-num",style:"--c:var(--accent)"},h("b",null,ls?(ls.text.match(/[\d]+h\s*[\d]+m/)||["—"])[0]:"—"),h("span",null,"Last sleep")),
-    h("div",{class:"ov-num",style:"--c:#5fd48a"},h("b",null,workI.length?workI.length+"x":"0"),h("span",null,"Workouts 7d")),
-    phoneI.length?(function(){var bats=phoneI.map(function(i){var m=i.text.match(/battery (\d+)/);return m?parseInt(m[1]):null}).filter(function(v){return v!=null});var b=bats[0];return h("div",{class:"ov-num",style:"--c:"+(b<30?"#ff6b7a":"#5fd48a")},h("b",null,b+"%"),h("span",null,"Phone battery"))})():null
+    h("div",{class:"ov-num",style:"--c:var(--green)"},h("b",null,workI.length?workI.length+"x":"0"),h("span",null,"Workouts 7d")),
+    phoneI.length?(function(){var bats=phoneI.map(function(i){var m=i.text.match(/battery (\d+)/);return m?parseInt(m[1]):null}).filter(function(v){return v!=null});var b=bats[0];return h("div",{class:"ov-num",style:"--c:"+(b<30?"var(--red)":"var(--green)")},h("b",null,b+"%"),h("span",null,"Phone battery"))})():null
   ));
   if(workI.length)hc.appendChild(h("div",{class:"ov-line"},h("span",null,h("b",{style:"color:var(--text)"},"Last: "),workI[0].text.replace("Workout: ",""),"  ·  "+ago(workI[0].time))));
 
@@ -856,7 +880,7 @@ function vPriv(){
   hc.appendChild(grid);
   two.appendChild(hc);
 
-  var gc=h("section",{class:"wd",style:"--c:#b18cff"});
+  var gc=h("section",{class:"wd",style:"--c:var(--violet)"});
   gc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Guard & Personal")));
   var gi=its("Private","Guard"),rows=[];
   gi.forEach(function(it){
@@ -887,7 +911,7 @@ function vSys(){
 
   el.appendChild(h("div",{class:"ov-nums"},(D.usage||[]).map(function(u){
     var c=CREW.find(function(cr){return cr.k===u.w})||{n:u.w,c:"var(--muted)"};
-    var col=u.pct>=90?"#ff6b7a":u.pct>=70?"#f0b450":"#5fd48a";
+    var col=u.pct>=90?"var(--red)":u.pct>=70?"var(--amber)":"var(--green)";
     return h("div",{class:"ov-num",style:"--c:"+col},h("b",null,u.pct+"%"),h("span",null,c.n+"  ·  resets "+new Date(u.reset).toLocaleDateString([],{month:"short",day:"numeric"})));
   })));
 
@@ -906,14 +930,14 @@ function vSys(){
   var rs=h("div",{style:"display:flex;flex-direction:column;gap:14px"});
   var probs=D.problems||[];
   if(probs.length){
-    var pc=h("section",{class:"wd",style:"--c:#f0b450"});
+    var pc=h("section",{class:"wd",style:"--c:var(--amber)"});
     pc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t",style:"color:var(--amber)"},"Open problems"),h("span",{class:"wd-s"},String(probs.length))));
     pc.appendChild(h("div",{class:"ov-rs"},probs.map(function(p){return h("div",{class:"ov-r"},h("b",null,p.own),h("span",null,p.p+" — "+p.impact));})));
     rs.appendChild(pc);
   }
 
   var rec=parseRec();
-  var rcc=h("section",{class:"wd",style:"--c:#b18cff"});
+  var rcc=h("section",{class:"wd",style:"--c:var(--violet)"});
   rcc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Records registry")));
   var doms=Object.keys(rec.groups);
   if(doms.length){
@@ -964,13 +988,17 @@ function vCrew(){
 
   var mc=h("section",{class:"wd"});
   mc.appendChild(h("div",{class:"wd-h"},h("span",{class:"wd-t"},"Internal coordination log"),h("span",{class:"wd-s"},"How your AIs hand work to each other — not written for you to read line by line")));
-  var rows=(D.messages||[]).slice(0,12).map(function(m){
+  function logRow(m){
     var f=CREW.find(function(c){return c.k===m.from})||{n:m.from,c:"var(--muted)"};
     var t=CREW.find(function(c){return c.k===m.to})||{n:m.to,c:"var(--muted)"};
     var txt=String(m.text||"");if(txt.length>140)txt=txt.slice(0,140)+"…";
     return h("div",{class:"ov-r"},h("b",null,ago(m.time)),h("span",null,h("span",{style:"color:"+f.c+";font-weight:600"},f.n),h("span",{style:"color:var(--muted)"}," → "+t.n+": "),txt));
-  });
-  mc.appendChild(rows.length?h("div",{class:"ov-rs"},rows):h("div",{class:"ov-empty"},"No messages yet"));
+  }
+  /* 2026-11-24 no-scroll pass: show 4 inline, push the rest behind "View all" (CC.sheet) instead
+     of letting this list grow the page past the viewport. */
+  var all=D.messages||[], VIS=4;
+  mc.appendChild(all.length?h("div",{class:"ov-rs"},all.slice(0,VIS).map(logRow)):h("div",{class:"ov-empty"},"No messages yet"));
+  if(all.length>VIS)mc.appendChild(h("button",{type:"button",class:"cc-more",onclick:function(){CC.sheet("Internal coordination log · "+all.length,h("div",{class:"ov-rs"},all.map(logRow)))}},"View all "+all.length+" ↓"));
   el.appendChild(mc);
   return el;
 }

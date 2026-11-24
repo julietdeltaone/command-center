@@ -64,7 +64,7 @@
     return {you: you, client: client, sched: sched, owed: owed, toCollect: toCollect, nextD: nextD};
   }
 
-  var COL = {r: "#ff6b7a", a: "#f0b450", g: "#5fd48a", b: "#7cc4ff", n: "#8792a6"};
+  var COL = {r: "var(--red)", a: "var(--amber)", g: "var(--green)", b: "var(--accent)", n: "var(--muted)"};
   function num(cls, n, label) { return h("div", {class: "ov-num", style: "--c:" + (COL[cls] || COL.n)}, h("b", null, n), h("span", null, label)); }
 
   CC.views.Business = function (api) {
