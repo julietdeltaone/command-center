@@ -1,11 +1,12 @@
 /* Command Center "Build" page. Owner: Atlas (claude).
-   A wide flowchart of the Build Status tab: one row per lane group, three columns per row —
-   DATA -> INFORMATION -> KNOWLEDGE, left to right, in that real build order. Animated arrows between
-   columns flow forward (toward Knowledge) whenever that stage is actually wired live. Every node shows
-   its own four stages (Generated/Populated/Networked/Verified) right on the card, no click required —
-   there's plenty of room, so nothing is cramped or stacked on top of itself.
-   Data comes live from the CC Connected Sheets Reader (same Apps Script web app cc-sheets.js uses),
-   reading this spreadsheet's own "Build Status" tab. Pure DOM + CSS, no libraries. */
+   A landscape-oriented "universe" of Command Center's own construction: every lane from the
+   Build Status tab as its own card (Data -> Information -> Knowledge, left to right), the cards
+   wrapping into rows so the whole board stays roughly as wide as it is tall instead of one long
+   column. Pan by dragging, zoom with the wheel/pinch/buttons/keyboard, FIT snaps back to the
+   whole board. Every node shows its own four stages (Generated/Populated/Networked/Verified)
+   right on the card, no click required.
+   Data comes live from the CC Connected Sheets Reader (same Apps Script web app cc-sheets.js
+   uses), reading this spreadsheet's own "Build Status" tab. Pure DOM + CSS, no libraries. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -28,7 +29,7 @@
     {name: "Hub Core / Admin", data: ["hubc-data"], info: ["hubc-info"], know: ["hubc-know"]}
   ];
 
-  var S = {byId: {}, err: null, loading: false, at: null, view: {x: 40, y: 20, k: 1, inited: false}};
+  var S = {byId: {}, err: null, loading: false, at: null, view: {x: 0, y: 0, k: 1, userTouched: false}};
 
   function h(tag, props) {
     var e = document.createElement(tag);
@@ -104,11 +105,10 @@
   function stageOn(node, s) { return !!node && (node[s] === "TRUE" || node[s] === true); }
   function stageCount(node) { return node ? STAGES.filter(function (s) { return stageOn(node, s); }).length : 0; }
   function stateOf(node) { var n = stageCount(node); return n === 4 ? "live" : n === 0 ? "none" : "partial"; }
-  function colOf(state) { return state === "live" ? "var(--green)" : state === "partial" ? "var(--amber)" : "var(--red)"; }
 
   function arrowGlyph(live) {
-    var p = svg("path", {d: "M2 12 H34 M25 3 L34 12 L25 21", fill: "none", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round"});
-    return svg("svg", {viewBox: "0 0 36 24", class: "bld-arrow" + (live ? " bld-arrow-live" : "")}, [p]);
+    var p = svg("path", {d: "M2 9 H22 M16 2 L22 9 L16 16", fill: "none", "stroke-width": "2.4", "stroke-linecap": "round", "stroke-linejoin": "round"});
+    return svg("svg", {viewBox: "0 0 24 18", class: "bld-arrow" + (live ? " bld-arrow-live" : "")}, [p]);
   }
 
   function nodeTile(id) {
@@ -136,15 +136,18 @@
     return {el: col, networked: anyNetworked, empty: ids.length === 0};
   }
 
-  function groupRow(g) {
-    var row = h("div", {class: "bld-group"});
+  function laneCard(g) {
     var pct = 0, max = 0;
     [].concat(g.data, g.info, g.know).forEach(function (id) { pct += stageCount(S.byId[id]); max += 4; });
     pct = max ? Math.round((pct / max) * 100) : 0;
-    row.appendChild(h("div", {class: "bld-group-h"},
-      h("span", {class: "bld-group-name"}, g.name),
-      h("span", {class: "bld-group-pct", style: "color:" + colOf(pct >= 100 ? "live" : pct <= 0 ? "none" : "partial")}, pct + "% BUILT")
+    var state = pct >= 100 ? "live" : pct <= 0 ? "none" : "partial";
+
+    var card = h("div", {class: "bld-lane"});
+    card.appendChild(h("div", {class: "bld-lane-h"},
+      h("span", {class: "bld-lane-name"}, g.name),
+      h("span", {class: "bld-lane-pct bld-pct-" + state}, pct + "% BUILT")
     ));
+
     var dataCol = column(g.data, "Data"), infoCol = column(g.info, "Information"), knowCol = column(g.know, "Knowledge");
     var flow = h("div", {class: "bld-flow"});
     flow.appendChild(dataCol.el);
@@ -156,40 +159,82 @@
       flow.appendChild(arrowGlyph(dataCol.networked));
     }
     flow.appendChild(knowCol.el);
-    row.appendChild(flow);
-    return row;
+    card.appendChild(flow);
+    return card;
   }
+
+  /* ---- pan/zoom "universe" engine -------------------------------------------------------
+     A fixed-size world (CANVAS) sits inside an overflow:hidden viewport and is positioned with
+     a single translate()+scale() transform. Panning/zooming only ever touches S.view and then
+     re-applies that transform — never the DOM structure — so it stays smooth regardless of how
+     much content is on the board. */
 
   var CANVAS_W = 1760;
 
-  function clampK(k) { return Math.max(0.25, Math.min(2.5, k)); }
+  function clampK(k) { return Math.max(0.15, Math.min(3, k)); }
+
+  function fitRect(viewportEl, canvasEl, pad) {
+    var vw = viewportEl.clientWidth, vh = viewportEl.clientHeight;
+    var cw = canvasEl.offsetWidth, ch = canvasEl.offsetHeight;
+    if (!vw || !vh || !cw || !ch) return null;
+    var k = clampK(Math.min((vw - pad * 2) / cw, (vh - pad * 2) / ch));
+    return {x: (vw - cw * k) / 2, y: (vh - ch * k) / 2, k: k};
+  }
 
   function wireZoomPan(viewport, canvas) {
-    function apply() { canvas.style.transform = "translate(" + S.view.x + "px," + S.view.y + "px) scale(" + S.view.k + ")"; }
-    apply();
+    var raf = null;
+    function apply() {
+      canvas.style.transform = "translate(" + S.view.x.toFixed(1) + "px," + S.view.y.toFixed(1) + "px) scale(" + S.view.k.toFixed(4) + ")";
+    }
+    function schedule() {
+      if (raf) return;
+      raf = requestAnimationFrame(function () { raf = null; apply(); });
+    }
+    function touched() { S.view.userTouched = true; }
 
     function zoomAt(cx, cy, factor) {
       var k0 = S.view.k, k1 = clampK(k0 * factor);
+      if (k1 === k0) return;
       S.view.x = cx - (cx - S.view.x) * (k1 / k0);
       S.view.y = cy - (cy - S.view.y) * (k1 / k0);
       S.view.k = k1;
-      apply();
+      schedule();
     }
+
+    function fit() {
+      var r = fitRect(viewport, canvas, 26);
+      if (!r) return false;
+      S.view.x = r.x; S.view.y = r.y; S.view.k = r.k;
+      apply();
+      return true;
+    }
+
+    apply();
 
     viewport.addEventListener("wheel", function (e) {
       e.preventDefault();
+      touched();
       var r = viewport.getBoundingClientRect();
-      zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+      // Proportional to the gesture's own magnitude (trackpad vs. mouse wheel) instead of a
+      // fixed step per event, so zoom speed tracks the gesture instead of jumping in ticks.
+      var factor = Math.exp(-e.deltaY * 0.0016);
+      zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
     }, {passive: false});
 
-    var pts = {}; // active pointers, for drag + pinch
-    var dragLast = null, pinchStart = null;
+    viewport.addEventListener("dblclick", function (e) {
+      touched();
+      var r = viewport.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, 1.6);
+    });
+
+    var pts = {}, dragLast = null, pinchStart = null, dragMoved = false;
 
     viewport.addEventListener("pointerdown", function (e) {
+      if (e.button != null && e.button !== 0) return;
       viewport.setPointerCapture(e.pointerId);
       pts[e.pointerId] = {x: e.clientX, y: e.clientY};
       var ids = Object.keys(pts);
-      if (ids.length === 1) { dragLast = {x: e.clientX, y: e.clientY}; viewport.style.cursor = "grabbing"; }
+      if (ids.length === 1) { dragLast = {x: e.clientX, y: e.clientY}; dragMoved = false; viewport.classList.add("bld-dragging"); }
       else if (ids.length === 2) {
         var a = pts[ids[0]], b = pts[ids[1]];
         pinchStart = {dist: Math.hypot(a.x - b.x, a.y - b.y), k: S.view.k, mid: {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}};
@@ -201,118 +246,151 @@
       pts[e.pointerId] = {x: e.clientX, y: e.clientY};
       var ids = Object.keys(pts);
       if (ids.length === 1 && dragLast) {
-        S.view.x += e.clientX - dragLast.x; S.view.y += e.clientY - dragLast.y;
-        dragLast = {x: e.clientX, y: e.clientY}; apply();
+        var dx = e.clientX - dragLast.x, dy = e.clientY - dragLast.y;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) { dragMoved = true; touched(); }
+        S.view.x += dx; S.view.y += dy;
+        dragLast = {x: e.clientX, y: e.clientY};
+        schedule();
       } else if (ids.length === 2 && pinchStart) {
+        touched();
         var a = pts[ids[0]], b = pts[ids[1]];
         var dist = Math.hypot(a.x - b.x, a.y - b.y);
         var r = viewport.getBoundingClientRect();
-        var factor = (dist / pinchStart.dist);
-        var k1 = clampK(pinchStart.k * factor);
+        var k1 = clampK(pinchStart.k * (dist / pinchStart.dist));
         var mx = pinchStart.mid.x - r.left, my = pinchStart.mid.y - r.top;
         S.view.x = mx - (mx - S.view.x) * (k1 / S.view.k);
         S.view.y = my - (my - S.view.y) * (k1 / S.view.k);
-        S.view.k = k1; apply();
+        S.view.k = k1;
+        schedule();
       }
     });
-    function endPt(e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinchStart = null; if (Object.keys(pts).length === 0) { dragLast = null; viewport.style.cursor = "grab"; } }
+    function endPt(e) {
+      delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) pinchStart = null;
+      if (Object.keys(pts).length === 0) { dragLast = null; viewport.classList.remove("bld-dragging"); }
+    }
     viewport.addEventListener("pointerup", endPt);
     viewport.addEventListener("pointercancel", endPt);
     viewport.addEventListener("pointerleave", function (e) { if (Object.keys(pts).length <= 1) endPt(e); });
 
-    return {zoomAt: zoomAt, apply: apply};
+    viewport.setAttribute("tabindex", "0");
+    viewport.addEventListener("keydown", function (e) {
+      var r = viewport.getBoundingClientRect();
+      if (e.key === "+" || e.key === "=") { touched(); zoomAt(r.width / 2, r.height / 2, 1.2); e.preventDefault(); }
+      else if (e.key === "-" || e.key === "_") { touched(); zoomAt(r.width / 2, r.height / 2, 1 / 1.2); e.preventDefault(); }
+      else if (e.key === "0") { S.view.userTouched = false; fit(); e.preventDefault(); }
+      else if (e.key === "ArrowLeft") { touched(); S.view.x += 60; schedule(); e.preventDefault(); }
+      else if (e.key === "ArrowRight") { touched(); S.view.x -= 60; schedule(); e.preventDefault(); }
+      else if (e.key === "ArrowUp") { touched(); S.view.y += 60; schedule(); e.preventDefault(); }
+      else if (e.key === "ArrowDown") { touched(); S.view.y -= 60; schedule(); e.preventDefault(); }
+    });
+
+    var resizeTimer = null;
+    window.addEventListener("resize", function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () { if (!S.view.userTouched) fit(); }, 120);
+    });
+
+    return {zoomAt: zoomAt, apply: apply, fit: fit};
   }
 
   CC.views.Build = function (api) {
     ensureFont();
     if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api);
+
     var wrap = h("div", {class: "bld-wrap"});
     wrap.appendChild(h("div", {class: "bld-head"},
-      h("div", null, h("h2", null, "BUILD"), h("small", null, "Command Center's own construction — live, straight from the Build Status sheet")),
-      h("small", {class: "bld-read"}, S.at ? "READ " + api.ago(new Date(S.at).toISOString()).toUpperCase() : S.loading ? "LOADING…" : "")
+      h("div", {class: "bld-head-l"},
+        h("h2", null, "BUILD"),
+        h("small", {class: "bld-read"}, S.err || (S.at ? "READ " + api.ago(new Date(S.at).toISOString()).toUpperCase() : S.loading ? "LOADING…" : ""))
+      ),
+      h("div", {class: "bld-legend"},
+        h("span", null, h("i", {class: "bld-stage-dot bld-stage-dot-on"}), "STAGE DONE"),
+        h("span", null, h("i", {class: "bld-stage-dot"}), "NOT YET"),
+        h("span", null, h("i", {class: "bld-sw", style: "background:var(--green)"}), "LIVE"),
+        h("span", null, h("i", {class: "bld-sw", style: "background:var(--amber)"}), "PARTIAL"),
+        h("span", null, h("i", {class: "bld-sw", style: "background:var(--red)"}), "NOT STARTED")
+      )
     ));
-    if (S.err) { wrap.appendChild(h("div", {class: "bld-err"}, S.err)); return wrap; }
-    if (Object.keys(S.byId).length === 0) { wrap.appendChild(h("div", {class: "bld-err"}, "LOADING…")); return wrap; }
+
+    if (Object.keys(S.byId).length === 0) {
+      wrap.appendChild(h("div", {class: "bld-err"}, S.err || "LOADING…"));
+      return wrap;
+    }
 
     var canvas = h("div", {class: "bld-canvas", style: "width:" + CANVAS_W + "px"});
-    canvas.appendChild(h("div", {class: "bld-colheads"},
-      h("span", null, "DATA"), h("span", null, "INFORMATION"), h("span", null, "KNOWLEDGE")
-    ));
-    GROUPS.forEach(function (g) { canvas.appendChild(groupRow(g)); });
-    canvas.appendChild(h("div", {class: "bld-legend"},
-      h("span", null, h("i", {class: "bld-stage-dot bld-stage-dot-on"}), "STAGE DONE"),
-      h("span", null, h("i", {class: "bld-stage-dot"}), "NOT YET"),
-      h("span", null, h("i", {class: "bld-sw", style: "background:var(--green)"}), "LIVE"),
-      h("span", null, h("i", {class: "bld-sw", style: "background:var(--amber)"}), "PARTIAL"),
-      h("span", null, h("i", {class: "bld-sw", style: "background:var(--red)"}), "NOT STARTED")
-    ));
+    GROUPS.forEach(function (g) { canvas.appendChild(laneCard(g)); });
 
     var viewport = h("div", {class: "bld-viewport"}, canvas);
     var controls = h("div", {class: "bld-zoomctl"});
-    var zin = h("button", {type: "button", title: "Zoom in"}, "+");
-    var zout = h("button", {type: "button", title: "Zoom out"}, "−");
-    var zreset = h("button", {type: "button", class: "bld-zoomreset", title: "Fit to screen"}, "FIT");
+    var zin = h("button", {type: "button", title: "Zoom in (+)"}, "+");
+    var zout = h("button", {type: "button", title: "Zoom out (−)"}, "−");
+    var zreset = h("button", {type: "button", class: "bld-zoomreset", title: "Fit to screen (0)"}, "FIT");
     controls.appendChild(zin); controls.appendChild(zout); controls.appendChild(zreset);
 
     var stage = h("div", {class: "bld-stagewrap"}, viewport, controls);
     wrap.appendChild(stage);
 
     var zp = wireZoomPan(viewport, canvas);
-    zin.addEventListener("click", function () { var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1.25); });
-    zout.addEventListener("click", function () { var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1 / 1.25); });
-    zreset.addEventListener("click", function () {
-      var r = viewport.getBoundingClientRect();
-      S.view.k = clampK(r.width / CANVAS_W * 0.96);
-      S.view.x = (r.width - CANVAS_W * S.view.k) / 2;
-      S.view.y = 16;
-      zp.apply();
+    zin.addEventListener("click", function () { S.view.userTouched = true; var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1.3); });
+    zout.addEventListener("click", function () { S.view.userTouched = true; var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1 / 1.3); });
+    zreset.addEventListener("click", function () { S.view.userTouched = false; zp.fit(); });
+
+    // `wrap` isn't attached to the document yet — the caller (index.html's render()) appends
+    // the node this function returns right after it gets it back, so measuring the viewport
+    // here would read a detached 0x0 rect. Defer the first fit to the next animation frame,
+    // once it's actually on screen, so it's correct the first time, not just after a manual
+    // click of the FIT button.
+    requestAnimationFrame(function () {
+      if (!document.body.contains(viewport)) return;
+      if (!S.view.userTouched) zp.fit();
     });
-    if (!S.view.inited) { S.view.inited = true; zreset.click(); }
 
     return wrap;
   };
 
   var STYLE = "\n" +
-    ".bld-wrap{padding:22px 28px 40px;display:flex;flex-direction:column;gap:26px;font-family:'Space Grotesk',Arial,sans-serif}\n" +
-    ".bld-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px}\n" +
-    ".bld-head h2{margin:0;color:var(--text);font-weight:700;font-size:32px;letter-spacing:.07em}\n" +
-    ".bld-head small{color:var(--muted);font-size:14px}\n" +
-    ".bld-read{color:var(--muted);font-size:12px;letter-spacing:.06em;white-space:nowrap}\n" +
-    ".bld-err{color:var(--muted);padding:40px;text-align:center;font-size:18px;letter-spacing:.05em}\n" +
-    ".bld-colheads{display:grid;grid-template-columns:1fr 54px 1fr 54px 1fr;gap:18px;color:var(--muted);font-size:13px;letter-spacing:.12em;font-weight:700;padding:0 2px}\n" +
-    ".bld-colheads span:nth-child(2),.bld-colheads span:nth-child(4){visibility:hidden}\n" +
-    ".bld-group{display:flex;flex-direction:column;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line)}\n" +
-    ".bld-group:last-of-type{border-bottom:none}\n" +
-    ".bld-group-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}\n" +
-    ".bld-group-name{color:var(--text);font-weight:700;font-size:21px;letter-spacing:.04em}\n" +
-    ".bld-group-pct{font-size:13px;font-weight:700;letter-spacing:.06em}\n" +
-    ".bld-flow{display:grid;grid-template-columns:1fr 54px 1fr 54px 1fr;gap:18px;align-items:start}\n" +
-    ".bld-col{display:flex;flex-direction:column;gap:14px;min-width:0}\n" +
-    ".bld-col-h{display:none}\n" +
-    ".bld-arrow{align-self:center;width:36px;height:24px;color:var(--line);stroke:currentColor;overflow:visible}\n" +
+    ".bld-wrap{height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;padding:10px 14px 10px;font-family:'Space Grotesk',Arial,sans-serif;min-height:0}\n" +
+    ".bld-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}\n" +
+    ".bld-head-l{display:flex;align-items:baseline;gap:12px;min-width:0}\n" +
+    ".bld-head h2{margin:0;color:var(--text);font-weight:700;font-size:16px;letter-spacing:.08em}\n" +
+    ".bld-read{color:var(--muted);font-size:11px;letter-spacing:.05em;white-space:nowrap}\n" +
+    ".bld-err{color:var(--muted);padding:40px;text-align:center;font-size:16px;letter-spacing:.05em}\n" +
+    ".bld-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:10.5px;letter-spacing:.05em;font-weight:600}\n" +
+    ".bld-legend i.bld-stage-dot{margin-right:5px;vertical-align:middle}\n" +
+    ".bld-sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px}\n" +
+    ".bld-stagewrap{position:relative;flex:1 1 auto;min-height:0}\n" +
+    ".bld-viewport{position:absolute;inset:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--bg);touch-action:none;cursor:grab;user-select:none;outline:none}\n" +
+    ".bld-viewport.bld-dragging{cursor:grabbing}\n" +
+    ".bld-viewport:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}\n" +
+    ".bld-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:22px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:18px;box-sizing:border-box;will-change:transform}\n" +
+    ".bld-lane{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px 15px;display:flex;flex-direction:column;gap:10px;flex:1 1 540px;max-width:620px;min-width:460px}\n" +
+    ".bld-lane-h{display:flex;align-items:center;justify-content:space-between;gap:10px}\n" +
+    ".bld-lane-name{color:var(--text);font-weight:700;font-size:15px;letter-spacing:.03em}\n" +
+    ".bld-lane-pct{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:20px;background:var(--panel2)}\n" +
+    ".bld-pct-live{color:var(--green)}\n.bld-pct-partial{color:var(--amber)}\n.bld-pct-none{color:var(--red)}\n" +
+    ".bld-flow{display:grid;grid-template-columns:1fr 22px 1fr 22px 1fr;gap:8px;align-items:start}\n" +
+    ".bld-col{display:flex;flex-direction:column;gap:8px;min-width:0}\n" +
+    ".bld-col-h{color:var(--muted);font-size:9.5px;letter-spacing:.1em;font-weight:700;text-transform:uppercase}\n" +
+    ".bld-arrow{align-self:center;margin-top:18px;width:22px;height:16px;color:var(--line);stroke:currentColor;overflow:visible}\n" +
     ".bld-arrow path{stroke:var(--line);transition:stroke .4s}\n" +
     ".bld-arrow-live path{stroke:var(--green);stroke-dasharray:6 5;animation:bld-flow 0.9s linear infinite}\n" +
     "@keyframes bld-flow{to{stroke-dashoffset:-22}}\n" +
-    ".bld-tile{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}\n" +
-    ".bld-tile-top{display:flex;flex-direction:column;gap:3px}\n" +
-    ".bld-tile-name{color:var(--text);font-size:18px;font-weight:700;line-height:1.3}\n" +
-    ".bld-tile-owner{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}\n" +
-    ".bld-stages{display:flex;flex-wrap:wrap;gap:10px 16px}\n" +
-    ".bld-stage{display:flex;align-items:center;gap:6px;font-size:11.5px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;font-weight:600}\n" +
+    ".bld-tile{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px}\n" +
+    ".bld-tile-top{display:flex;flex-direction:column;gap:2px}\n" +
+    ".bld-tile-name{color:var(--text);font-size:12.5px;font-weight:700;line-height:1.25}\n" +
+    ".bld-tile-owner{color:var(--muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}\n" +
+    ".bld-stages{display:flex;flex-wrap:wrap;gap:5px 10px}\n" +
+    ".bld-stage{display:flex;align-items:center;gap:4px;font-size:9px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;font-weight:600}\n" +
     ".bld-stage-on{color:var(--text)}\n" +
-    ".bld-stage-dot{width:10px;height:10px;border-radius:50%;background:var(--line);display:inline-block}\n" +
+    ".bld-stage-dot{width:7px;height:7px;border-radius:50%;background:var(--line);display:inline-block}\n" +
     ".bld-stage-on .bld-stage-dot,.bld-stage-dot-on{background:var(--green)}\n" +
-    ".bld-tile-note{color:var(--muted);font-size:13px;line-height:1.5;border-top:1px solid var(--line);padding-top:10px}\n" +
-    ".bld-live{border-left-color:var(--green)}\n.bld-partial{border-left-color:var(--amber)}\n.bld-none{border-left-color:var(--red);opacity:.7}\n" +
-    ".bld-legend{display:flex;gap:22px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:12px;letter-spacing:.06em;font-weight:600;border-top:1px solid var(--line);padding-top:16px}\n" +
-    ".bld-legend i.bld-stage-dot{margin-right:6px;vertical-align:middle}\n" +
-    ".bld-sw{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px}\n" +
-    ".bld-stagewrap{position:relative}\n" +
-    ".bld-viewport{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:14px;height:min(76vh,860px);background:var(--bg);touch-action:none;cursor:grab;user-select:none}\n" +
-    ".bld-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:24px 28px 36px;display:flex;flex-direction:column;gap:26px;box-sizing:border-box}\n" +
+    ".bld-tile-note{color:var(--muted);font-size:10.5px;line-height:1.4;border-top:1px solid var(--line);padding-top:7px}\n" +
+    ".bld-live{border-left-color:var(--green)}\n.bld-partial{border-left-color:var(--amber)}\n.bld-none{border-left-color:var(--red);opacity:.72}\n" +
     ".bld-zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:5}\n" +
-    ".bld-zoomctl button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--text);font-family:'Space Grotesk',Arial,sans-serif;font-size:18px;font-weight:700;cursor:pointer;line-height:1}\n" +
+    ".bld-zoomctl button{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--text);font-family:'Space Grotesk',Arial,sans-serif;font-size:17px;font-weight:700;cursor:pointer;line-height:1}\n" +
     ".bld-zoomctl button:hover{border-color:var(--accent);color:var(--accent)}\n" +
-    ".bld-zoomctl .bld-zoomreset{font-size:10px;letter-spacing:.06em}\n";
+    ".bld-zoomctl .bld-zoomreset{font-size:10px;letter-spacing:.06em}\n" +
+    "@media (max-width:860px){.bld-lane{flex-basis:100%;min-width:0}.bld-legend{display:none}}\n";
   var styleEl = document.createElement("style"); styleEl.textContent = STYLE; document.head.appendChild(styleEl);
 })();
