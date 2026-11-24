@@ -64,8 +64,19 @@
     leads.forEach(function (n) {
       var open = n.next.concat(n.need), w = String(n.waiting || ""), group = /^you/i.test(w) ? "you" : /^client/i.test(w) ? "client" : (open.length ? "you" : "client");
       var why = n.why || (open.length ? String(open[0]).replace(/\s*\(.*$/, "") : "Waiting for their reply"), lastAt = ms(n.last_at) || n.lastMs;
-      var twin = null, same = rows.filter(function (r) { return r.kind === "Confirmed" && first(r.name) === first(n.name); });
-      if (same.length === 1 && String(n.name || "").trim().split(/\s+/).length === 1) twin = same[0];
+      /* Same person as a ledger row? Best key is the project id (lead field "Ledger: JDM-2027-01"). Fallback: same first name and the
+         lead gives no last initial or the same one, and exactly one ledger row fits. */
+      var twin = null, linked = n.ledger ? rows.filter(function (r) { return r.kind === "Confirmed" && String(r.id).toLowerCase() === String(n.ledger).trim().toLowerCase(); }) : [];
+      if (linked.length === 1) twin = linked[0];
+      else {
+        var nt = String(n.name || "").replace(/\./g, "").trim().split(/\s+/), nl = nt.length > 1 ? nt[nt.length - 1].charAt(0).toLowerCase() : "";
+        var same = rows.filter(function (r) {
+          if (r.kind !== "Confirmed" || first(r.name) !== first(n.name)) return false;
+          var rt = String(r.name).replace(/\./g, "").trim().split(/\s+/), rl = rt.length > 1 ? rt[rt.length - 1].charAt(0).toLowerCase() : "";
+          return !nl || !rl || nl === rl;
+        });
+        if (same.length === 1) twin = same[0];
+      }
       if (twin) { /* the same person: one row, keep the ledger name and money, take the lead's next step */
         twin.kind = "Confirmed"; if (!twin.explicit && (open.length || n.waiting)) { twin.group = group; twin.wait = group === "you" ? "You" : "Client"; twin.why = why; }
         if (n.last && (!twin.lastAt || (lastAt || 0) >= twin.lastAt)) twin.last = n.last; if (lastAt && (!twin.lastAt || lastAt > twin.lastAt)) twin.lastAt = lastAt; return;
