@@ -12,3 +12,6 @@ index.html; moving them out of the repo root is the whole change — no content 
   `CC.views.System` for the System tab (views/system.js, Argus) — the key never matched, so this was
   dead code from the day it was added, not something that broke later. Open question for JD: fold its
   tiles into views/system.js, wire it in as its own reachable page, or leave it archived.
+- **cc-active.css** — 2026-11-24 design pass: rewrote cc-active.js's Business page to use the shared
+  `.wd`/`.wd-h`/`.wd-t`/`.ov-nums`/`.ov-num` components (cc-widgets.css, cc-pages.css) instead of its
+  own one-off `.ac-*` classes, so it stops loading a second, slightly different card style.

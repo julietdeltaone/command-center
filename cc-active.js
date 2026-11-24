@@ -64,7 +64,8 @@
     return {you: you, client: client, sched: sched, owed: owed, toCollect: toCollect, nextD: nextD};
   }
 
-  function tile(cls, n, label) { return h("div", {class: "ac-t " + (cls || "")}, h("b", null, n), h("span", null, label)); }
+  var COL = {r: "#ff6b7a", a: "#f0b450", g: "#5fd48a", b: "#7cc4ff", n: "#8792a6"};
+  function num(cls, n, label) { return h("div", {class: "ov-num", style: "--c:" + (COL[cls] || COL.n)}, h("b", null, n), h("span", null, label)); }
 
   CC.views.Business = function (api) {
     var c = counts(api);
@@ -75,26 +76,25 @@
     var comp = items(api, "Competitors"), compLatest = comp.map(function (i) { return ms(i.time); }).filter(Boolean).sort(function (a, b) { return b - a; })[0];
     var compDays = compLatest != null ? Math.max(0, dayDelta(now, compLatest)) : null;
 
-    var links = h("div", {class: "ac-links"},
-      ldUrl ? h("a", {href: ldUrl, target: "_blank", rel: "noopener", class: "ac-lbtn primary"}, "Open Ledger ↗") : null,
-      lsUrl ? h("a", {href: lsUrl, target: "_blank", rel: "noopener", class: "ac-lbtn"}, "Open sheet ↗") : null,
-      !ldUrl && !lsUrl ? h("span", {class: "ac-empty"}, "Ledger links not configured (Config: ledger_dashboard_url, ledger_sheet_url)") : null
+    var links = h("div", {style: "display:flex;gap:8px;flex-wrap:wrap;margin-left:auto"},
+      ldUrl ? h("a", {href: ldUrl, target: "_blank", rel: "noopener", class: "btn link", style: "text-decoration:none"}, "Open Ledger ↗") : null,
+      lsUrl ? h("a", {href: lsUrl, target: "_blank", rel: "noopener", class: "btn", style: "text-decoration:none"}, "Open sheet ↗") : null,
+      !ldUrl && !lsUrl ? h("span", {style: "color:var(--muted);font-size:12px"}, "Ledger links not configured") : null
     );
 
-    var grid = h("div", {class: "ac-glance"},
-      tile(c.you ? "r" : "g", String(c.you), "On you"),
-      tile(c.client ? "a" : "g", String(c.client), "Waiting on client"),
-      tile("b", String(c.sched), "Scheduled"),
-      tile(c.owed ? "r" : "g", String(c.owed), c.owed === 1 ? "shot, not delivered" : "shot, not delivered"),
-      tile(c.toCollect ? "a" : "g", usd(c.toCollect), "To collect"),
-      tile("", c.nextD == null ? "none" : c.nextD === 0 ? "today" : c.nextD === 1 ? "1 day" : c.nextD + " days", "Next shoot"),
-      tile(sinceDays == null ? "" : sinceDays >= 3 ? "a" : "g", sinceDays == null ? "—" : String(sinceDays), "Days since last ledger update"),
-      tile("", comp.length ? String(comp.length) : "0", compDays != null ? "competitor moves · last " + compDays + "d ago" : "competitor moves")
+    var panel = h("section", {class: "wd"},
+      h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Business · at a glance"), links),
+      h("div", {class: "ov-nums"},
+        num(c.you ? "r" : "g", String(c.you), "On you"),
+        num(c.client ? "a" : "g", String(c.client), "Waiting on client"),
+        num("b", String(c.sched), "Scheduled"),
+        num(c.owed ? "r" : "g", String(c.owed), "Shot, not delivered"),
+        num(c.toCollect ? "a" : "g", usd(c.toCollect), "To collect"),
+        num("n", c.nextD == null ? "none" : c.nextD === 0 ? "today" : c.nextD === 1 ? "1 day" : c.nextD + " days", "Next shoot"),
+        num(sinceDays == null ? "n" : sinceDays >= 3 ? "a" : "g", sinceDays == null ? "—" : String(sinceDays), "Days since last ledger update"),
+        num("n", comp.length ? String(comp.length) : "0", compDays != null ? "Competitor moves · " + compDays + "d ago" : "Competitor moves")
+      )
     );
-
-    return h("div", {class: "wdpage ac"},
-      h("div", {class: "ac-hd"}, h("div", null, h("small", null, "Business"), h("h2", null, "At a glance")), links),
-      grid
-    );
+    return h("div", {class: "wdpage"}, panel);
   };
 })();
