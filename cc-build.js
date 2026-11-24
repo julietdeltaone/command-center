@@ -1,10 +1,11 @@
 /* Command Center "Build" page. Owner: Atlas (claude).
-   A landscape-oriented "universe" of Command Center's own construction: every lane from the
-   Build Status tab as its own card (Data -> Information -> Knowledge, left to right), the cards
-   wrapping into rows so the whole board stays roughly as wide as it is tall instead of one long
-   column. Pan by dragging, zoom with the wheel/pinch/buttons/keyboard, FIT snaps back to the
-   whole board. Every node shows its own four stages (Generated/Populated/Networked/Verified)
-   right on the card, no click required.
+   A landscape "universe" of Command Center's own construction: every lane from the Build Status
+   tab as its own card (Data -> Information -> Knowledge, left to right). Each node's four stages
+   (Generated/Populated/Networked/Verified) show as a small color-coded ring instead of a list, so
+   the name/owner text can run bigger. The board's column count is chosen automatically, each time
+   it's fit, to whatever actually fills the screen best for that window's shape — not a fixed grid.
+   Navigation: pinch (trackpad)/ctrl+wheel/buttons/keyboard zoom; two-finger scroll or click-drag
+   pans; FIT snaps back to the whole board, re-picking columns for the current window.
    Data comes live from the CC Connected Sheets Reader (same Apps Script web app cc-sheets.js
    uses), reading this spreadsheet's own "Build Status" tab. Pure DOM + CSS, no libraries. */
 (function () {
@@ -111,19 +112,44 @@
     return svg("svg", {viewBox: "0 0 24 18", class: "bld-arrow" + (live ? " bld-arrow-live" : "")}, [p]);
   }
 
+  // A small ring whose perimeter is split into the four build stages (Generated, Populated,
+  // Networked, Verified), each its own arc, colored in when that stage is done. Replaces a
+  // four-line text list with one glyph, so the tile can spend its height on bigger text instead.
+  function stageRing(node) {
+    var size = 34, r = 13, cx = size / 2, cy = size / 2;
+    var circ = 2 * Math.PI * r;
+    var segLen = circ / STAGES.length - 3;
+    var ring = svg("svg", {viewBox: "0 0 " + size + " " + size, class: "bld-ring", width: size, height: size});
+    var title = svg("title", {});
+    title.textContent = STAGES.map(function (s) { return s + ": " + (stageOn(node, s) ? "done" : "not yet"); }).join(" · ");
+    ring.appendChild(title);
+    ring.appendChild(svg("circle", {cx: cx, cy: cy, r: r, fill: "none", stroke: "var(--line)", "stroke-width": 4}));
+    STAGES.forEach(function (s, i) {
+      if (!stageOn(node, s)) return;
+      ring.appendChild(svg("circle", {
+        cx: cx, cy: cy, r: r, fill: "none", stroke: "var(--green)", "stroke-width": 4, "stroke-linecap": "round",
+        "stroke-dasharray": segLen + "," + (circ - segLen),
+        "stroke-dashoffset": -(i * circ / STAGES.length),
+        transform: "rotate(-90 " + cx + " " + cy + ")"
+      }));
+    });
+    var label = svg("text", {x: cx, y: cy + 3.5, "text-anchor": "middle", class: "bld-ring-n"});
+    label.textContent = stageCount(node) + "/4";
+    ring.appendChild(label);
+    return ring;
+  }
+
   function nodeTile(id) {
     var node = S.byId[id];
     var state = stateOf(node);
     var tile = h("div", {class: "bld-tile bld-" + state});
     tile.appendChild(h("div", {class: "bld-tile-top"},
-      h("span", {class: "bld-tile-name"}, node ? node.Label : id),
-      h("span", {class: "bld-tile-owner"}, node ? node.Owner : "")
+      stageRing(node),
+      h("div", {class: "bld-tile-tx"},
+        h("span", {class: "bld-tile-name"}, node ? node.Label : id),
+        h("span", {class: "bld-tile-owner"}, node ? node.Owner : "")
+      )
     ));
-    tile.appendChild(h("div", {class: "bld-stages"}, STAGES.map(function (s) {
-      var on = stageOn(node, s);
-      return h("div", {class: "bld-stage" + (on ? " bld-stage-on" : "")},
-        h("i", {class: "bld-stage-dot"}), h("span", null, s));
-    })));
     if (node && node.Notes) tile.appendChild(h("div", {class: "bld-tile-note"}, node.Notes));
     return {el: tile, networked: stageOn(node, "Networked")};
   }
@@ -163,23 +189,25 @@
     return card;
   }
 
-  /* ---- pan/zoom "universe" engine -------------------------------------------------------
-     A fixed-size world (CANVAS) sits inside an overflow:hidden viewport and is positioned with
-     a single translate()+scale() transform. Panning/zooming only ever touches S.view and then
-     re-applies that transform — never the DOM structure — so it stays smooth regardless of how
-     much content is on the board. */
-
-  var CANVAS_W = 1760;
-
-  function clampK(k) { return Math.max(0.15, Math.min(3, k)); }
-
-  function fitRect(viewportEl, canvasEl, pad) {
-    var vw = viewportEl.clientWidth, vh = viewportEl.clientHeight;
-    var cw = canvasEl.offsetWidth, ch = canvasEl.offsetHeight;
-    if (!vw || !vh || !cw || !ch) return null;
-    var k = clampK(Math.min((vw - pad * 2) / cw, (vh - pad * 2) / ch));
-    return {x: (vw - cw * k) / 2, y: (vh - ch * k) / 2, k: k};
+  function legendRing(onCount) {
+    var fake = {};
+    STAGES.forEach(function (s, i) { fake[s] = i < onCount ? "TRUE" : "FALSE"; });
+    return stageRing(fake);
   }
+
+  /* ---- pan/zoom "universe" engine -------------------------------------------------------
+     A world (CANVAS) sits inside an overflow:hidden viewport and is positioned with a single
+     translate()+scale() transform. The board is a CSS grid; FIT doesn't just rescale it, it
+     tries a few column counts, measures each one's real rendered size, and keeps whichever one
+     lets the whole board fill the most of the actual window — so "fit" adapts to the window's
+     own shape instead of assuming one fixed layout. */
+
+  var COL_CANDIDATES = [2, 3, 4, 5];
+  var CARD_W = 480, GAP = 18, PAD = 22, CARD_MIN_W = 380;
+
+  function widthForCols(n) { return n * CARD_W + (n - 1) * GAP + PAD * 2; }
+
+  function clampK(k) { return Math.max(0.12, Math.min(3, k)); }
 
   function wireZoomPan(viewport, canvas) {
     var raf = null;
@@ -201,24 +229,55 @@
       schedule();
     }
 
+    // Try every candidate column count, actually measure the board at each one (card heights
+    // depend on real content — notes, number of nodes per lane — so this can't be predicted,
+    // only measured), and keep whichever fills the window best. This is what makes FIT adapt
+    // to the window's own aspect ratio instead of assuming a fixed shape for the board.
     function fit() {
-      var r = fitRect(viewport, canvas, 26);
-      if (!r) return false;
-      S.view.x = r.x; S.view.y = r.y; S.view.k = r.k;
+      var vw = viewport.clientWidth, vh = viewport.clientHeight;
+      if (!vw || !vh) return false;
+      var best = null;
+      COL_CANDIDATES.forEach(function (n) {
+        var w = widthForCols(n);
+        var cardW = (w - PAD * 2 - (n - 1) * GAP) / n;
+        if (cardW < CARD_MIN_W) return;
+        canvas.style.width = w + "px";
+        canvas.style.gridTemplateColumns = "repeat(" + n + ",1fr)";
+        var cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+        if (!cw || !ch) return;
+        var k = clampK(Math.min((vw - 52) / cw, (vh - 52) / ch));
+        if (!best || k > best.k) best = {n: n, w: w, cw: cw, ch: ch, k: k};
+      });
+      if (!best) return false;
+      canvas.style.width = best.w + "px";
+      canvas.style.gridTemplateColumns = "repeat(" + best.n + ",1fr)";
+      S.view.k = best.k;
+      S.view.x = (vw - best.cw * best.k) / 2;
+      S.view.y = (vh - best.ch * best.k) / 2;
       apply();
       return true;
     }
 
     apply();
 
+    // Trackpad gesture split: a pinch (stretch/squeeze) reaches the browser as a wheel event
+    // with ctrlKey set (true on every platform, including an actual Ctrl+wheel on a mouse) —
+    // that zooms. A plain two-finger scroll, with no ctrlKey, pans instead. Without this split
+    // every two-finger scroll was being hijacked into a zoom, which is the "janky" feeling.
     viewport.addEventListener("wheel", function (e) {
       e.preventDefault();
       touched();
-      var r = viewport.getBoundingClientRect();
-      // Proportional to the gesture's own magnitude (trackpad vs. mouse wheel) instead of a
-      // fixed step per event, so zoom speed tracks the gesture instead of jumping in ticks.
-      var factor = Math.exp(-e.deltaY * 0.0016);
-      zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
+      if (e.ctrlKey) {
+        var r = viewport.getBoundingClientRect();
+        // Clamp per-event so one unusually large delta (a fast pinch, or a synthetic/odd
+        // input device) can't jump the zoom level drastically in a single tick.
+        var factor = Math.max(0.5, Math.min(2, Math.exp(-e.deltaY * 0.01)));
+        zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
+      } else {
+        S.view.x -= e.deltaX;
+        S.view.y -= e.deltaY;
+        schedule();
+      }
     }, {passive: false});
 
     viewport.addEventListener("dblclick", function (e) {
@@ -227,14 +286,16 @@
       zoomAt(e.clientX - r.left, e.clientY - r.top, 1.6);
     });
 
-    var pts = {}, dragLast = null, pinchStart = null, dragMoved = false;
+    // Click-and-drag (mouse) and touch (pinch with two fingers on a touchscreen) still work as
+    // alternatives to the trackpad gestures above.
+    var pts = {}, dragLast = null, pinchStart = null;
 
     viewport.addEventListener("pointerdown", function (e) {
       if (e.button != null && e.button !== 0) return;
       viewport.setPointerCapture(e.pointerId);
       pts[e.pointerId] = {x: e.clientX, y: e.clientY};
       var ids = Object.keys(pts);
-      if (ids.length === 1) { dragLast = {x: e.clientX, y: e.clientY}; dragMoved = false; viewport.classList.add("bld-dragging"); }
+      if (ids.length === 1) { dragLast = {x: e.clientX, y: e.clientY}; viewport.classList.add("bld-dragging"); }
       else if (ids.length === 2) {
         var a = pts[ids[0]], b = pts[ids[1]];
         pinchStart = {dist: Math.hypot(a.x - b.x, a.y - b.y), k: S.view.k, mid: {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}};
@@ -247,7 +308,7 @@
       var ids = Object.keys(pts);
       if (ids.length === 1 && dragLast) {
         var dx = e.clientX - dragLast.x, dy = e.clientY - dragLast.y;
-        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) { dragMoved = true; touched(); }
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) touched();
         S.view.x += dx; S.view.y += dy;
         dragLast = {x: e.clientX, y: e.clientY};
         schedule();
@@ -305,8 +366,7 @@
         h("small", {class: "bld-read"}, S.err || (S.at ? "READ " + api.ago(new Date(S.at).toISOString()).toUpperCase() : S.loading ? "LOADING…" : ""))
       ),
       h("div", {class: "bld-legend"},
-        h("span", null, h("i", {class: "bld-stage-dot bld-stage-dot-on"}), "STAGE DONE"),
-        h("span", null, h("i", {class: "bld-stage-dot"}), "NOT YET"),
+        h("span", {class: "bld-legend-ring"}, legendRing(2), "STAGE RING = GEN · POP · NET · VER"),
         h("span", null, h("i", {class: "bld-sw", style: "background:var(--green)"}), "LIVE"),
         h("span", null, h("i", {class: "bld-sw", style: "background:var(--amber)"}), "PARTIAL"),
         h("span", null, h("i", {class: "bld-sw", style: "background:var(--red)"}), "NOT STARTED")
@@ -318,7 +378,7 @@
       return wrap;
     }
 
-    var canvas = h("div", {class: "bld-canvas", style: "width:" + CANVAS_W + "px"});
+    var canvas = h("div", {class: "bld-canvas", style: "width:" + widthForCols(3) + "px;grid-template-columns:repeat(3,1fr)"});
     GROUPS.forEach(function (g) { canvas.appendChild(laneCard(g)); });
 
     var viewport = h("div", {class: "bld-viewport"}, canvas);
@@ -339,8 +399,7 @@
     // `wrap` isn't attached to the document yet — the caller (index.html's render()) appends
     // the node this function returns right after it gets it back, so measuring the viewport
     // here would read a detached 0x0 rect. Defer the first fit to the next animation frame,
-    // once it's actually on screen, so it's correct the first time, not just after a manual
-    // click of the FIT button.
+    // once it's actually on screen, so it's right the first time.
     requestAnimationFrame(function () {
       if (!document.body.contains(viewport)) return;
       if (!S.view.userTouched) zp.fit();
@@ -357,40 +416,40 @@
     ".bld-read{color:var(--muted);font-size:11px;letter-spacing:.05em;white-space:nowrap}\n" +
     ".bld-err{color:var(--muted);padding:40px;text-align:center;font-size:16px;letter-spacing:.05em}\n" +
     ".bld-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:10.5px;letter-spacing:.05em;font-weight:600}\n" +
-    ".bld-legend i.bld-stage-dot{margin-right:5px;vertical-align:middle}\n" +
+    ".bld-legend-ring{display:flex;align-items:center;gap:6px}\n" +
+    ".bld-legend-ring .bld-ring{width:16px;height:16px}\n" +
+    ".bld-legend .bld-ring-n{display:none}\n" +
     ".bld-sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px}\n" +
     ".bld-stagewrap{position:relative;flex:1 1 auto;min-height:0}\n" +
     ".bld-viewport{position:absolute;inset:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--bg);touch-action:none;cursor:grab;user-select:none;outline:none}\n" +
     ".bld-viewport.bld-dragging{cursor:grabbing}\n" +
     ".bld-viewport:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}\n" +
-    ".bld-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:22px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:18px;box-sizing:border-box;will-change:transform}\n" +
-    ".bld-lane{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px 15px;display:flex;flex-direction:column;gap:10px;flex:1 1 540px;max-width:620px;min-width:460px}\n" +
+    ".bld-canvas{position:absolute;top:0;left:0;transform-origin:0 0;display:grid;align-items:start;padding:" + PAD + "px;gap:" + GAP + "px;box-sizing:border-box;will-change:transform}\n" +
+    ".bld-lane{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px 15px;display:flex;flex-direction:column;gap:10px;min-width:0}\n" +
     ".bld-lane-h{display:flex;align-items:center;justify-content:space-between;gap:10px}\n" +
-    ".bld-lane-name{color:var(--text);font-weight:700;font-size:15px;letter-spacing:.03em}\n" +
+    ".bld-lane-name{color:var(--text);font-weight:700;font-size:16px;letter-spacing:.03em}\n" +
     ".bld-lane-pct{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:20px;background:var(--panel2)}\n" +
     ".bld-pct-live{color:var(--green)}\n.bld-pct-partial{color:var(--amber)}\n.bld-pct-none{color:var(--red)}\n" +
     ".bld-flow{display:grid;grid-template-columns:1fr 22px 1fr 22px 1fr;gap:8px;align-items:start}\n" +
     ".bld-col{display:flex;flex-direction:column;gap:8px;min-width:0}\n" +
     ".bld-col-h{color:var(--muted);font-size:9.5px;letter-spacing:.1em;font-weight:700;text-transform:uppercase}\n" +
-    ".bld-arrow{align-self:center;margin-top:18px;width:22px;height:16px;color:var(--line);stroke:currentColor;overflow:visible}\n" +
+    ".bld-arrow{align-self:center;margin-top:20px;width:22px;height:16px;color:var(--line);stroke:currentColor;overflow:visible}\n" +
     ".bld-arrow path{stroke:var(--line);transition:stroke .4s}\n" +
     ".bld-arrow-live path{stroke:var(--green);stroke-dasharray:6 5;animation:bld-flow 0.9s linear infinite}\n" +
     "@keyframes bld-flow{to{stroke-dashoffset:-22}}\n" +
     ".bld-tile{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px}\n" +
-    ".bld-tile-top{display:flex;flex-direction:column;gap:2px}\n" +
-    ".bld-tile-name{color:var(--text);font-size:12.5px;font-weight:700;line-height:1.25}\n" +
-    ".bld-tile-owner{color:var(--muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}\n" +
-    ".bld-stages{display:flex;flex-wrap:wrap;gap:5px 10px}\n" +
-    ".bld-stage{display:flex;align-items:center;gap:4px;font-size:9px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;font-weight:600}\n" +
-    ".bld-stage-on{color:var(--text)}\n" +
-    ".bld-stage-dot{width:7px;height:7px;border-radius:50%;background:var(--line);display:inline-block}\n" +
-    ".bld-stage-on .bld-stage-dot,.bld-stage-dot-on{background:var(--green)}\n" +
-    ".bld-tile-note{color:var(--muted);font-size:10.5px;line-height:1.4;border-top:1px solid var(--line);padding-top:7px}\n" +
+    ".bld-tile-top{display:flex;align-items:center;gap:10px}\n" +
+    ".bld-ring{flex:0 0 auto}\n" +
+    ".bld-ring-n{font-size:9px;font-weight:700;fill:var(--text);font-family:'Space Grotesk',Arial,sans-serif}\n" +
+    ".bld-tile-tx{display:flex;flex-direction:column;gap:2px;min-width:0}\n" +
+    ".bld-tile-name{color:var(--text);font-size:15px;font-weight:700;line-height:1.25}\n" +
+    ".bld-tile-owner{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}\n" +
+    ".bld-tile-note{color:var(--muted);font-size:11px;line-height:1.45;border-top:1px solid var(--line);padding-top:7px}\n" +
     ".bld-live{border-left-color:var(--green)}\n.bld-partial{border-left-color:var(--amber)}\n.bld-none{border-left-color:var(--red);opacity:.72}\n" +
     ".bld-zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:5}\n" +
     ".bld-zoomctl button{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--text);font-family:'Space Grotesk',Arial,sans-serif;font-size:17px;font-weight:700;cursor:pointer;line-height:1}\n" +
     ".bld-zoomctl button:hover{border-color:var(--accent);color:var(--accent)}\n" +
     ".bld-zoomctl .bld-zoomreset{font-size:10px;letter-spacing:.06em}\n" +
-    "@media (max-width:860px){.bld-lane{flex-basis:100%;min-width:0}.bld-legend{display:none}}\n";
+    "@media (max-width:860px){.bld-legend{display:none}}\n";
   var styleEl = document.createElement("style"); styleEl.textContent = STYLE; document.head.appendChild(styleEl);
 })();
