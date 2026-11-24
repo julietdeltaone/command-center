@@ -28,7 +28,7 @@
     {name: "Hub Core / Admin", data: ["hubc-data"], info: ["hubc-info"], know: ["hubc-know"]}
   ];
 
-  var S = {byId: {}, err: null, loading: false, at: null};
+  var S = {byId: {}, err: null, loading: false, at: null, view: {x: 40, y: 20, k: 1, inited: false}};
 
   function h(tag, props) {
     var e = document.createElement(tag);
@@ -160,6 +160,69 @@
     return row;
   }
 
+  var CANVAS_W = 1760;
+
+  function clampK(k) { return Math.max(0.25, Math.min(2.5, k)); }
+
+  function wireZoomPan(viewport, canvas) {
+    function apply() { canvas.style.transform = "translate(" + S.view.x + "px," + S.view.y + "px) scale(" + S.view.k + ")"; }
+    apply();
+
+    function zoomAt(cx, cy, factor) {
+      var k0 = S.view.k, k1 = clampK(k0 * factor);
+      S.view.x = cx - (cx - S.view.x) * (k1 / k0);
+      S.view.y = cy - (cy - S.view.y) * (k1 / k0);
+      S.view.k = k1;
+      apply();
+    }
+
+    viewport.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var r = viewport.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    }, {passive: false});
+
+    var pts = {}; // active pointers, for drag + pinch
+    var dragLast = null, pinchStart = null;
+
+    viewport.addEventListener("pointerdown", function (e) {
+      viewport.setPointerCapture(e.pointerId);
+      pts[e.pointerId] = {x: e.clientX, y: e.clientY};
+      var ids = Object.keys(pts);
+      if (ids.length === 1) { dragLast = {x: e.clientX, y: e.clientY}; viewport.style.cursor = "grabbing"; }
+      else if (ids.length === 2) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        pinchStart = {dist: Math.hypot(a.x - b.x, a.y - b.y), k: S.view.k, mid: {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}};
+        dragLast = null;
+      }
+    });
+    viewport.addEventListener("pointermove", function (e) {
+      if (!pts[e.pointerId]) return;
+      pts[e.pointerId] = {x: e.clientX, y: e.clientY};
+      var ids = Object.keys(pts);
+      if (ids.length === 1 && dragLast) {
+        S.view.x += e.clientX - dragLast.x; S.view.y += e.clientY - dragLast.y;
+        dragLast = {x: e.clientX, y: e.clientY}; apply();
+      } else if (ids.length === 2 && pinchStart) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        var dist = Math.hypot(a.x - b.x, a.y - b.y);
+        var r = viewport.getBoundingClientRect();
+        var factor = (dist / pinchStart.dist);
+        var k1 = clampK(pinchStart.k * factor);
+        var mx = pinchStart.mid.x - r.left, my = pinchStart.mid.y - r.top;
+        S.view.x = mx - (mx - S.view.x) * (k1 / S.view.k);
+        S.view.y = my - (my - S.view.y) * (k1 / S.view.k);
+        S.view.k = k1; apply();
+      }
+    });
+    function endPt(e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinchStart = null; if (Object.keys(pts).length === 0) { dragLast = null; viewport.style.cursor = "grab"; } }
+    viewport.addEventListener("pointerup", endPt);
+    viewport.addEventListener("pointercancel", endPt);
+    viewport.addEventListener("pointerleave", function (e) { if (Object.keys(pts).length <= 1) endPt(e); });
+
+    return {zoomAt: zoomAt, apply: apply};
+  }
+
   CC.views.Build = function (api) {
     ensureFont();
     if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api);
@@ -170,17 +233,42 @@
     ));
     if (S.err) { wrap.appendChild(h("div", {class: "bld-err"}, S.err)); return wrap; }
     if (Object.keys(S.byId).length === 0) { wrap.appendChild(h("div", {class: "bld-err"}, "LOADING…")); return wrap; }
-    wrap.appendChild(h("div", {class: "bld-colheads"},
+
+    var canvas = h("div", {class: "bld-canvas", style: "width:" + CANVAS_W + "px"});
+    canvas.appendChild(h("div", {class: "bld-colheads"},
       h("span", null, "DATA"), h("span", null, "INFORMATION"), h("span", null, "KNOWLEDGE")
     ));
-    GROUPS.forEach(function (g) { wrap.appendChild(groupRow(g)); });
-    wrap.appendChild(h("div", {class: "bld-legend"},
+    GROUPS.forEach(function (g) { canvas.appendChild(groupRow(g)); });
+    canvas.appendChild(h("div", {class: "bld-legend"},
       h("span", null, h("i", {class: "bld-stage-dot bld-stage-dot-on"}), "STAGE DONE"),
       h("span", null, h("i", {class: "bld-stage-dot"}), "NOT YET"),
       h("span", null, h("i", {class: "bld-sw", style: "background:var(--green)"}), "LIVE"),
       h("span", null, h("i", {class: "bld-sw", style: "background:var(--amber)"}), "PARTIAL"),
       h("span", null, h("i", {class: "bld-sw", style: "background:var(--red)"}), "NOT STARTED")
     ));
+
+    var viewport = h("div", {class: "bld-viewport"}, canvas);
+    var controls = h("div", {class: "bld-zoomctl"});
+    var zin = h("button", {type: "button", title: "Zoom in"}, "+");
+    var zout = h("button", {type: "button", title: "Zoom out"}, "−");
+    var zreset = h("button", {type: "button", class: "bld-zoomreset", title: "Fit to screen"}, "FIT");
+    controls.appendChild(zin); controls.appendChild(zout); controls.appendChild(zreset);
+
+    var stage = h("div", {class: "bld-stagewrap"}, viewport, controls);
+    wrap.appendChild(stage);
+
+    var zp = wireZoomPan(viewport, canvas);
+    zin.addEventListener("click", function () { var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1.25); });
+    zout.addEventListener("click", function () { var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1 / 1.25); });
+    zreset.addEventListener("click", function () {
+      var r = viewport.getBoundingClientRect();
+      S.view.k = clampK(r.width / CANVAS_W * 0.96);
+      S.view.x = (r.width - CANVAS_W * S.view.k) / 2;
+      S.view.y = 16;
+      zp.apply();
+    });
+    if (!S.view.inited) { S.view.inited = true; zreset.click(); }
+
     return wrap;
   };
 
@@ -219,6 +307,12 @@
     ".bld-legend{display:flex;gap:22px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:12px;letter-spacing:.06em;font-weight:600;border-top:1px solid var(--line);padding-top:16px}\n" +
     ".bld-legend i.bld-stage-dot{margin-right:6px;vertical-align:middle}\n" +
     ".bld-sw{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px}\n" +
-    "@media (max-width:980px){.bld-colheads{display:none}.bld-flow{grid-template-columns:1fr}.bld-arrow{transform:rotate(90deg);justify-self:center;margin:-4px 0}}\n";
+    ".bld-stagewrap{position:relative}\n" +
+    ".bld-viewport{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:14px;height:min(76vh,860px);background:var(--bg);touch-action:none;cursor:grab;user-select:none}\n" +
+    ".bld-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:24px 28px 36px;display:flex;flex-direction:column;gap:26px;box-sizing:border-box}\n" +
+    ".bld-zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:5}\n" +
+    ".bld-zoomctl button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--text);font-family:'Space Grotesk',Arial,sans-serif;font-size:18px;font-weight:700;cursor:pointer;line-height:1}\n" +
+    ".bld-zoomctl button:hover{border-color:var(--accent);color:var(--accent)}\n" +
+    ".bld-zoomctl .bld-zoomreset{font-size:10px;letter-spacing:.06em}\n";
   var styleEl = document.createElement("style"); styleEl.textContent = STYLE; document.head.appendChild(styleEl);
 })();
