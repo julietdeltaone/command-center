@@ -1,12 +1,11 @@
 /* Command Center "Build" page. Owner: Atlas (claude).
-   A live orbital map of the Build Status tab: Command Center at the dead center, a ring of Knowledge
-   nodes around it, a ring of Information nodes around that, and a ring of Data nodes outermost — the
-   real Data -> Information -> Knowledge -> (you) direction, drawn as three concentric rings instead of
-   flat rows. Every connector is trimmed to the two circles it joins (never crosses a center) and its
-   flowing dashes always travel inward, toward the hub, when that stage is actually wired live. Click any
-   node to open its detail right there on the canvas (a foreignObject card) — nothing below the map is
-   required to use it. Data comes live from the CC Connected Sheets Reader (same Apps Script web app
-   cc-sheets.js uses), reading this spreadsheet's own "Build Status" tab. Pure inline SVG + CSS. */
+   A wide flowchart of the Build Status tab: one row per lane group, three columns per row —
+   DATA -> INFORMATION -> KNOWLEDGE, left to right, in that real build order. Animated arrows between
+   columns flow forward (toward Knowledge) whenever that stage is actually wired live. Every node shows
+   its own four stages (Generated/Populated/Networked/Verified) right on the card, no click required —
+   there's plenty of room, so nothing is cramped or stacked on top of itself.
+   Data comes live from the CC Connected Sheets Reader (same Apps Script web app cc-sheets.js uses),
+   reading this spreadsheet's own "Build Status" tab. Pure DOM + CSS, no libraries. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -15,7 +14,6 @@
   var SHEET_ID = "1w9xuc3IyVLkLRSyNTEVdaWlZQ54NCOVKyjW-E-xYGvY";
   var TAB_GID = "1499956834";
   var STAGES = ["Generated", "Populated", "Networked", "Verified"];
-  var SVG_NS = "http://www.w3.org/2000/svg";
 
   var GROUPS = [
     {name: "Local / CENTCOM", data: ["d-locom", "d-centcomraw"], info: ["i-feed"], know: ["k-local", "k-roundup", "k-campusintel"]},
@@ -30,9 +28,7 @@
     {name: "Hub Core / Admin", data: ["hubc-data"], info: ["hubc-info"], know: ["hubc-know"]}
   ];
 
-  var CX = 360, CY = 360, HUBR = 50, R_KNOW = 130, R_INFO = 220, R_DATA = 310, NR = 15;
-
-  var S = {byId: {}, err: null, loading: false, at: null, pop: null};
+  var S = {byId: {}, err: null, loading: false, at: null};
 
   function h(tag, props) {
     var e = document.createElement(tag);
@@ -51,8 +47,8 @@
     return e;
   }
 
-  function svgEl(tag, attrs, kids) {
-    var e = document.createElementNS(SVG_NS, tag);
+  function svg(tag, attrs, kids) {
+    var e = document.createElementNS("http://www.w3.org/2000/svg", tag);
     if (attrs) Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
     (kids || []).forEach(function (k) { e.appendChild(k); });
     return e;
@@ -110,179 +106,58 @@
   function stateOf(node) { var n = stageCount(node); return n === 4 ? "live" : n === 0 ? "none" : "partial"; }
   function colOf(state) { return state === "live" ? "var(--green)" : state === "partial" ? "var(--amber)" : "var(--red)"; }
 
-  /* ---------- layout: every node's (x,y) on its ring, fanned within its group's sector ---------- */
-  function buildLayout() {
-    var n = GROUPS.length;
-    var pts = {}; // id -> {x,y,r,id,layer,group}
-    var catLabels = [];
-    GROUPS.forEach(function (g, gi) {
-      var baseDeg = -90 + gi * (360 / n);
-      var layers = [["know", R_KNOW], ["info", R_INFO], ["data", R_DATA]];
-      layers.forEach(function (pair) {
-        var ids = g[pair[0]], R = pair[1];
-        var count = ids.length;
-        ids.forEach(function (id, j) {
-          var spread = count > 1 ? 9 : 0;
-          var deg = baseDeg + (j - (count - 1) / 2) * spread;
-          var rad = deg * Math.PI / 180;
-          pts[id] = {x: CX + R * Math.cos(rad), y: CY + R * Math.sin(rad), r: NR, id: id, layer: pair[0], group: gi};
-        });
-      });
-      var outDeg = baseDeg, outRad = outDeg * Math.PI / 180;
-      catLabels.push({
-        name: g.name,
-        x: CX + (R_DATA + 34) * Math.cos(outRad),
-        y: CY + (R_DATA + 34) * Math.sin(outRad),
-        anchor: Math.cos(outRad) > 0.2 ? "start" : Math.cos(outRad) < -0.2 ? "end" : "middle",
-        dy: Math.sin(outRad) > 0.4 ? 14 : Math.sin(outRad) < -0.4 ? -6 : 5
-      });
-    });
-    return {pts: pts, catLabels: catLabels};
+  function arrowGlyph(live) {
+    var p = svg("path", {d: "M2 12 H34 M25 3 L34 12 L25 21", fill: "none", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round"});
+    return svg("svg", {viewBox: "0 0 36 24", class: "bld-arrow" + (live ? " bld-arrow-live" : "")}, [p]);
   }
 
-  function trim(ax, ay, ar, bx, by, br) {
-    var dx = bx - ax, dy = by - ay, d = Math.sqrt(dx * dx + dy * dy) || 1;
-    var ux = dx / d, uy = dy / d;
-    return {x1: ax + ux * ar, y1: ay + uy * ar, x2: bx - ux * br, y2: by - uy * br};
-  }
-
-  /* outer = the point farther from the hub (data-ward); inner = the point closer to the hub.
-     Line is drawn outer -> inner so the flow animation always reads as moving toward the hub. */
-  function connector(outerPt, innerPt, live) {
-    var seg = trim(outerPt.x, outerPt.y, outerPt.r, innerPt.x, innerPt.y, innerPt.r);
-    return svgEl("line", {
-      x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2,
-      class: "bld-line" + (live ? " bld-line-live" : "")
-    });
-  }
-
-  function stageRing(cx, cy, r, node) {
-    var circ = 2 * Math.PI * r, quarter = circ / 4, seg = quarter - 2.2;
-    var g = svgEl("g", {});
-    STAGES.forEach(function (s, i) {
-      var on = stageOn(node, s);
-      g.appendChild(svgEl("circle", {
-        cx: cx, cy: cy, r: r, fill: "none", "stroke-width": 5,
-        stroke: on ? "var(--green)" : "var(--line)",
-        "stroke-dasharray": seg + " " + (circ - seg),
-        "stroke-dashoffset": -(i * quarter),
-        transform: "rotate(-90 " + cx + " " + cy + ")"
-      }));
-    });
-    return g;
-  }
-
-  function nodeGroup(pt, api) {
-    var node = S.byId[pt.id];
+  function nodeTile(id) {
+    var node = S.byId[id];
     var state = stateOf(node);
-    var g = svgEl("g", {class: "bld-node"});
-    g.appendChild(svgEl("circle", {cx: pt.x, cy: pt.y, r: pt.r - 6, fill: colOf(state), class: "bld-node-core"}));
-    g.appendChild(stageRing(pt.x, pt.y, pt.r, node));
-    var hit = svgEl("circle", {cx: pt.x, cy: pt.y, r: pt.r + 7, class: "bld-hit"});
-    hit.addEventListener("click", function (ev) { ev.stopPropagation(); S.pop = pt.id; api.render(); });
-    g.appendChild(hit);
-    return g;
-  }
-
-  function popupCard(pt, api) {
-    var node = S.byId[pt.id];
-    var w = 250, pad = 14;
-    var x = pt.x + pt.r + 16; var y = pt.y - 70;
-    if (x + w > 700) x = pt.x - pt.r - 16 - w;
-    if (x < 10) x = 10;
-    if (y < 10) y = 10;
-    if (y + 210 > 700) y = 700 - 210 - 10;
-    var div = h("div", {class: "bld-pop"});
-    var close = h("span", {class: "bld-pop-x", onclick: function (ev) { ev.stopPropagation(); S.pop = null; api.render(); }}, "×");
-    div.appendChild(h("div", {class: "bld-pop-top"}, h("span", {class: "bld-pop-layer"}, pt.layer), close));
-    div.appendChild(h("div", {class: "bld-pop-name"}, node ? node.Label : pt.id));
-    div.appendChild(h("div", {class: "bld-pop-owner"}, node ? node.Owner : ""));
-    div.appendChild(h("div", {class: "bld-pop-stages"}, STAGES.map(function (s) {
-      return h("div", {class: "bld-pop-stage"}, h("i", {class: "bld-dot" + (stageOn(node, s) ? " bld-dot-on" : "")}), s);
+    var tile = h("div", {class: "bld-tile bld-" + state});
+    tile.appendChild(h("div", {class: "bld-tile-top"},
+      h("span", {class: "bld-tile-name"}, node ? node.Label : id),
+      h("span", {class: "bld-tile-owner"}, node ? node.Owner : "")
+    ));
+    tile.appendChild(h("div", {class: "bld-stages"}, STAGES.map(function (s) {
+      var on = stageOn(node, s);
+      return h("div", {class: "bld-stage" + (on ? " bld-stage-on" : "")},
+        h("i", {class: "bld-stage-dot"}), h("span", null, s));
     })));
-    if (node && node.Notes) div.appendChild(h("div", {class: "bld-pop-note"}, node.Notes));
-    var fo = svgEl("foreignObject", {x: x, y: y, width: w, height: 210});
-    fo.appendChild(div);
-    return fo;
+    if (node && node.Notes) tile.appendChild(h("div", {class: "bld-tile-note"}, node.Notes));
+    return {el: tile, networked: stageOn(node, "Networked")};
   }
 
-  function overviewSvg(api) {
-    var L = buildLayout();
-    var kids = [];
+  function column(ids, title) {
+    var col = h("div", {class: "bld-col"});
+    col.appendChild(h("div", {class: "bld-col-h"}, title));
+    var anyNetworked = false;
+    ids.forEach(function (id) { var t = nodeTile(id); col.appendChild(t.el); if (t.networked) anyNetworked = true; });
+    return {el: col, networked: anyNetworked, empty: ids.length === 0};
+  }
 
-    // faint guide rings
-    [R_KNOW, R_INFO, R_DATA].forEach(function (r) {
-      kids.push(svgEl("circle", {cx: CX, cy: CY, r: r, class: "bld-guide"}));
-    });
-
-    var totalGot = 0, totalMax = 0;
-    GROUPS.forEach(function (g) {
-      [].concat(g.data, g.info, g.know).forEach(function (id) { totalGot += stageCount(S.byId[id]); totalMax += 4; });
-    });
-    var pctAll = totalMax ? totalGot / totalMax : 0;
-
-    // connectors, drawn before nodes so nodes sit on top
-    GROUPS.forEach(function (g, gi) {
-      var knowPts = g.know.map(function (id) { return L.pts[id]; });
-      var infoPts = g.info.map(function (id) { return L.pts[id]; });
-      var dataPts = g.data.map(function (id) { return L.pts[id]; });
-      // hub -> know (know is outer relative to hub; hub is inner)
-      var hubPt = {x: CX, y: CY, r: HUBR};
-      knowPts.forEach(function (kp) {
-        kids.push(connector(kp, hubPt, stageOn(S.byId[kp.id], "Verified")));
-      });
-      // info -> know (info outer, know inner)
-      if (infoPts.length) {
-        infoPts.forEach(function (ip) {
-          knowPts.forEach(function (kp) { kids.push(connector(ip, kp, stageOn(S.byId[ip.id], "Networked"))); });
-        });
-      }
-      // data -> info, or data -> know directly when info is empty (data outer, info/know inner)
-      var dataTargets = infoPts.length ? infoPts : knowPts;
-      dataPts.forEach(function (dp) {
-        dataTargets.forEach(function (tp) { kids.push(connector(dp, tp, stageOn(S.byId[dp.id], "Networked"))); });
-      });
-    });
-
-    // nodes on top of connectors
-    Object.keys(L.pts).forEach(function (id) { kids.push(nodeGroup(L.pts[id], api)); });
-
-    // category labels (outermost)
-    L.catLabels.forEach(function (c) {
-      var t = svgEl("text", {x: c.x, y: c.y + c.dy, "text-anchor": c.anchor, class: "bld-cat-label"});
-      t.textContent = c.name;
-      kids.push(t);
-    });
-
-    // hub last, on top of everything
-    var hubState = pctAll >= 0.999 ? "live" : pctAll <= 0.001 ? "none" : "partial";
-    var hub = svgEl("circle", {cx: CX, cy: CY, r: HUBR, class: "bld-hub bld-hub-" + hubState});
-    hub.addEventListener("click", function (ev) { ev.stopPropagation(); S.pop = null; api.render(); });
-    var hl1 = svgEl("text", {x: CX, y: CY - 6, class: "bld-hub-label", "text-anchor": "middle"});
-    hl1.textContent = "COMMAND";
-    var hl2 = svgEl("text", {x: CX, y: CY + 12, class: "bld-hub-label", "text-anchor": "middle"});
-    hl2.textContent = "CENTER";
-    var hl3 = svgEl("text", {x: CX, y: CY + 32, class: "bld-hub-pct", "text-anchor": "middle"});
-    hl3.textContent = Math.round(pctAll * 100) + "%";
-    kids.push(hub, hl1, hl2, hl3);
-
-    // ring guide labels, tucked in the open gap at the very top
-    ["KNOWLEDGE", "INFORMATION", "DATA"].forEach(function (name, i) {
-      var r = [R_KNOW, R_INFO, R_DATA][i];
-      var t = svgEl("text", {x: CX + 4, y: CY - r - 4, class: "bld-ring-label", "text-anchor": "start"});
-      t.textContent = name;
-      kids.push(t);
-    });
-
-    var popupFo = null;
-    if (S.pop && L.pts[S.pop]) popupFo = popupCard(L.pts[S.pop], api);
-
-    var bg = svgEl("rect", {x: 0, y: 0, width: 720, height: 720, fill: "transparent"});
-    bg.addEventListener("click", function () { S.pop = null; api.render(); });
-
-    var all = [bg].concat(kids);
-    if (popupFo) all.push(popupFo);
-    return svgEl("svg", {viewBox: "0 0 720 720", class: "bld-hubsvg"}, all);
+  function groupRow(g) {
+    var row = h("div", {class: "bld-group"});
+    var pct = 0, max = 0;
+    [].concat(g.data, g.info, g.know).forEach(function (id) { pct += stageCount(S.byId[id]); max += 4; });
+    pct = max ? Math.round((pct / max) * 100) : 0;
+    row.appendChild(h("div", {class: "bld-group-h"},
+      h("span", {class: "bld-group-name"}, g.name),
+      h("span", {class: "bld-group-pct", style: "color:" + colOf(pct >= 100 ? "live" : pct <= 0 ? "none" : "partial")}, pct + "% BUILT")
+    ));
+    var dataCol = column(g.data, "Data"), infoCol = column(g.info, "Information"), knowCol = column(g.know, "Knowledge");
+    var flow = h("div", {class: "bld-flow"});
+    flow.appendChild(dataCol.el);
+    if (!infoCol.empty) {
+      flow.appendChild(arrowGlyph(dataCol.networked));
+      flow.appendChild(infoCol.el);
+      flow.appendChild(arrowGlyph(infoCol.networked));
+    } else {
+      flow.appendChild(arrowGlyph(dataCol.networked));
+    }
+    flow.appendChild(knowCol.el);
+    row.appendChild(flow);
+    return row;
   }
 
   CC.views.Build = function (api) {
@@ -290,59 +165,60 @@
     if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api);
     var wrap = h("div", {class: "bld-wrap"});
     wrap.appendChild(h("div", {class: "bld-head"},
-      h("div", null, h("h2", null, "BUILD"), h("small", null, "Command Center's own construction — live")),
-      h("small", {class: "bld-read"}, S.at ? "Read " + api.ago(new Date(S.at).toISOString()) : S.loading ? "Loading…" : "")
+      h("div", null, h("h2", null, "BUILD"), h("small", null, "Command Center's own construction — live, straight from the Build Status sheet")),
+      h("small", {class: "bld-read"}, S.at ? "READ " + api.ago(new Date(S.at).toISOString()).toUpperCase() : S.loading ? "LOADING…" : "")
     ));
     if (S.err) { wrap.appendChild(h("div", {class: "bld-err"}, S.err)); return wrap; }
-    if (Object.keys(S.byId).length === 0) { wrap.appendChild(h("div", {class: "bld-err"}, "Loading…")); return wrap; }
-    wrap.appendChild(h("div", {class: "bld-orbwrap"}, overviewSvg(api)));
+    if (Object.keys(S.byId).length === 0) { wrap.appendChild(h("div", {class: "bld-err"}, "LOADING…")); return wrap; }
+    wrap.appendChild(h("div", {class: "bld-colheads"},
+      h("span", null, "DATA"), h("span", null, "INFORMATION"), h("span", null, "KNOWLEDGE")
+    ));
+    GROUPS.forEach(function (g) { wrap.appendChild(groupRow(g)); });
     wrap.appendChild(h("div", {class: "bld-legend"},
-      h("span", null, h("i", {class: "bld-dot bld-dot-on"}), "Stage done"),
-      h("span", null, h("i", {class: "bld-dot"}), "Not yet"),
-      h("span", null, h("i", {class: "bld-sw", style: "background:var(--green)"}), "Live"),
-      h("span", null, h("i", {class: "bld-sw", style: "background:var(--amber)"}), "Partial"),
-      h("span", null, h("i", {class: "bld-sw", style: "background:var(--red)"}), "Not started"),
-      h("span", {class: "bld-legend-hint"}, "Tap any ring node for its detail — nothing more to scroll to.")
+      h("span", null, h("i", {class: "bld-stage-dot bld-stage-dot-on"}), "STAGE DONE"),
+      h("span", null, h("i", {class: "bld-stage-dot"}), "NOT YET"),
+      h("span", null, h("i", {class: "bld-sw", style: "background:var(--green)"}), "LIVE"),
+      h("span", null, h("i", {class: "bld-sw", style: "background:var(--amber)"}), "PARTIAL"),
+      h("span", null, h("i", {class: "bld-sw", style: "background:var(--red)"}), "NOT STARTED")
     ));
     return wrap;
   };
 
   var STYLE = "\n" +
-    ".bld-wrap{padding:18px 16px 30px;display:flex;flex-direction:column;gap:14px;font-family:'Space Grotesk',Arial,sans-serif}\n" +
-    ".bld-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px}\n" +
-    ".bld-head h2{margin:0;color:var(--text);font-weight:700;font-size:26px;letter-spacing:.06em}\n" +
-    ".bld-head small{color:var(--muted);font-size:13px;letter-spacing:.02em}\n" +
-    ".bld-read{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}\n" +
-    ".bld-err{color:var(--muted);padding:30px;text-align:center;font-size:16px;text-transform:uppercase;letter-spacing:.04em}\n" +
-    ".bld-orbwrap{display:flex;justify-content:center}\n" +
-    ".bld-hubsvg{width:100%;max-width:820px;height:auto;overflow:visible}\n" +
-    ".bld-guide{fill:none;stroke:var(--line);stroke-dasharray:2 5;opacity:.45}\n" +
-    ".bld-ring-label{fill:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600}\n" +
-    ".bld-line{stroke:var(--line);stroke-width:1.4;transition:stroke .4s}\n" +
-    ".bld-line-live{stroke:var(--green);stroke-width:1.8;stroke-dasharray:5 4;animation:bld-flow .9s linear infinite}\n" +
-    "@keyframes bld-flow{to{stroke-dashoffset:-18}}\n" +
-    ".bld-node-core{opacity:.9}\n" +
-    ".bld-hit{fill:transparent;cursor:pointer}\n" +
-    ".bld-node:hover .bld-node-core{opacity:1}\n" +
-    ".bld-cat-label{fill:var(--text);font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}\n" +
-    ".bld-hub{fill:var(--card);stroke-width:3;cursor:pointer}\n" +
-    ".bld-hub-live{stroke:var(--green)}\n.bld-hub-partial{stroke:var(--amber)}\n.bld-hub-none{stroke:var(--red)}\n" +
-    ".bld-hub-label{fill:var(--text);font-weight:700;font-size:14px;letter-spacing:.08em;pointer-events:none}\n" +
-    ".bld-hub-pct{fill:var(--muted);font-size:12px;font-weight:600;pointer-events:none}\n" +
-    ".bld-pop{background:var(--card);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;width:250px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:'Space Grotesk',Arial,sans-serif}\n" +
-    ".bld-pop-top{display:flex;justify-content:space-between;align-items:center}\n" +
-    ".bld-pop-layer{color:var(--accent);font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:700}\n" +
-    ".bld-pop-x{cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 2px}\n" +
-    ".bld-pop-name{color:var(--text);font-size:16px;font-weight:700;margin-top:4px;text-transform:uppercase;letter-spacing:.02em}\n" +
-    ".bld-pop-owner{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}\n" +
-    ".bld-pop-stages{display:flex;flex-direction:column;gap:4px;margin-top:8px}\n" +
-    ".bld-pop-stage{display:flex;align-items:center;gap:7px;color:var(--text);font-size:12px;text-transform:uppercase;letter-spacing:.04em}\n" +
-    ".bld-pop-note{color:var(--muted);font-size:11.5px;margin-top:8px;border-top:1px solid var(--line);padding-top:7px;line-height:1.4;text-transform:none;letter-spacing:0}\n" +
-    ".bld-dot{width:9px;height:9px;border-radius:50%;background:var(--line);display:inline-block}\n" +
-    ".bld-dot-on{background:var(--green)}\n" +
-    ".bld-sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px}\n" +
-    ".bld-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-top:1px solid var(--line);padding-top:10px}\n" +
-    ".bld-legend i.bld-dot{margin-right:5px;vertical-align:middle}\n" +
-    ".bld-legend-hint{margin-left:auto;color:var(--muted);opacity:.8;text-transform:none;letter-spacing:0;font-size:12px}\n";
+    ".bld-wrap{padding:22px 28px 40px;display:flex;flex-direction:column;gap:26px;font-family:'Space Grotesk',Arial,sans-serif}\n" +
+    ".bld-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px}\n" +
+    ".bld-head h2{margin:0;color:var(--text);font-weight:700;font-size:32px;letter-spacing:.07em}\n" +
+    ".bld-head small{color:var(--muted);font-size:14px}\n" +
+    ".bld-read{color:var(--muted);font-size:12px;letter-spacing:.06em;white-space:nowrap}\n" +
+    ".bld-err{color:var(--muted);padding:40px;text-align:center;font-size:18px;letter-spacing:.05em}\n" +
+    ".bld-colheads{display:grid;grid-template-columns:1fr 54px 1fr 54px 1fr;gap:18px;color:var(--muted);font-size:13px;letter-spacing:.12em;font-weight:700;padding:0 2px}\n" +
+    ".bld-colheads span:nth-child(2),.bld-colheads span:nth-child(4){visibility:hidden}\n" +
+    ".bld-group{display:flex;flex-direction:column;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line)}\n" +
+    ".bld-group:last-of-type{border-bottom:none}\n" +
+    ".bld-group-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}\n" +
+    ".bld-group-name{color:var(--text);font-weight:700;font-size:21px;letter-spacing:.04em}\n" +
+    ".bld-group-pct{font-size:13px;font-weight:700;letter-spacing:.06em}\n" +
+    ".bld-flow{display:grid;grid-template-columns:1fr 54px 1fr 54px 1fr;gap:18px;align-items:start}\n" +
+    ".bld-col{display:flex;flex-direction:column;gap:14px;min-width:0}\n" +
+    ".bld-col-h{display:none}\n" +
+    ".bld-arrow{align-self:center;width:36px;height:24px;color:var(--line);stroke:currentColor;overflow:visible}\n" +
+    ".bld-arrow path{stroke:var(--line);transition:stroke .4s}\n" +
+    ".bld-arrow-live path{stroke:var(--green);stroke-dasharray:6 5;animation:bld-flow 0.9s linear infinite}\n" +
+    "@keyframes bld-flow{to{stroke-dashoffset:-22}}\n" +
+    ".bld-tile{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}\n" +
+    ".bld-tile-top{display:flex;flex-direction:column;gap:3px}\n" +
+    ".bld-tile-name{color:var(--text);font-size:18px;font-weight:700;line-height:1.3}\n" +
+    ".bld-tile-owner{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}\n" +
+    ".bld-stages{display:flex;flex-wrap:wrap;gap:10px 16px}\n" +
+    ".bld-stage{display:flex;align-items:center;gap:6px;font-size:11.5px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;font-weight:600}\n" +
+    ".bld-stage-on{color:var(--text)}\n" +
+    ".bld-stage-dot{width:10px;height:10px;border-radius:50%;background:var(--line);display:inline-block}\n" +
+    ".bld-stage-on .bld-stage-dot,.bld-stage-dot-on{background:var(--green)}\n" +
+    ".bld-tile-note{color:var(--muted);font-size:13px;line-height:1.5;border-top:1px solid var(--line);padding-top:10px}\n" +
+    ".bld-live{border-left-color:var(--green)}\n.bld-partial{border-left-color:var(--amber)}\n.bld-none{border-left-color:var(--red);opacity:.7}\n" +
+    ".bld-legend{display:flex;gap:22px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:12px;letter-spacing:.06em;font-weight:600;border-top:1px solid var(--line);padding-top:16px}\n" +
+    ".bld-legend i.bld-stage-dot{margin-right:6px;vertical-align:middle}\n" +
+    ".bld-sw{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px}\n" +
+    "@media (max-width:980px){.bld-colheads{display:none}.bld-flow{grid-template-columns:1fr}.bld-arrow{transform:rotate(90deg);justify-self:center;margin:-4px 0}}\n";
   var styleEl = document.createElement("style"); styleEl.textContent = STYLE; document.head.appendChild(styleEl);
 })();
