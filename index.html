@@ -57,7 +57,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .rail-btn .badge:empty{display:none}
 .rail-bottom{margin-top:auto;display:flex;flex-direction:column;gap:1px}
 
-.main{margin-left:52px;flex:1;min-width:0;padding:0 16px 20px}
+.main{flex:1;min-width:0;padding:0 16px 20px}
 
 /* ═══════════════ TOPBAR ═══════════════ */
 .topbar{display:flex;align-items:center;gap:10px;padding:10px 0 6px;border-bottom:1px solid var(--line);margin-bottom:10px;position:sticky;top:0;background:var(--bg);z-index:50}
@@ -189,8 +189,10 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 
 /* ═══════════════ MOBILE ═══════════════ */
 @media(max-width:700px){
-  .rail{display:none}
-  .main{margin-left:0;padding-bottom:64px}
+  .main{padding-bottom:64px}
+  .topbar{flex-wrap:wrap;gap:6px}
+  .topbar h1{flex:1 1 100%;order:-1;font-size:12px}
+  .refreshed{display:none}
   .mob{position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--panel);border-top:1px solid var(--line);display:flex;padding:3px 0 max(3px,env(safe-area-inset-bottom,0px))}
   .mob button{flex:1;border:none;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;font-size:9px;font-family:var(--font);cursor:pointer;position:relative}
   .mob button[aria-current="true"]{color:var(--accent)}
@@ -208,6 +210,19 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .warn-b{border-color:var(--amber)!important}
 .error{padding:8px 12px;background:rgba(255,107,122,.12);border:1px solid var(--red);border-radius:6px;font-size:12px;color:var(--red);margin-bottom:8px}
 </style>
+<!-- Real design system ("Aurora Centered"), Atlas-owned per views/CONTRACT.md.
+     Loaded after the shell's own <style> above so these win the cascade for
+     shared :root tokens, then the per-module stylesheets each builder's view
+     relies on. -->
+<link rel="stylesheet" href="cc-design.css?v=20261124">
+<link rel="stylesheet" href="cc-skin.css?v=20261124">
+<link rel="stylesheet" href="cc-widgets.css?v=20261124">
+<link rel="stylesheet" href="cc-biz.css?v=20261124">
+<link rel="stylesheet" href="cc-active.css?v=20261124">
+<link rel="stylesheet" href="cc-pages.css?v=20261124">
+<link rel="stylesheet" href="cc-sources2.css?v=20261124">
+<link rel="stylesheet" href="cc-systems.css?v=20261124">
+<link rel="stylesheet" href="views/views.css?v=20261124">
 </head>
 <body>
 
@@ -235,6 +250,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
 window.CC = window.CC || {};
 CC.views = CC.views || {};
+CC.subviews = CC.subviews || {};
 
 /* ══════════ CONFIG ══════════ */
 var TABS=[
@@ -366,8 +382,95 @@ function normalizeData(d){
       return o;
     });
   }
+  /* Config: array of {key,value} rows → lookup map */
+  if(d.config){
+    var cfgMap={};
+    d.config.forEach(function(c){if(c&&c.key!=null)cfgMap[c.key]=c.value});
+    d._cfg=cfgMap;
+  }
   return d;
 }
+
+/* ══════════ CONTRACT API HELPERS ══════════
+   These back the api.* surface documented in views/CONTRACT.md and used by
+   Luna/Argus/Athena's external view modules (views/system.js, cc-widgets.js, etc).
+   Most of their calls are already guarded (api.X ? api.X() : fallback), so a
+   missing method degrades a widget rather than crashing the page — but a few
+   (api.nowMs() in views/system.js, api.clock/clockRange/shortName in cc-widgets.js
+   Today) are called unconditionally, which is why System/Today were silently
+   falling back to the built-in views below. */
+function nowMs(){return Date.now()}
+function cfgVal(key){return D&&D._cfg?D._cfg[key]:undefined}
+function sheetAt(){return lastLoadTime}
+function svgEl(tag,attrs,kids){
+  var e=document.createElementNS("http://www.w3.org/2000/svg",tag);
+  if(attrs)for(var k in attrs){if(attrs[k]==null||attrs[k]===false)continue;e.setAttribute(k,attrs[k])}
+  (kids||[]).forEach(function(c){if(c)e.appendChild(c)});
+  return e;
+}
+function iconFor(name){
+  var t=TABS.find(function(x){return x.id===name||x.l.toLowerCase()===String(name).toLowerCase()});
+  var svg=svgEl("svg",{viewBox:"0 0 24 24"});
+  if(t)svg.innerHTML=t.i;
+  return svg;
+}
+/* "7:30 AM to 3:30 PM" → [7.5, 15.5]; null if no range in the text */
+function clockRange(text){
+  var s=String(text||"");
+  var m=s.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|-|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
+  if(!m)return null;
+  function h12(hh,mm,ap){var H=parseInt(hh,10)%12+(/PM/i.test(ap)?12:0);return H+(parseInt(mm||"0",10)/60)}
+  return [h12(m[1],m[2],m[3]),h12(m[4],m[5],m[6])];
+}
+/* first single clock time in the text → decimal hour, else null */
+function clockOne(text){
+  var s=String(text||"");
+  var m=s.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
+  if(!m)return null;
+  var H=parseInt(m[1],10)%12+(/PM/i.test(m[3])?12:0);
+  return H+(parseInt(m[2]||"0",10)/60);
+}
+var WEEKDAYS=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+/* "today"/"tomorrow"/a weekday name in the text → whole days from now, else null */
+function dayOffset(text){
+  var s=String(text||"").toLowerCase();
+  if(/\btoday\b|\btonight\b/.test(s))return 0;
+  if(/\btomorrow\b/.test(s))return 1;
+  for(var i=0;i<7;i++){
+    if(new RegExp("\\b"+WEEKDAYS[i]+"\\b").test(s)){
+      var now=new Date(),cur=now.getDay(),diff=(i-cur+7)%7;
+      return diff===0?7:diff; // a bare weekday name means the NEXT one, not today
+    }
+  }
+  return null;
+}
+/* trim an item's text down to a chip-sized label */
+function shortName(text){
+  var s=String(text||"").trim();
+  var cut=s.search(/\s[-–—|]\s|\.\s|:\s/);
+  if(cut>8&&cut<70)s=s.slice(0,cut);
+  if(s.length>70)s=s.slice(0,67)+"…";
+  return s;
+}
+/* {state,text} for the freshest routine tied to a module name */
+function moduleStatus(name){
+  if(!D||!D.routines)return null;
+  var rs=D.routines.filter(function(r){return r.module===name||r.mod===name});
+  if(!rs.length)return null;
+  var worst=rs.some(function(r){return r.st==="fail"})?"fail":rs.some(function(r){return r.st==="stale"||r.st==="late"})?"late":rs.every(function(r){return r.st==="nodata"})?"nodata":"ok";
+  return {state:worst,text:worst==="ok"?"on time":worst==="late"?"running late":worst==="fail"?"failed":"no data yet"};
+}
+/* every Summary row for a section, newest-ish first (Summary only ever carries one row per section today) */
+function summaryRows(section){
+  if(!D||!D.summary)return [];
+  return D.summary.filter(function(s){return s.section===section});
+}
+/* "good" | "watch" | "alert" | null for a section, straight from the Summary tab */
+function summaryStatus(section){
+  var row=summaryRows(section)[0];
+  return row?row.status:null;
+}
+function crewTuples(){return CREW.map(function(c){return [c.k,c.n,c.c,c.r]})}
 
 /* ══════════ SAMPLE DATA ══════════ */
 function sampleData(){
@@ -871,12 +974,18 @@ function render(){
         h:h, data:D, ago:ago, usd:usd, sp:sp, fp:fp, tr:tr, sh:sh,
         iso:iso, clk:clk, its:its, newest:newest, sumOf:sumOf,
         parseLed:parseLed, parseNur:parseNur, parseRec:parseRec,
-        CREW:CREW, TABS:TABS, render:render, go:go
+        CREW:CREW, TABS:TABS, render:render, go:go,
+        /* contract surface (views/CONTRACT.md) */
+        svgEl:svgEl, icon:iconFor, cfgVal:cfgVal, nowMs:nowMs, sheetAt:sheetAt,
+        moduleStatus:moduleStatus, summaryRows:summaryRows, summaryStatus:summaryStatus,
+        clock:clockOne, clockRange:clockRange, dayOffset:dayOffset, shortName:shortName,
+        crew:crewTuples(), tab:tabName
       };
-      CC.views[tabName](CCAPI);
-      return;
+      var result=CC.views[tabName](CCAPI);
+      if(result){app.appendChild(result);return}
+      console.warn("CC.views."+tabName+" returned nothing, falling back to built-in");
     }catch(e){
-      console.warn("CC.views."+tabName+" error, falling back to built-in:",e);
+      console.error("CC.views."+tabName+" error, falling back to built-in:",e);
     }
   }
 
@@ -885,27 +994,36 @@ function render(){
 }
 
 /* Expose CCAPI on CC namespace for external scripts that need it at load time */
-CC.api = {h:h,ago:ago,usd:usd,sp:sp,fp:fp,tr:tr,sh:sh,iso:iso,clk:clk,render:render};
+CC.api = {h:h,ago:ago,usd:usd,sp:sp,fp:fp,tr:tr,sh:sh,iso:iso,clk:clk,render:render,
+  svgEl:svgEl,icon:iconFor,cfgVal:cfgVal,nowMs:nowMs,sheetAt:sheetAt,
+  moduleStatus:moduleStatus,summaryRows:summaryRows,summaryStatus:summaryStatus,
+  clock:clockOne,clockRange:clockRange,dayOffset:dayOffset,shortName:shortName,
+  get data(){return D}, get crew(){return crewTuples()}, get tab(){return TAB}};
 
 /* ══════════ NAV ══════════ */
 function buildNav(){
   var rail=document.getElementById("rail"),mob=document.getElementById("mob");
   rail.innerHTML="";mob.innerHTML="";
-  rail.appendChild(h("div",{class:"rail-logo"},"CC"));
-  var tabs=h("div",{class:"rail-tabs"});
+  /* Markup matches cc-skin.css/cc-design.css's rail contract exactly
+     (.rmark/i, button[aria-selected]/.rlab/.rn) so the real Aurora
+     Centered skin — Atlas-owned per CONTRACT.md — drives the rail
+     instead of an ad hoc shell theme. */
+  var mark=h("div",{class:"rmark"});mark.appendChild(h("i"));rail.appendChild(mark);
   var bg=badges();
   TABS.forEach(function(t){
-    var btn=h("button",{class:"rail-btn","aria-current":String(t.id===TAB),title:t.l,onclick:function(){go(t.id)}});
+    var btn=h("button",{"aria-selected":String(t.id===TAB),title:t.l,onclick:function(){go(t.id)}});
     btn.innerHTML='<svg viewBox="0 0 24 24">'+t.i+'</svg>';
-    var b=h("span",{class:"badge"});if(bg[t.id])b.textContent=bg[t.id];btn.appendChild(b);
-    tabs.appendChild(btn);
+    btn.appendChild(h("span",{class:"rlab"},t.l));
+    var b=h("span",{class:"rn"});if(bg[t.id])b.textContent=bg[t.id];else b.style.display="none";
+    btn.appendChild(b);
+    rail.appendChild(btn);
     var mb=h("button",{"aria-current":String(t.id===TAB),onclick:function(){go(t.id)}});
     mb.innerHTML='<svg viewBox="0 0 24 24">'+t.i+'</svg>';
     mb.appendChild(h("span",null,t.l));
     var mb2=h("span",{class:"badge"});if(bg[t.id])mb2.textContent=bg[t.id];mb.appendChild(mb2);
     mob.appendChild(mb);
   });
-  rail.appendChild(tabs);rail.appendChild(h("div",{class:"rail-bottom"}));
+  rail.appendChild(h("div",{class:"rsp"}));
 }
 function go(id){TAB=id;buildNav();render();window.scrollTo(0,0)}
 
@@ -1033,6 +1151,8 @@ function loadData(){
 </script>
 
 <!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing -->
+<script src="cc-fresh.js?v=20261124" onerror="void 0"></script>
+<script src="cc-inbox.js?v=20261124" onerror="void 0"></script>
 <script src="cc-motion.js?v=20261124" onerror="void 0"></script>
 <script src="views/business.js?v=20261124" onerror="void 0"></script>
 <script src="views/bizcharts.js?v=20261124" onerror="void 0"></script>
@@ -1053,6 +1173,5 @@ function loadData(){
 <script src="cc-body.js?v=20261124" onerror="void 0"></script>
 <script src="cc-pages.js?v=20261124" onerror="void 0"></script>
 <script src="cc-know.js?v=20261124" onerror="void 0"></script>
-<link rel="stylesheet" href="views/views.css?v=20261124">
 </body>
 </html>
