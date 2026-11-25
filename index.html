@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261125.1
-     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.1"
+     BUILD VERSION — single source of truth: 20261125.2
+     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.2"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
      Browsers and GitHub Pages' CDN cache by the exact URL including the
@@ -72,8 +72,13 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .main{flex:1;min-width:0;padding:0 16px 20px}
 
 /* ═══════════════ TOPBAR ═══════════════ */
-.topbar{display:flex;align-items:center;gap:10px;padding:10px 0 6px;border-bottom:1px solid var(--line);margin-bottom:10px;position:sticky;top:0;background:var(--bg);z-index:50}
-.topbar h1{font-size:13px;font-weight:800;letter-spacing:.06em;margin:0;flex:1;text-transform:uppercase}
+.topbar{display:flex;align-items:center;gap:14px;padding:10px 16px;margin:12px 0 14px;border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);position:sticky;top:0;z-index:50}
+.tb-brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.tb-mark{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;flex:0 0 auto;box-shadow:0 0 16px color-mix(in srgb,var(--accent) 50%,transparent)}
+.tb-mark svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.topbar h1{font-size:15px;font-weight:800;letter-spacing:.08em;margin:0;text-transform:uppercase;white-space:nowrap}
+.tb-status{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.tb-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto;padding-left:10px;margin-left:2px;border-left:1px solid var(--line)}
 .live{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green);font-weight:600}
 .live::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s ease infinite}
 .live.off{color:var(--muted)}
@@ -106,9 +111,6 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .crumb-t{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 
 /* Wall view toggle (Map / Grid) */
-.wall-toggle{display:inline-flex;gap:2px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px;margin-bottom:10px}
-.wall-toggle button{all:unset;padding:5px 14px;font-size:11px;font-weight:700;border-radius:7px;color:var(--muted);cursor:pointer}
-.wall-toggle button.sel{background:var(--accent);color:#fff}
 
 /* Wall grid view: fixed 3x2 zones, now built from the shared .wd panel (see wgZone()) */
 .wg3{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -219,8 +221,9 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 /* ═══════════════ MOBILE ═══════════════ */
 @media(max-width:700px){
   .main{padding-bottom:64px}
-  .topbar{flex-wrap:wrap;gap:6px}
-  .topbar h1{flex:1 1 100%;order:-1;font-size:12px}
+  .topbar{flex-wrap:wrap;gap:8px;padding:8px 12px}
+  .tb-brand{flex:1 1 100%;order:-1}
+  .topbar h1{font-size:13px}
   .refreshed{display:none}
   .mob{position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--panel);border-top:1px solid var(--line);display:flex;padding:3px 0 max(3px,env(safe-area-inset-bottom,0px))}
   .mob button{flex:1;border:none;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 0;font-size:9px;font-family:var(--font);cursor:pointer;position:relative}
@@ -243,12 +246,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261125.1">
-<link rel="stylesheet" href="cc-skin.css?v=20261125.1">
-<link rel="stylesheet" href="cc-widgets.css?v=20261125.1">
-<link rel="stylesheet" href="cc-pages.css?v=20261125.1">
-<link rel="stylesheet" href="cc-sources2.css?v=20261125.1">
-<link rel="stylesheet" href="views/views.css?v=20261125.1">
+<link rel="stylesheet" href="cc-design.css?v=20261125.2">
+<link rel="stylesheet" href="cc-skin.css?v=20261125.2">
+<link rel="stylesheet" href="cc-widgets.css?v=20261125.2">
+<link rel="stylesheet" href="cc-pages.css?v=20261125.2">
+<link rel="stylesheet" href="cc-sources2.css?v=20261125.2">
+<link rel="stylesheet" href="views/views.css?v=20261125.2">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -259,14 +262,21 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <nav class="rail" id="rail"></nav>
 <div class="main" id="main">
   <div class="topbar">
-    <h1>Command Center</h1>
-    <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.1</span>
-    <span class="live off" id="live-ind">Offline</span>
-    <span class="refreshed" id="refreshed"></span>
-    <span class="sample-tag" id="stag" hidden>SAMPLE</span>
-    <button class="top-btn" id="rbtn" title="Refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-    <button class="top-btn" id="dbtn" title="Disconnect" hidden><svg viewBox="0 0 24 24"><path d="M18.36 6.64A9 9 0 0 1 20.77 15M2 12a10 10 0 0 1 18-6"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
-    <button class="top-btn" id="tbtn" title="Theme"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg></button>
+    <div class="tb-brand">
+      <span class="tb-mark"><svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/></svg></span>
+      <h1>Command Center</h1>
+    </div>
+    <div class="tb-status">
+      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.2</span>
+      <span class="live off" id="live-ind">Offline</span>
+      <span class="refreshed" id="refreshed"></span>
+      <span class="sample-tag" id="stag" hidden>SAMPLE</span>
+    </div>
+    <div class="tb-actions">
+      <button class="top-btn" id="rbtn" title="Refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+      <button class="top-btn" id="dbtn" title="Disconnect" hidden><svg viewBox="0 0 24 24"><path d="M18.36 6.64A9 9 0 0 1 20.77 15M2 12a10 10 0 0 1 18-6"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+      <button class="top-btn" id="tbtn" title="Theme"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg></button>
+    </div>
   </div>
   <div id="app"></div>
 </div>
@@ -278,13 +288,16 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261125.1"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261125.2"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
 CC.subviews = CC.subviews || {};
 
 /* ══════════ CONFIG ══════════ */
+/* Command Center's own mark: a targeting frame around a center dot — reused for both the rail's
+   top mark and the topbar brand icon so the two read as the same identity. */
+var CC_MARK_ICON='<path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/>';
 /* 2026-11-25: while the build is in progress, the rail only shows Overview + Build (JD's call —
    everything else is still fully reachable, just not in the rail: TAB isn't restricted to rail
    ids, and the off-rail crumb bar below (render()) covers navigating to a hidden tab). The other
@@ -744,70 +757,6 @@ function vWall(){
   return el;
 }
 
-/* ── WALL: GRID VIEW ──
-   Fixed six-zone overview, same screen position every time. Each zone
-   reads the exact same data the full tabs do (its/sumOf/parseLed/D.*),
-   just condensed to 3 lines so the zone never grows past its box — the
-   zone scrolls internally instead of pushing its neighbors around.
-   2026-11-24 design pass: moved onto .wd (same panel the Map view and
-   every other page use) instead of its own one-off .wg-zone box, so
-   switching Map/Grid doesn't also switch visual language. */
-var ZONE_COLOR={bad:"var(--red)",warn:"var(--amber)",ok:"var(--green)",info:"var(--accent)",dim:"var(--muted)"};
-function wgZone(key,title,dotClass,pillClass,pillText,rows){
-  var c=ZONE_COLOR[dotClass]||ZONE_COLOR.dim;
-  var z=h("section",{class:"wd",style:"--c:"+c+";cursor:pointer"});
-  var zh=h("div",{class:"wd-h"},h("span",{class:"wd-t"},title));
-  if(pillText)zh.appendChild(h("span",{class:"pill "+pillClass},pillText));
-  z.appendChild(zh);
-  var body=h("div",{class:"ov-rs"});
-  (rows||[]).forEach(function(r){
-    body.appendChild(h("div",{class:"ov-r"},h("b",null,r.sub||""),h("span",null,r.t,r.badge?h("span",{class:"pill "+(r.badgeClass||"dim"),style:"margin-left:6px"},r.badge):null)));
-  });
-  z.appendChild(rows&&rows.length?body:h("div",{class:"ov-empty"},"Nothing here"));
-  z.addEventListener("click",function(e){if(e.target.tagName!=="BUTTON")go(key)});
-  return z;
-}
-function vWallGrid(){
-  var el=h("div",{class:"wdgrid wg3"});
-
-  var di=its("Today").filter(function(i){return i.due});
-  el.appendChild(wgZone("wall","Needs You","bad",di.length?"bad":"ok",di.length?di.length+" open":"clear",
-    di.slice(0,4).map(function(i){return {t:i.text,sub:i.due?"Due "+new Date(i.due).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):ago(i.time),badge:"due",badgeClass:"warn"}})
-  ));
-
-  var sToday=sumOf("Today");
-  el.appendChild(wgZone("today","Today","info",sToday&&sToday.status==="good"?"ok":"info",sToday?sToday.headline:"",
-    its("Today").slice(0,4).map(function(i){return {t:i.text,sub:i.src+" · "+ago(i.time)}})
-  ));
-
-  var led=parseLed(),ytd=0,due=0;led.forEach(function(l){ytd+=l.collected;due+=l.balance});
-  var leads=its("Business","Leads");
-  el.appendChild(wgZone("biz","Business","ok",due>0?"warn":"ok",usd(ytd)+" YTD",
-    [{t:"Past due",sub:null,badge:usd(due),badgeClass:due>0?"warn":"ok"}]
-    .concat(leads.slice(0,3).map(function(i){return {t:i.text.split("Recommended action:")[0].trim(),sub:ago(i.time)}}))
-  ));
-
-  el.appendChild(wgZone("priv","Private","ok","dim","",
-    its("Private").slice(0,4).map(function(i){return {t:i.text,sub:ago(i.time)}})
-  ));
-
-  var probs=D.problems||[];
-  var late=(D.routines||[]).filter(function(r){return r.st==="fail"||r.st==="late"});
-  el.appendChild(wgZone("sys","System",probs.length?"warn":"ok",probs.length?"warn":"ok",probs.length+" problems",
-    probs.slice(0,3).map(function(p){return {t:p.p,sub:p.own}})
-    .concat(late.slice(0,2).map(function(r){return {t:r.routine,sub:"behind",badge:r.st,badgeClass:"bad"}}))
-  ));
-
-  el.appendChild(wgZone("crew","Crew","info","info",CREW.length+" active",
-    (D.usage||[]).map(function(u){
-      var c=CREW.find(function(cr){return cr.k===u.w})||{n:u.w};
-      return {t:c.n,sub:"Resets "+new Date(u.reset).toLocaleDateString([],{month:"short",day:"numeric"}),badge:u.pct+"%",badgeClass:u.pct>=90?"bad":u.pct>=70?"warn":"ok"};
-    })
-  ));
-
-  return el;
-}
-
 /* ── TODAY ── */
 /* Fallback only (shown if CC.views.Today / cc-widgets.js throws). Same .wd/.ov-rs components as
    everywhere else, 2026-11-24 design pass. */
@@ -1026,14 +975,6 @@ function vCrew(){
 }
 
 /* ══════════ RENDER ══════════ */
-/* Wall has two interchangeable home views: Map (the hub-and-spoke graph,
-   CC.views.Wall from cc-pages.js — unlimited sections, scales by adding a
-   node) and Grid (a fixed six-zone overview built here in the shell —
-   reads the same data, hits a ceiling at six zones). Persisted per device
-   like the theme toggle. */
-function getWallView(){try{return localStorage.getItem("cc_wall_view")||"map"}catch(e){return "map"}}
-function setWallView(v){try{localStorage.setItem("cc_wall_view",v)}catch(e){}render()}
-
 function render(){
   var app=document.getElementById("app");app.innerHTML="";
   if(!D){var sk=h("div",{class:"sk"});for(var i=0;i<3;i++)sk.appendChild(h("div",{class:"skl",style:"width:"+(55+Math.random()*35)+"%"}));sk.appendChild(h("div",{class:"stats"},h("div",{class:"sks"}),h("div",{class:"sks"}),h("div",{class:"sks"}),h("div",{class:"sks"})));for(var j=0;j<4;j++)sk.appendChild(h("div",{class:"skl",style:"width:"+(45+Math.random()*40)+"%;margin-top:8px"}));app.appendChild(sk);return}
@@ -1053,16 +994,6 @@ function render(){
       h("button",{type:"button",class:"crumb-back",onclick:function(){go("wall")}},"← Wall"),
       h("span",{class:"crumb-t"},CRUMB_TITLES[TAB]||TAB)
     ));
-  }
-
-  if(TAB==="wall"){
-    var wv=getWallView();
-    var toggle=h("div",{class:"wall-toggle"},
-      h("button",{class:wv==="map"?"sel":"",onclick:function(){setWallView("map")}},"Map"),
-      h("button",{class:wv==="grid"?"sel":"",onclick:function(){setWallView("grid")}},"Grid")
-    );
-    app.appendChild(toggle);
-    if(wv==="grid"){app.appendChild(vWallGrid());return}
   }
 
   /* Check for external view overrides (CC.views.Business etc.) */
@@ -1108,7 +1039,9 @@ function buildNav(){
      (.rmark/i, button[aria-selected]/.rlab/.rn) so the real Aurora
      Centered skin — Atlas-owned per CONTRACT.md — drives the rail
      instead of an ad hoc shell theme. */
-  var mark=h("div",{class:"rmark"});mark.appendChild(h("i"));rail.appendChild(mark);
+  var mark=h("div",{class:"rmark"});
+  var markSvg=svgEl("svg",{viewBox:"0 0 24 24"});markSvg.innerHTML=CC_MARK_ICON;mark.appendChild(markSvg);
+  rail.appendChild(mark);
   var bg=badges();
   TABS.forEach(function(t){
     var btn=h("button",{"aria-selected":String(t.id===TAB),title:t.l,onclick:function(){go(t.id)}});
@@ -1251,32 +1184,32 @@ function loadData(){
 </script>
 
 <!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing -->
-<script src="cc-fresh.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-inbox.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-motion.js?v=20261125.1" onerror="void 0"></script>
+<script src="cc-fresh.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-inbox.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-motion.js?v=20261125.2" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script src="views/timeline.js?v=20261125.1" onerror="void 0"></script>
-<script src="views/system.js?v=20261125.1" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-nurture.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-crm.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-active.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-sources2.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-map.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-records.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-sheets.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-build.js?v=20261125.1" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261125.2" onerror="void 0"></script>
+<script src="views/system.js?v=20261125.2" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-nurture.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-crm.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-active.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-sources2.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-map.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-records.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-sheets.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-build.js?v=20261125.2" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script src="cc-body.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-pages.js?v=20261125.1" onerror="void 0"></script>
-<script src="cc-know.js?v=20261125.1" onerror="void 0"></script>
+<script src="cc-body.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-pages.js?v=20261125.2" onerror="void 0"></script>
+<script src="cc-know.js?v=20261125.2" onerror="void 0"></script>
 </body>
 </html>

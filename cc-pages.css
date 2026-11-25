@@ -26,12 +26,16 @@
 .ov-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:8px}
 .ov-num{display:flex;flex-direction:column;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--c) 8%,var(--inset));border:1px solid color-mix(in srgb,var(--c) 28%,transparent)}.ov-num b{font-size:20px;color:var(--c);line-height:1.1}.ov-num span{font-size:11px;color:var(--muted);margin-top:2px}
 .ov-line{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted)}
-.ov-catgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-@media (max-width:1400px){.ov-catgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:760px){.ov-catgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.ov-cat{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:13px;border:1px solid var(--border,rgba(255,255,255,.12));border-left:4px solid var(--line);background:var(--card,rgba(255,255,255,.03))}
+/* 2026-11-25: Overview is now just this grid, full screen — .ov-onlycats drops the page's old
+   flex-column gap/padding so the grid is the only thing on the page and can fill it edge to edge. */
+.ov-onlycats{height:100%;padding-top:0}
+.ov-onlycats .ov-catgrid{height:100%}
+.ov-catgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:14px}
+@media (max-width:1400px){.ov-catgrid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,1fr)}}
+@media (max-width:760px){.ov-catgrid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(5,1fr)}}
+.ov-cat{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;padding:16px;border-radius:16px;border:1px solid var(--border,rgba(255,255,255,.12));border-left:4px solid var(--line);background:var(--card,rgba(255,255,255,.03));text-align:center}
 .ov-cat:hover{border-color:var(--accent)}
-.ov-cat b{display:block;font-size:13.5px;color:var(--text)}.ov-cat small{display:block;font-size:11.5px;color:var(--muted)}
+.ov-cat b{display:block;font-size:18px;color:var(--text);font-weight:700}.ov-cat small{display:block;font-size:13px;color:var(--muted)}
 .ov-cat-live{border-left-color:var(--green)}.ov-cat-partial{border-left-color:var(--amber)}.ov-cat-none{border-left-color:var(--red)}
 .jwrap .ltab{max-width:none;width:100%}
 .jwrap .jringw svg{width:84px;height:84px}

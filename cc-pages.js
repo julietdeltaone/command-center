@@ -205,47 +205,12 @@
     return wrap;
   };
 
+  /* 2026-11-25: JD's call — while the build is in progress, Overview is nothing but the 10 top
+     categories, full screen. Needs-you, Next up, Business snapshot, the hub map and the widgets
+     row are cut from this page (not deleted: CC.needs/CC.needsCount still back the rail badges,
+     and CC.hubmap/widgetsRow stay defined above for whatever they get folded back into later). */
   CC.views.Wall = function (api) {
-    var W = CC.widgets || {}, now = api.nowMs(), needs = CC.needs(api), N = Math.max(3, Math.min(8, Math.floor((window.innerHeight - 725) / 56)));
-    var page = h("div", {class: "ov"});
-
-    /* ---- needs you ---- */
-    var list = h("div", {class: "ov-list"});
-    needs.slice(0, N).forEach(function (n) {
-      var row = h("div", {class: "ov-n", style: "--c:" + col(n.sev)},
-        h("button", {type: "button", class: "ov-nb", onclick: function () { api.go(n.tab); }}, h("i"), h("span", {class: "ov-t"}, h("b", null, n.text), n.sub ? h("small", null, n.sub) : null), h("em", null, TL[n.tab] || n.tab)),
-        n.alert ? h("button", {type: "button", class: "ov-seen", onclick: function () { api.doSee(n.alert, "seen", row); }}, "Seen") : null);
-      list.appendChild(row);
-    });
-    if (!needs.length) list.appendChild(h("div", {class: "ov-clear"}, h("i"), "Nothing needs you right now"));
-    var red = needs.filter(function (n) { return n.sev < 0.34; }).length;
-    var needCard = h("section", {class: "wd ov-need", style: "--c:" + col(!needs.length ? 1 : red ? 0.08 : 0.42)},
-      h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Needs you"), h("span", {class: "wd-s"}, needs.length ? needs.length + (needs.length === 1 ? " item" : " items") + (red ? ", " + red + " urgent" : "") : "all clear"), needs.length > N ? h("span", {class: "ov-more"}, "+" + (needs.length - N) + " more on their pages") : null), list);
-
-    /* ---- next up + weather ---- */
-    var di = W.dayInfo ? W.dayInfo(api) : null, wi = (api.data.items || []).filter(function (i) { return i.tab === "Today" && i.module === "Weather and drone"; }).sort(function (a, b) { return (ms(b.time) || 0) - (ms(a.time) || 0); })[0], wx = wi && W.weatherInfo ? W.weatherInfo(wi.text) : null;
-    var nxt = di && di.nxt, wChips = wx ? h("div", {class: "wchips"}, W.chip(wx.no ? "Not flyable" : wx.fly ? "Flyable" : "Check wind", wx.score), wx.hi != null ? W.chip(wx.hi + "° / " + (wx.lo != null ? wx.lo + "°" : "?"), 0.8) : null, wx.w != null ? W.chip(wx.dir + " " + wx.w + " mph", wx.score) : null) : null;
-    var nextCard = h("section", {class: "wd ov-next"}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Next up"), h("button", {type: "button", class: "ov-go", onclick: function () { api.go("Today"); }}, "Today ↗")),
-      nxt ? h("div", {class: "ov-hero"}, h("b", null, nxt.label), h("span", null, di.fmtHr(nxt.start) + (nxt.end != null ? " to " + di.fmtHr(nxt.end) : "") + " · " + (di.cur ? "now" : "in " + di.dur((nxt.start - di.nowH) * 3600000)))) : h("div", {class: "ov-hero ok"}, h("b", null, "Nothing else on your clock today"), di && di.dues.length ? h("span", null, di.dues.length + " deadline" + (di.dues.length === 1 ? "" : "s") + " due") : null),
-      wChips);
-
-    /* ---- business snapshot ---- */
-    var led = CC.crm ? CC.crm.list(api).filter(function (p) { return !p.cancelled; }) : [], pastSum = led.filter(function (p) { return p.pastDue; }).reduce(function (a, p) { return a + p.balance; }, 0), owed = led.reduce(function (a, p) { return a + (p.pastDue ? 0 : p.balance); }, 0);
-    var mo = (api.data.items || []).filter(function (i) { return i.tab === "Business" && i.module === "Money" && /collected/i.test(i.text || ""); }).sort(function (a, b) { return (ms(b.time) || 0) - (ms(a.time) || 0); })[0], cm = mo ? /Collected this year: \$([\d,]+)/i.exec(mo.text) : null;
-    var leads = CC.nurture ? CC.nurture.list(api) : [], shoot = led.filter(function (p) { return p.dateMs != null && p.dateMs >= new Date(new Date().toDateString()).getTime(); }).sort(function (a, b) { return a.dateMs - b.dateMs; })[0];
-    function num(label, v, sc) { return h("div", {class: "ov-num", style: "--c:" + col(sc)}, h("b", null, v), h("span", null, label)); }
-    var bizCard = h("section", {class: "wd ov-biz"}, h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Business"), h("button", {type: "button", class: "ov-go", onclick: function () { api.go("Business"); }}, "Open ↗")),
-      h("div", {class: "ov-nums"}, cm ? num("collected this year", "$" + cm[1], 1) : null, num("past due", usd(pastSum), pastSum ? 0.08 : 1), num("owed on booked work", usd(owed), owed ? 0.55 : 1)),
-      h("div", {class: "ov-line"}, h("span", null, leads.length + (leads.length === 1 ? " lead" : " leads") + " in nurturing"), shoot ? h("span", null, "Next shoot: " + (shoot.client || shoot.id) + ", " + new Date(shoot.dateMs).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"})) : null));
-
-    page.appendChild(h("div", {class: "ov-main"}, needCard, h("div", {class: "ov-side"}, nextCard, bizCard)));
-
-    /* ---- top categories ----
-       2026-11-25: this is now the front door to the whole build. Every one of the 10 top
-       Vocation categories gets a uniform tile reading live off CC.buildStatus (same source Build
-       itself uses, so the two pages can't drift apart); clicking one opens straight into that
-       category's own drill-down on the Build page instead of guessing a destination page, since
-       Build is now the one place that's live and accurate for every category. */
+    var page = h("div", {class: "ov ov-onlycats"});
     var cats = h("div", {class: "ov-catgrid", role: "group", "aria-label": "Top categories"});
     var BS = CC.buildStatus;
     if (BS) {
@@ -261,8 +226,6 @@
       });
     }
     page.appendChild(cats);
-    page.appendChild(CC.hubmap(api));
-    page.appendChild(widgetsRow(api));
     return page;
   };
 })();
