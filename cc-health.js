@@ -243,8 +243,13 @@
     }));
   }
 
+  /* 2026-11-25: dropped the visible title here — the crumb bar above every off-rail page already
+     names it ("HEALTH"), so a big duplicate <h2> saying "Health" again was two words eating the
+     same vertical space twice for no reason. Kept as an aria-label so the page still announces
+     itself to screen readers; the "next" affordance now sits where that title used to be, right
+     at the top, so content starts higher on the page. */
   function hpHead(title, nextLabel, onNext) {
-    return h("div", {class: "hp-head"}, h("h2", null, title),
+    return h("div", {class: "hp-head", "aria-label": title},
       onNext ? h("button", {type: "button", class: "hp-next", onclick: onNext}, nextLabel + " →") : null);
   }
 
@@ -266,8 +271,15 @@
     row.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null));
     row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
     page.appendChild(row);
-    if (CC.body && CC.body.sleep) page.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
-    page.appendChild(h("div", {class: "hp-know-sl"}, progressWidget(api)));
+    /* 2026-11-25: Sleep and Progress used to be two full-width blocks stacked one under the other —
+       JD's call to compress them horizontally into one row instead, same pv-wr grid the muscle-map
+       row above already uses (so it collapses to one column on its own under ~980px). Progress
+       takes the wider lane since it's the denser of the two (per-category sparklines); Sleep sits
+       beside it now showing the Core/REM/Deep/Awake breakdown instead of just a flat total. */
+    var slRow = h("div", {class: "pv-wr hp-know"});
+    slRow.appendChild(h("div", {class: "pv-left"}, progressWidget(api)));
+    slRow.appendChild(CC.body && CC.body.sleep ? CC.body.sleep(api) : h("div", {class: "ov-empty"}, "Loading sleep…"));
+    page.appendChild(slRow);
     return page;
   };
 
@@ -294,19 +306,119 @@
     {max: Infinity, c: "#e08a3c", l: "21+"}
   ];
   function repBand(n) { if (n == null) return null; for (var i = 0; i < REP_BANDS.length; i++) if (n <= REP_BANDS[i].max) return REP_BANDS[i]; return REP_BANDS[REP_BANDS.length - 1]; }
+
+  /* ---------- Row -> detail panel: the reference pattern for every other Health Data sheet to
+     follow next (Vitals, Sleep, Apple Workouts, ...). The grid itself only shows columns through
+     Reps now; everything past that (Time, Distance, Heart Rate, Floors, Tempo/Form) moves into
+     this panel instead, alongside session context and a trend read for that exercise. ---------- */
+  var HIDDEN_FIELDS = ["Time (min:sec)", "Distance", "Unit", "Heart Rate Avg (bpm)", "Floors", "Tempo or Form"];
+  function miniRing(api, pct, color, big, small, size) {
+    size = size || 84;
+    var r = 38, C = 2 * Math.PI * r, p = pct == null ? 0 : Math.max(0, Math.min(100, pct)) / 100, sv = api.svgEl;
+    return h("div", {class: "hp-ring", style: "width:" + size + "px;height:" + size + "px"},
+      sv("svg", {viewBox: "0 0 100 100", "aria-hidden": "true"}, [
+        sv("circle", {cx: 50, cy: 50, r: r, fill: "none", stroke: "var(--line)", "stroke-width": 9}),
+        sv("circle", {cx: 50, cy: 50, r: r, fill: "none", stroke: color, "stroke-width": 9, "stroke-linecap": "round",
+          "stroke-dasharray": (C * p).toFixed(1) + " " + C.toFixed(1), transform: "rotate(-90 50 50)"})]),
+      h("div", {class: "hp-ring-t"}, h("b", {style: "color:" + color}, big), small ? h("span", null, small) : null));
+  }
+  function sameSession(rows, hdr, r) {
+    var iDate = col(hdr, "Date"), iWk = col(hdr, "Workout #");
+    if (iDate == null) return [];
+    return rows.filter(function (x) { return x[iDate] === r[iDate] && (iWk == null || x[iWk] === r[iWk]); });
+  }
+  function exerciseTrend(rows, hdr, r) {
+    var iEx = col(hdr, "Exercise"), iDate = col(hdr, "Date"), iW = col(hdr, "Weight (lb)");
+    if (iEx == null || iDate == null || !r[iEx]) return null;
+    var by = {};
+    rows.forEach(function (x) {
+      if (x[iEx] !== r[iEx] || !x[iDate]) return;
+      var t = ms(x[iDate]); if (t == null) return;
+      var w = numAt(x, iW) || 0;
+      if (!by[x[iDate]] || w > by[x[iDate]].w) by[x[iDate]] = {w: w, t: t};
+    });
+    var days = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return a.t - b.t; }).slice(-8);
+    return days.length > 1 ? {ex: r[iEx], days: days} : null;
+  }
+  function detailPanel(api, hdr, rows, r) {
+    var iCat = col(hdr, "Category"), iEx = col(hdr, "Exercise"), iDate = col(hdr, "Date"), iWeekday = col(hdr, "Weekday"),
+      iSet = col(hdr, "Set #"), iWlb = col(hdr, "Weight (lb)"), iWkg = col(hdr, "Weight (kg)"), iMach = col(hdr, "Machine setting"),
+      iReps = col(hdr, "Reps");
+    var cat = iCat != null ? r[iCat] : "", cc = catColor(cat) || "var(--accent)";
+    var wrap = h("div", {class: "hp-detail"});
+    wrap.appendChild(h("div", {class: "hp-detail-h"},
+      h("span", {class: "hp-detail-catchip", style: "background:" + hexToRgba(cc, 0.18) + ";color:" + cc}, cat || "Session"),
+      h("h3", null, iEx != null && r[iEx] ? r[iEx] : "Set detail"),
+      h("div", {class: "hp-detail-sub"}, [iDate != null ? r[iDate] : null, iWeekday != null ? r[iWeekday] : null].filter(Boolean).join(" · "))));
+
+    var facts = [];
+    function fact(label, val) { if (val == null || val === "") return; facts.push(h("div", {class: "hp-fact"}, h("b", null, String(val)), h("span", null, label))); }
+    fact("set", iSet != null ? r[iSet] : null);
+    fact("reps", iReps != null ? r[iReps] : null);
+    fact("lb", iWlb != null ? r[iWlb] : null);
+    fact("kg", iWkg != null ? r[iWkg] : null);
+    fact("machine", iMach != null ? r[iMach] : null);
+    HIDDEN_FIELDS.forEach(function (name) { var i = col(hdr, name); if (i != null) fact(name.replace(" (min:sec)", "").replace(" (bpm)", "").toLowerCase(), r[i]); });
+    if (facts.length) wrap.appendChild(h("div", {class: "hp-fact-grid"}, facts));
+
+    var sess = sameSession(rows, hdr, r);
+    if (sess.length > 1) {
+      var exSet = {};
+      sess.forEach(function (x) { var e = iEx != null ? x[iEx] : "Set"; exSet[e] = (exSet[e] || 0) + 1; });
+      var exCount = Object.keys(exSet).length;
+      wrap.appendChild(h("div", {class: "hp-detail-sec"},
+        h("h4", null, "Same session"),
+        h("div", {class: "hp-sess-row"},
+          miniRing(api, Math.min(100, sess.length / 25 * 100), cc, String(sess.length), "sets"),
+          h("div", {class: "hp-sess-list"}, Object.keys(exSet).map(function (e) {
+            return h("div", {class: "hp-sess-item"}, h("span", null, e), h("b", null, exSet[e] + "×"));
+          }))),
+        h("div", {class: "hp-detail-sub"}, exCount + " exercise" + (exCount === 1 ? "" : "s") + ", " + sess.length + " total sets that day")));
+    }
+
+    var tr = exerciseTrend(rows, hdr, r);
+    if (tr) {
+      var mx = Math.max.apply(null, tr.days.map(function (d) { return d.w; }).concat([1]));
+      var latest = tr.days[tr.days.length - 1], prior = tr.days.slice(0, -1), priorAvg = prior.length ? prior.reduce(function (a, d) { return a + d.w; }, 0) / prior.length : null;
+      var diff = priorAvg != null ? latest.w - priorAvg : null;
+      wrap.appendChild(h("div", {class: "hp-detail-sec"},
+        h("h4", null, "Weight trend · " + tr.ex),
+        h("div", {class: "hp-trend-bars", role: "img", "aria-label": "Top weight by session"},
+          tr.days.map(function (d) { return h("i", {style: "height:" + (d.w ? 10 + d.w / mx * 90 : 4) + "%" + (d === latest ? ";background:" + cc : "")}); })),
+        h("div", {class: "hp-detail-sub"}, "top set " + latest.w + " lb" + (diff != null ? ", " + (diff >= 0 ? "+" : "") + diff.toFixed(0) + " vs the " + prior.length + " before it" : ""))));
+    }
+    return wrap;
+  }
+
   CC.views.HealthData = function (api) {
     var page = h("div", {class: "hp-data-full"});
     page.appendChild(h("div", {class: "hp-data-fhead"}, h("h2", null, "Workouts"),
       h("a", {class: "ov-go", href: "https://docs.google.com/spreadsheets/d/" + HEALTH_SHEET_ID + "/edit#gid=" + WORKOUTS_GID, target: "_blank", rel: "noopener"}, "Open in Google Sheets ↗")));
-    var body = h("div", {class: "hp-grid-wrap"});
-    page.appendChild(body);
-    var sortCol = null, sortDir = 1;
+    var split = h("div", {class: "hp-data-split"});
+    var gridWrap = h("div", {class: "hp-grid-wrap"});
+    var detailWrap = h("div", {class: "hp-detail-wrap"});
+    split.appendChild(gridWrap);
+    page.appendChild(split);
+    var sortCol = null, sortDir = 1, selRow = null;
+    function paintDetail() {
+      split.classList.toggle("has-detail", !!selRow);
+      if (!selRow) { if (detailWrap.parentNode) split.removeChild(detailWrap); return; }
+      if (!detailWrap.parentNode) split.appendChild(detailWrap);
+      detailWrap.innerHTML = "";
+      detailWrap.appendChild(h("button", {type: "button", class: "hp-detail-close", onclick: function () { selRow = null; paint(); paintDetail(); }, "aria-label": "Close detail"}, "✕"));
+      detailWrap.appendChild(detailPanel(api, PW.header, PW.rows, selRow));
+    }
     function paint() {
-      body.innerHTML = "";
-      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts…")); return; }
-      if (!PW.rows.length) { body.appendChild(h("div", {class: "ov-empty"}, "No rows yet.")); return; }
+      gridWrap.innerHTML = "";
+      if (PW.err) { gridWrap.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { gridWrap.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts…")); return; }
+      if (!PW.rows.length) { gridWrap.appendChild(h("div", {class: "ov-empty"}, "No rows yet.")); return; }
       var hdr = PW.header, iCat = col(hdr, "Category"), iRep = col(hdr, "Reps"), rows = PW.rows.slice();
+      /* Visible columns stop at Reps — everything past it (Time, Distance, Heart Rate, Floors,
+         Tempo/Form) lives in the detail panel instead, per JD's call that most of what matters in
+         this sheet is on the left and the rest should populate a side panel on click. */
+      var lastVisible = iRep != null ? iRep : hdr.length - 1;
+      var visIdx = []; for (var vi = 0; vi <= lastVisible; vi++) visIdx.push(vi);
       if (sortCol != null) {
         rows.sort(function (a, b) {
           var an = numAt(a, sortCol), bn = numAt(b, sortCol);
@@ -315,38 +427,39 @@
         });
       }
       var table = h("table", {class: "hp-grid"});
-      table.appendChild(h("thead", null, h("tr", null, hdr.map(function (name, i) {
+      table.appendChild(h("thead", null, h("tr", null, visIdx.map(function (i) {
+        var name = hdr[i];
         return h("th", {onclick: function () { sortDir = sortCol === i ? -sortDir : 1; sortCol = i; paint(); }},
           name, sortCol === i ? h("i", {class: "hp-sort"}, sortDir > 0 ? "↑" : "↓") : null);
       }))));
       table.appendChild(h("tbody", null, rows.map(function (r) {
         var cat = iCat != null ? r[iCat] : "", rowStyle = cat ? "background:" + hexToRgba(catColor(cat), 0.13) : "";
-        return h("tr", {style: rowStyle}, hdr.map(function (_, i) {
-          var val = fmtCell(r[i]);
-          if (i === iCat && val) return h("td", {style: "border-left:3px solid " + catColor(val) + ";font-weight:600"}, val);
-          if (i === iRep && val) {
-            var b = repBand(numAt(r, iRep));
-            return b ? h("td", null, h("span", {class: "hp-pill", style: "background:" + hexToRgba(b.c, 0.25) + ";color:" + b.c}, val)) : h("td", null, val);
-          }
-          return h("td", null, val);
-        }));
+        return h("tr", {style: rowStyle, class: r === selRow ? "sel" : "", onclick: function () { selRow = selRow === r ? null : r; paint(); paintDetail(); }},
+          visIdx.map(function (i) {
+            var val = fmtCell(r[i]);
+            if (i === iCat && val) return h("td", {style: "border-left:3px solid " + catColor(val) + ";font-weight:600"}, val);
+            if (i === iRep && val) {
+              var b = repBand(numAt(r, iRep));
+              return b ? h("td", null, h("span", {class: "hp-pill", style: "background:" + hexToRgba(b.c, 0.25) + ";color:" + b.c}, val)) : h("td", null, val);
+            }
+            return h("td", null, val);
+          }));
       })));
-      body.appendChild(table);
-      body.appendChild(h("div", {class: "hp-foot"},
-        h("span", null, rows.length.toLocaleString("en-US") + " rows · read only, straight from Health Data"),
+      gridWrap.appendChild(table);
+      gridWrap.appendChild(h("div", {class: "hp-foot"},
+        h("span", null, rows.length.toLocaleString("en-US") + " rows · tap a row for detail · read only, straight from Health Data"),
         h("div", {class: "hp-legend"}, REP_BANDS.map(function (b) { return h("span", null, h("i", {style: "background:" + b.c}), b.l + " reps"); }))));
     }
     paint();
-    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, function () { paint(); paintDetail(); });
     return page;
   };
 
   /* ---------- styles ---------- */
   var ST = document.createElement("style");
   ST.textContent =
-    ".hp-wrap{padding:4px 2px}" +
-    ".hp-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}" +
-    ".hp-head h2{margin:0;font-size:20px}" +
+    ".hp-wrap{padding:0 2px 4px}" +
+    ".hp-head{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:10px;min-height:0}" +
     ".hp-next{appearance:none;border:1px solid var(--line,rgba(255,255,255,.14));background:var(--inset,rgba(255,255,255,.04));color:var(--text,inherit);border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}" +
     ".hp-next:hover{border-color:var(--accent,#6bbf59);color:var(--accent,#6bbf59)}" +
     ".kt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}" +
@@ -359,7 +472,6 @@
     ".kt.good .kt-v{color:#6bbf59}" +
     ".kt-s{font-size:11.5px;color:var(--muted)}" +
     ".hp-know.pv-wr{margin-top:16px}" +
-    ".hp-know-sl{margin-top:12px}" +
     ".hp-data-full{padding:4px 2px;display:flex;flex-direction:column}" +
     ".hp-data-fhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}" +
     ".hp-data-fhead h2{margin:0;font-size:20px}" +
@@ -368,12 +480,42 @@
     "table.hp-grid thead th{position:sticky;top:0;background:var(--panel2,var(--panel,#14161c));text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;border-bottom:1px solid var(--line,rgba(255,255,255,.12));user-select:none;z-index:1}" +
     "table.hp-grid thead th:hover{color:var(--text,inherit)}" +
     "table.hp-grid td{padding:6px 10px;border-bottom:1px solid var(--line,rgba(255,255,255,.07))}" +
-    "table.hp-grid tbody tr:hover{filter:brightness(1.25)}" +
+    "table.hp-grid tbody tr:hover{filter:brightness(1.25);cursor:pointer}" +
+    "table.hp-grid tbody tr.sel{outline:2px solid var(--accent,#6bbf59);outline-offset:-2px}" +
     ".hp-sort{font-style:normal;margin-left:4px;color:var(--accent,#6bbf59)}" +
     ".hp-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-weight:700;font-size:11.5px}" +
     ".hp-foot{margin-top:8px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 16px}" +
     ".hp-legend{display:flex;flex-wrap:wrap;gap:10px}" +
     ".hp-legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}" +
-    ".hp-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}";
+    ".hp-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}" +
+    /* 2026-11-25: row -> detail split for the Workouts grid, the reference layout for the other
+       Health Data sheets to follow. Plain block until a row is selected, then a two-column grid —
+       detail takes the right half on desktop and drops below the grid on narrow screens. */
+    ".hp-data-split.has-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,1fr);gap:16px;align-items:start}" +
+    "@media (max-width:980px){.hp-data-split.has-detail{grid-template-columns:1fr}}" +
+    ".hp-data-split.has-detail .hp-grid-wrap{max-height:calc(100vh - 180px)}" +
+    ".hp-detail-wrap{position:relative;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;padding:16px;background:var(--panel2,var(--panel,#14161c));max-height:calc(100vh - 180px);overflow:auto}" +
+    ".hp-detail-close{position:absolute;top:10px;right:10px;appearance:none;border:1px solid var(--line);background:var(--panel,transparent);color:var(--muted);border-radius:8px;width:26px;height:26px;cursor:pointer;line-height:1}" +
+    ".hp-detail-close:hover{color:var(--text);border-color:var(--ring)}" +
+    ".hp-detail-h{padding-right:28px}" +
+    ".hp-detail-catchip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}" +
+    ".hp-detail-h h3{margin:0 0 2px;font-size:17px}" +
+    ".hp-detail-sub{font-size:11.5px;color:var(--muted)}" +
+    ".hp-fact-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}" +
+    ".hp-fact{background:var(--line,rgba(255,255,255,.05));border-radius:10px;padding:8px 12px;min-width:64px}" +
+    ".hp-fact b{display:block;font-size:16px;line-height:1.1}" +
+    ".hp-fact span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}" +
+    ".hp-detail-sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--line,rgba(255,255,255,.1))}" +
+    ".hp-detail-sec h4{margin:0 0 10px;font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}" +
+    ".hp-sess-row{display:flex;align-items:center;gap:16px}" +
+    ".hp-sess-list{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}" +
+    ".hp-sess-item{display:flex;justify-content:space-between;gap:10px;font-size:12.5px}" +
+    ".hp-sess-item span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
+    ".hp-ring{position:relative;flex:none}" +
+    ".hp-ring svg{width:100%;height:100%;display:block}" +
+    ".hp-ring-t{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05}" +
+    ".hp-ring-t b{font-size:16px}.hp-ring-t span{font-size:9.5px;color:var(--muted);text-transform:uppercase}" +
+    ".hp-trend-bars{display:flex;align-items:flex-end;gap:4px;height:46px}" +
+    ".hp-trend-bars i{flex:1;background:var(--line);border-radius:2px;min-width:4px}";
   document.head.appendChild(ST);
 })();

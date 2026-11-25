@@ -222,9 +222,12 @@
   function sleepModel() {
     if (!SL.rows || !SL.rows.length) return null;
     var hdr = SL.header, iDate = colOf(hdr, "Date"), iBed = colOf(hdr, "Bedtime"), iWake = colOf(hdr, "Wake Time"),
-      iMin = colOf(hdr, "Minutes Asleep"), iNote = colOf(hdr, "Notes");
+      iMin = colOf(hdr, "Minutes Asleep"), iNote = colOf(hdr, "Notes"),
+      /* Stage columns — present in Health Data's Sleep tab but unused until now. */
+      iDeep = colOf(hdr, "Deep (min)"), iRem = colOf(hdr, "REM (min)"), iCore = colOf(hdr, "Core (min)"), iAwake = colOf(hdr, "Awake (min)");
     var nights = SL.rows.filter(function (r) { return iDate != null && r[iDate]; }).map(function (r) {
-      return {k: r[iDate], t: ms(r[iDate]), bed: iBed != null ? r[iBed] : "", wake: iWake != null ? r[iWake] : "", min: numAt(r, iMin), note: iNote != null ? r[iNote] : ""};
+      return {k: r[iDate], t: ms(r[iDate]), bed: iBed != null ? r[iBed] : "", wake: iWake != null ? r[iWake] : "", min: numAt(r, iMin), note: iNote != null ? r[iNote] : "",
+        deep: numAt(r, iDeep), rem: numAt(r, iRem), core: numAt(r, iCore), awake: numAt(r, iAwake)};
     }).filter(function (d) { return d.t != null; }).sort(function (a, b) { return a.t - b.t; }).slice(-7);
     if (!nights.length) return null;
     var latest = nights[nights.length - 1];
@@ -250,6 +253,15 @@
       body.appendChild(h("div", {class: "cd-grid sl-grid"},
         h("div", null, h("div", {class: "cd-big"}, hrs(m.latest.min)), h("div", {class: "rh-sub"}, when + (m.latest.bed ? " \u00b7 " + m.latest.bed + "\u2013" + m.latest.wake : ""))),
         h("div", null, h("h4", null, "7-night average"), h("div", {class: "cd-big"}, hrs(m.avg)), bars)));
+      /* Stage breakdown for the latest night \u2014 Core/REM/Deep/Awake, the columns the Sleep tab has
+         always had but the card never showed. Silently skipped if a night has none of them. */
+      var STAGES = [["core", "Core", "--accent"], ["rem", "REM", "--violet"], ["deep", "Deep", "--cyan"], ["awake", "Awake", "--muted"]];
+      if (STAGES.some(function (s) { return m.latest[s[0]] != null; })) {
+        body.appendChild(h("div", {class: "sl-stages", role: "img", "aria-label": "Sleep stages, last night"},
+          STAGES.map(function (s) { var v = m.latest[s[0]]; return v ? h("i", {style: "flex:" + v + " 0 0%;background:var(" + s[2] + ")", title: s[1] + ": " + hrs(v)}) : null; })));
+        body.appendChild(h("div", {class: "sl-stage-leg"},
+          STAGES.map(function (s) { var v = m.latest[s[0]]; return v == null ? null : h("span", null, h("i", {style: "background:var(" + s[2] + ")"}), s[1] + " " + hrs(v)); })));
+      }
       if (m.latest.note) body.appendChild(h("div", {class: "rh-sub", style: "margin-top:6px"}, m.latest.note));
     }
     paint();

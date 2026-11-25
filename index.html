@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261125.11
-     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.11"
+     BUILD VERSION — single source of truth: 20261125.14
+     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.14"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
      Browsers and GitHub Pages' CDN cache by the exact URL including the
@@ -106,9 +106,18 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .sh::after{content:'';flex:1;height:1px;background:var(--line)}
 
 /* Breadcrumb for views reached off-rail (Sources, Records, Sheets, Local, Status) — see render() */
-.crumb{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.crumb-back{all:unset;cursor:pointer;font-size:12px;font-weight:600;color:var(--accent);padding:4px 0}
-.crumb-t{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.crumb{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+/* 2026-11-25: these used to be all:unset text links styled like an arrow + a word — JD's call
+   that nav controls should read as actual buttons. Real chrome now; Home (always jumps to
+   Overview) sits next to Back (steps up one level) so you're never more than one tap from home
+   no matter how deep a page goes. When Back's target IS Overview, we only show one button so you
+   don't see two identical ones side by side. */
+.crumb-back,.crumb-home{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;
+  font-weight:600;color:var(--text);padding:7px 13px 7px 11px;border-radius:999px;
+  background:var(--panel2);border:1px solid var(--line2)}
+.crumb-back:hover,.crumb-home:hover{background:var(--line);border-color:var(--ring)}
+.crumb-back svg,.crumb-home svg{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.crumb-t{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-left:2px}
 
 /* Wall view toggle (Map / Grid) */
 
@@ -246,12 +255,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261125.11">
-<link rel="stylesheet" href="cc-skin.css?v=20261125.11">
-<link rel="stylesheet" href="cc-widgets.css?v=20261125.11">
-<link rel="stylesheet" href="cc-pages.css?v=20261125.11">
-<link rel="stylesheet" href="cc-sources2.css?v=20261125.11">
-<link rel="stylesheet" href="views/views.css?v=20261125.11">
+<link rel="stylesheet" href="cc-design.css?v=20261125.14">
+<link rel="stylesheet" href="cc-skin.css?v=20261125.14">
+<link rel="stylesheet" href="cc-widgets.css?v=20261125.14">
+<link rel="stylesheet" href="cc-pages.css?v=20261125.14">
+<link rel="stylesheet" href="cc-sources2.css?v=20261125.14">
+<link rel="stylesheet" href="views/views.css?v=20261125.14">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -267,7 +276,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
       <h1>Command Center</h1>
     </div>
     <div class="tb-status">
-      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.11</span>
+      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.14</span>
       <span class="live off" id="live-ind">Offline</span>
       <span class="refreshed" id="refreshed"></span>
       <span class="sample-tag" id="stag" hidden>SAMPLE</span>
@@ -288,7 +297,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261125.11"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261125.14"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -995,11 +1004,13 @@ function render(){
        full-screen grid), so the crumb steps back one level at a time instead of always jumping to
        Wall. */
     var CRUMB_BACK={"health-data":{id:"health",l:"Health"}};
-    var back=CRUMB_BACK[TAB]||{id:"wall",l:"Wall"};
-    app.appendChild(h("div",{class:"crumb"},
-      h("button",{type:"button",class:"crumb-back",onclick:function(){go(back.id)}},"← "+back.l),
-      h("span",{class:"crumb-t"},CRUMB_TITLES[TAB]||TAB)
-    ));
+    var back=CRUMB_BACK[TAB]||{id:"wall",l:"Overview"};
+    function crumbIcon(d){return svgEl("svg",{viewBox:"0 0 24 24"},[svgEl("path",{d:d})])}
+    var CHEVRON="M15 18l-6-6 6-6", HOUSE="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 21v-8h6v8";
+    var crumbBtns=[h("button",{type:"button",class:"crumb-back",onclick:function(){go(back.id)}},crumbIcon(CHEVRON),back.l)];
+    if(back.id!=="wall")crumbBtns.push(h("button",{type:"button",class:"crumb-home",onclick:function(){go("wall")}},crumbIcon(HOUSE),"Overview"));
+    crumbBtns.push(h("span",{class:"crumb-t"},CRUMB_TITLES[TAB]||TAB));
+    app.appendChild(h("div",{class:"crumb"},crumbBtns));
   }
 
   /* Check for external view overrides (CC.views.Business etc.) */
@@ -1065,7 +1076,20 @@ function buildNav(){
   });
   rail.appendChild(h("div",{class:"rsp"}));
 }
-function go(id){TAB=id;buildNav();render();window.scrollTo(0,0)}
+/* 2026-11-25: JD stumbled onto a retired dashboard (old Business/Today/System/Private/Status
+   pages — still fully defined in cc-widgets.js and views/system.js, just no longer on the rail)
+   by clicking "Go to Business" inside the Inbox panel's alert detail (cc-inbox.js's jump()
+   still calls go() with those old capitalized tab names). Rather than patch every caller that
+   might still hold a stale destination, go() itself is now the single checkpoint: it only ever
+   lands on a page that's actually live today, and quietly sends anything else back to Overview.
+   Add a page's id here (or register it in CC.catPages) when it's really ready to be reached. */
+function go(id){
+  var allowed={wall:1,build:1,"health-data":1,Sources:1,Records:1,Sheets:1};
+  TABS.forEach(function(t){allowed[t.id]=1});
+  if(CC.catPages)Object.keys(CC.catPages).forEach(function(k){allowed[CC.catPages[k]]=1});
+  if(!allowed[id]){console.warn('[nav] blocked go("'+id+'") — that page is retired, not reachable; returning to Overview');id="wall"}
+  TAB=id;buildNav();render();window.scrollTo(0,0)
+}
 
 /* ══════════ THEME ══════════ */
 function toggleTheme(){
@@ -1191,33 +1215,33 @@ function loadData(){
 </script>
 
 <!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing -->
-<script src="cc-fresh.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-inbox.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-motion.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-fresh.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-inbox.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-motion.js?v=20261125.14" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script src="views/timeline.js?v=20261125.11" onerror="void 0"></script>
-<script src="views/system.js?v=20261125.11" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-nurture.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-crm.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-active.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-sources2.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-map.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-records.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-sheets.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-build.js?v=20261125.11" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261125.14" onerror="void 0"></script>
+<script src="views/system.js?v=20261125.14" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-nurture.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-crm.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-active.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-sources2.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-map.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-records.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-sheets.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-build.js?v=20261125.14" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script src="cc-body.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-health.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-pages.js?v=20261125.11" onerror="void 0"></script>
-<script src="cc-know.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-body.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-health.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-pages.js?v=20261125.14" onerror="void 0"></script>
+<script src="cc-know.js?v=20261125.14" onerror="void 0"></script>
 </body>
 </html>

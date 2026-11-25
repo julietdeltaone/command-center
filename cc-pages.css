@@ -171,6 +171,13 @@
 .sl-grid{grid-template-columns:1fr 1.4fr;align-items:center}
 @media (max-width:900px){.sl-grid{grid-template-columns:1fr}}
 .wt.cd.sl .cd-days{height:38px}
+/* 2026-11-25: sleep-stage breakdown (Core/REM/Deep/Awake) for the latest night — JD's call that
+   a flat "7h 42m" number "doesn't really show much" without the stage split underneath it. */
+.sl-stages{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:10px;background:var(--line)}
+.sl-stages i{display:block}
+.sl-stage-leg{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:8px;font-size:11px;color:var(--muted)}
+.sl-stage-leg span{display:inline-flex;align-items:center;gap:5px}
+.sl-stage-leg i{width:8px;height:8px;border-radius:50%;flex:none}
 /* Knowledge: "Worth knowing" callouts (cc-body.js CC.body.insights) */
 .kn-list{display:flex;flex-direction:column;gap:6px;margin-top:2px}
 .kn-row{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--inset);font-size:13px}
