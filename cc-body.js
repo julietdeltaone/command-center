@@ -5,11 +5,19 @@
      time = the date that group was last trained
      text = "Chest | 14 sets in 14 days | Bench Press 11/19, Incline Press 11/17"
    Cardio falls back to the daily workout rows (cardio minutes) until tr-cardio rows exist. Counts and names only.
-   Vitals contract (Luna writes ONE row per day from Apple Health, nothing else; Atlas owns how it displays):
-     tab "Private", module "Health", id "vt-YYYY-MM-DD", source "Apple Health", grade "Exact",
+   Vitals contract (2026-11-25, replaces the old Items text-blob contract below): Luna writes one row per
+   day straight into the Vitals tab of the Health Data sheet (same spreadsheet as Workouts), columns
+   Date, Resting HR (bpm), Avg HR (bpm), HRV (ms), Blood Oxygen (%), Respiratory Rate (/min), VO2 Max,
+   Steps, Active Energy (kcal), Flights Climbed, Weight (lb). Any cell may be left blank. Read live via the
+   CC Connected Sheets Reader (sheets_url in Config), same pattern cc-health.js uses for Workouts —
+   Atlas owns how it displays. The Items contract below ("vt-YYYY-MM-DD" rows) is retired; nothing reads
+   it anymore.
+     [retired] tab "Private", module "Health", id "vt-YYYY-MM-DD", source "Apple Health", grade "Exact",
      time = that day at 12:00 America/New_York,
      text = "Vitals | Resting HR 65 | Avg HR 73 | HRV 52 ms | Blood oxygen 95.6% | Respiratory rate 16.1"
-     Any field may be left out. A later row for the same day replaces the earlier one. No other text, no extra fields. */
+
+   Sleep contract (new, 2026-11-25): Luna writes one row per night into the Sleep tab of Health Data,
+   columns Date, Bedtime, Wake Time, Minutes Asleep, Notes. Read live the same way as Vitals. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -118,15 +126,50 @@
     var s = document.createElementNS("http://www.w3.org/2000/svg", "svg"), p = document.createElementNS("http://www.w3.org/2000/svg", "path");
     s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("class", "cd-ic"); s.setAttribute("aria-hidden", "true"); p.setAttribute("d", VIC[k] || VIC.heart); s.appendChild(p); return s;
   }
-  function vitalsModel(api) {
-    var items = (api.data && api.data.items) || [], F = CC.fresh, by = {};
-    items.forEach(function (i) {
-      if (i.tab !== "Private" || i.module !== "Health" || !/^vitals\b/i.test(i.text || "")) return;
-      var t = ms(i.time); if (t == null) return; var k = F.ymd(t), w = ms(i.written) || t, cur = by[k];
-      if (cur && cur.w > w) return;
-      var d = {k: k, t: t, w: w}; VFIELDS.forEach(function (f) { var m = f.re.exec(i.text || ""); d[f.k] = m ? Number(m[1].replace(/,/g, "")) : null; }); by[k] = d;
+  /* ---------- live sheet reads: Vitals + Sleep, both tabs in the Health Data spreadsheet,
+     read via the same CC Connected Sheets Reader cc-health.js uses for Workouts. ---------- */
+  var HEALTH_SHEET_ID = "1f1EsQ-qwlJ4U_e7Qv77mUuQfaFov4Ye4rquoGlX6k9w";
+  var VITALS_GID = "1526580111", SLEEP_GID = "87092156";
+  function sheetsUrl(api) {
+    var rows = (api.data && api.data.config) || [];
+    var r = rows.filter(function (x) { return x.key === "sheets_url"; })[0];
+    return r && r.value ? String(r.value) : "";
+  }
+  function fetchTab(api, gid, n, cb) {
+    var u = sheetsUrl(api);
+    if (!u) { cb(new Error("noconfig")); return; }
+    fetch(u + (u.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(HEALTH_SHEET_ID) + "&tab=" + gid + "&from=0&n=" + n)
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) throw new Error(j.error || "error"); cb(null, j); })
+      .catch(function (e) { cb(e); });
+  }
+  function colOf(header, name) { var i = header.indexOf(name); return i < 0 ? null : i; }
+  function numAt(row, i) { if (i == null) return null; var v = row[i]; if (v == null || v === "") return null; var n = Number(String(v).replace(/,/g, "")); return isNaN(n) ? null : n; }
+
+  var VS = {rows: null, header: null, err: null, loading: false};
+  function loadVitals(api, onDone) {
+    if (VS.loading || VS.rows || VS.err) { onDone(); return; }
+    VS.loading = true;
+    fetchTab(api, VITALS_GID, 60, function (err, j) {
+      VS.loading = false;
+      if (err) { VS.err = "Could not read the Vitals tab from Health Data."; onDone(); return; }
+      VS.header = j.header || []; VS.rows = j.rows || []; onDone();
     });
-    var days = Object.keys(by).sort().map(function (k) { return by[k]; }).slice(-7);
+  }
+  function vitalsModel() {
+    if (!VS.rows || !VS.rows.length) return null;
+    var hdr = VS.header;
+    var iDate = colOf(hdr, "Date"), iHr = colOf(hdr, "Resting HR (bpm)"), iAvg = colOf(hdr, "Avg HR (bpm)"),
+      iHrv = colOf(hdr, "HRV (ms)"), iSpo2 = colOf(hdr, "Blood Oxygen (%)"), iRr = colOf(hdr, "Respiratory Rate (/min)"),
+      iVo2 = colOf(hdr, "VO2 Max"), iSteps = colOf(hdr, "Steps"), iKcal = colOf(hdr, "Active Energy (kcal)"),
+      iFlt = colOf(hdr, "Flights Climbed"), iWt = colOf(hdr, "Weight (lb)");
+    var days = VS.rows.filter(function (r) { return iDate != null && r[iDate]; }).map(function (r) {
+      var t = ms(r[iDate]);
+      return {
+        k: r[iDate], t: t, hr: numAt(r, iHr), avg: numAt(r, iAvg), hrv: numAt(r, iHrv), spo2: numAt(r, iSpo2),
+        rr: numAt(r, iRr), vo2: numAt(r, iVo2), steps: numAt(r, iSteps), kcal: numAt(r, iKcal), flt: numAt(r, iFlt), wt: numAt(r, iWt)
+      };
+    }).filter(function (d) { return d.t != null; }).sort(function (a, b) { return a.t - b.t; }).slice(-7);
     if (!days.length) return null;
     var latest = days[days.length - 1], prior = days.slice(0, -1);
     var vals = VFIELDS.map(function (f) {
@@ -135,19 +178,83 @@
       var diff = base == null ? null : v - base, state = diff == null ? "n" : Math.abs(diff) <= f.flat ? "steady" : f.good === 0 ? "move" : (diff * f.good > 0 ? "good" : "watch");
       return {f: f, v: v, diff: diff, state: state, series: days.map(function (d) { return d[f.k]; })};
     }).filter(Boolean);
-    return {vals: vals, latest: latest, n: days.length, age: F.dayDiff(latest.t)};
+    var F = CC.fresh;
+    return {vals: vals, latest: latest, n: days.length, age: F && F.dayDiff ? F.dayDiff(latest.t) : Math.round((Date.now() - latest.t) / 86400000)};
   }
   function vitalsBlock(api) {
-    var m = vitalsModel(api);
-    if (!m) return h("div", {class: "cd-vt"}, h("h4", null, "Vitals \u00b7 waiting for Apple Health"), h("div", {class: "cd-vg"}, VFIELDS.slice(0, 4).map(function (f) { return h("div", {class: "cd-vc n"}, h("div", {class: "cd-vl"}, vic(f.ic), f.label), h("div", {class: "cd-vv"}, "\u2014"), h("div", {class: "cd-vd"}, "no data yet")); })));
-    var when = m.age <= 0 ? "today" : m.age === 1 ? "yesterday" : new Date(m.latest.t).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"});
-    var chips = m.vals.slice(0, 8).map(function (x) {
-      var f = x.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
-      var arrow = x.state === "steady" || x.state === "n" ? "steady" : (x.diff > 0 ? "\u25b2 " : "\u25bc ") + fmt(Math.abs(x.diff));
-      return h("div", {class: "cd-vc " + x.state, title: f.label + " " + fmt(x.v) + " " + f.unit + (x.diff != null ? ", " + (x.diff >= 0 ? "+" : "") + x.diff.toFixed(1) + " vs your average of the earlier days" : "")},
-        h("div", {class: "cd-vl"}, vic(f.ic), f.label), h("div", {class: "cd-vv"}, fmt(x.v), f.unit ? h("small", null, f.unit) : null), h("div", {class: "cd-vd"}, arrow));
+    var wrap = h("div", {class: "cd-vt"}), body = h("div", null);
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (VS.err) { body.appendChild(h("h4", null, "Vitals")); body.appendChild(h("div", {class: "cd-vg"}, h("div", {class: "ov-empty"}, VS.err))); return; }
+      var m = vitalsModel();
+      if (!m) {
+        body.appendChild(h("h4", null, "Vitals \u00b7 " + (VS.loading ? "reading\u2026" : "waiting for Health Data")));
+        body.appendChild(h("div", {class: "cd-vg"}, VFIELDS.slice(0, 4).map(function (f) { return h("div", {class: "cd-vc n"}, h("div", {class: "cd-vl"}, vic(f.ic), f.label), h("div", {class: "cd-vv"}, "\u2014"), h("div", {class: "cd-vd"}, "no data yet")); })));
+        return;
+      }
+      var when = m.age <= 0 ? "today" : m.age === 1 ? "yesterday" : new Date(m.latest.t).toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "America/New_York"});
+      var chips = m.vals.slice(0, 8).map(function (x) {
+        var f = x.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
+        var arrow = x.state === "steady" || x.state === "n" ? "steady" : (x.diff > 0 ? "\u25b2 " : "\u25bc ") + fmt(Math.abs(x.diff));
+        return h("div", {class: "cd-vc " + x.state, title: f.label + " " + fmt(x.v) + " " + f.unit + (x.diff != null ? ", " + (x.diff >= 0 ? "+" : "") + x.diff.toFixed(1) + " vs your average of the earlier days" : "")},
+          h("div", {class: "cd-vl"}, vic(f.ic), f.label), h("div", {class: "cd-vv"}, fmt(x.v), f.unit ? h("small", null, f.unit) : null), h("div", {class: "cd-vd"}, arrow));
+      });
+      body.appendChild(h("h4", null, "Vitals \u00b7 " + when + (m.n > 1 ? " \u00b7 " + m.n + " days" : "")));
+      body.appendChild(h("div", {class: "cd-vg"}, chips));
+    }
+    paint();
+    if (!VS.rows && !VS.err) loadVitals(api, paint);
+    return wrap;
+  }
+
+  /* ---------- Sleep: new widget, reads the Sleep tab of Health Data directly ---------- */
+  var SL = {rows: null, header: null, err: null, loading: false};
+  function loadSleep(api, onDone) {
+    if (SL.loading || SL.rows || SL.err) { onDone(); return; }
+    SL.loading = true;
+    fetchTab(api, SLEEP_GID, 30, function (err, j) {
+      SL.loading = false;
+      if (err) { SL.err = "Could not read the Sleep tab from Health Data."; onDone(); return; }
+      SL.header = j.header || []; SL.rows = j.rows || []; onDone();
     });
-    return h("div", {class: "cd-vt"}, h("h4", null, "Vitals \u00b7 " + when + (m.n > 1 ? " \u00b7 " + m.n + " days" : "")), h("div", {class: "cd-vg"}, chips));
+  }
+  function sleepModel() {
+    if (!SL.rows || !SL.rows.length) return null;
+    var hdr = SL.header, iDate = colOf(hdr, "Date"), iBed = colOf(hdr, "Bedtime"), iWake = colOf(hdr, "Wake Time"),
+      iMin = colOf(hdr, "Minutes Asleep"), iNote = colOf(hdr, "Notes");
+    var nights = SL.rows.filter(function (r) { return iDate != null && r[iDate]; }).map(function (r) {
+      return {k: r[iDate], t: ms(r[iDate]), bed: iBed != null ? r[iBed] : "", wake: iWake != null ? r[iWake] : "", min: numAt(r, iMin), note: iNote != null ? r[iNote] : ""};
+    }).filter(function (d) { return d.t != null; }).sort(function (a, b) { return a.t - b.t; }).slice(-7);
+    if (!nights.length) return null;
+    var latest = nights[nights.length - 1];
+    var withMin = nights.filter(function (d) { return d.min != null; }), avg = withMin.length ? withMin.reduce(function (a, b) { return a + b.min; }, 0) / withMin.length : null;
+    var F = CC.fresh;
+    return {nights: nights, latest: latest, avg: avg, age: F && F.dayDiff ? F.dayDiff(latest.t) : Math.round((Date.now() - latest.t) / 86400000)};
+  }
+  function hrs(min) { if (min == null) return "\u2014"; var h2 = Math.floor(min / 60), m2 = Math.round(min % 60); return h2 + "h " + m2 + "m"; }
+  function sleepBlock(api) {
+    var wrap = h("section", {class: "wt cd sl"}), body = h("div", null);
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Sleep"), h("span", {class: "bd-sub"}, "last 7 nights, logged from Apple Health")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (SL.err) { body.appendChild(h("div", {class: "ov-empty"}, SL.err)); return; }
+      var m = sleepModel();
+      if (!m) { body.appendChild(h("div", {class: "ov-empty"}, SL.loading ? "Reading\u2026" : "Waiting on the Sleep tab \u2014 no nights logged yet.")); return; }
+      var when = m.age <= 0 ? "last night" : m.age === 1 ? "the night before" : m.age + " days ago";
+      var mx = Math.max.apply(null, m.nights.map(function (d) { return d.min || 0; }).concat([480]));
+      var bars = h("div", {class: "cd-days", role: "img", "aria-label": "Minutes asleep, last 7 nights"}, m.nights.map(function (d) {
+        return h("i", {style: "height:" + (d.min ? 12 + d.min / mx * 88 : 4) + "%", class: d.min ? "on" : "", title: d.k + ": " + hrs(d.min)});
+      }));
+      body.appendChild(h("div", {class: "cd-grid sl-grid"},
+        h("div", null, h("div", {class: "cd-big"}, hrs(m.latest.min)), h("div", {class: "rh-sub"}, when + (m.latest.bed ? " \u00b7 " + m.latest.bed + "\u2013" + m.latest.wake : ""))),
+        h("div", null, h("h4", null, "7-night average"), h("div", {class: "cd-big"}, hrs(m.avg)), bars)));
+      if (m.latest.note) body.appendChild(h("div", {class: "rh-sub", style: "margin-top:6px"}, m.latest.note));
+    }
+    paint();
+    if (!SL.rows && !SL.err) loadSleep(api, paint);
+    return wrap;
   }
 
   /* anatomical shapes, left half drawn, right half mirrored */
@@ -259,6 +366,7 @@
         cp ? null : (vitalsBlock(api) || h("div", null, h("h4", null, "Last 28 days"), dl))));
       return wrap;
     },
+    sleep: sleepBlock,
     mini: function (api) {
       var m = model(api), cd = m.cardio;
       var over = m.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; }).slice(0, 3);

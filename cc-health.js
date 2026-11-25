@@ -161,6 +161,7 @@
     row.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null));
     row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
     know.appendChild(row);
+    if (CC.body && CC.body.sleep) know.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
     page.appendChild(know);
 
     /* Information: still a stub — the acknowledged missing middle layer. */
@@ -195,6 +196,7 @@
     ".hp-layer-h{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}" +
     ".hp-layer-t{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}" +
     ".hp-know.pv-wr{margin-top:0}" +
+    ".hp-know-sl{margin-top:12px}" +
     ".hp-stub{opacity:.6;border-style:dashed}" +
     ".hp-soon{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}" +
     ".hp-data-body{max-height:480px;overflow-y:auto}" +
