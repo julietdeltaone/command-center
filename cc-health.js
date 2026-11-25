@@ -143,7 +143,9 @@
     if (avg <= 0) return null;
     return {lastCount: lastCount, avg: avg, ratio: lastCount / avg};
   }
-  function volumeMoverData(prog) {
+  /* The Knowledge board always shows the biggest mover, even a small unremarkable one — it's a
+     fixed slot, not a threshold-gated callout. */
+  function volumeMoverAlways(prog) {
     var complete = completeWeeks(prog); if (complete.length < 4) return null;
     var recent = complete.slice(-2), prior = complete.slice(-4, -2), best = null;
     PROG_CATS.forEach(function (cat) {
@@ -152,7 +154,6 @@
       var pct = (r - p) / p;
       if (!best || Math.abs(pct) > Math.abs(best.pct)) best = {cat: cat, pct: pct};
     });
-    if (!best || Math.abs(best.pct) < 0.15) return null;
     return best;
   }
 
@@ -187,10 +188,18 @@
     return wrap;
   }
 
-  /* ---------- Knowledge layer: stat tiles, show-don't-tell. Short all-caps titles, one big
-     value, a terse sub-caption — never a sentence, never the words "worth knowing" or "things
-     to know." Only surfaces what's actually notable; a quiet week gets one calm tile, not a
-     wall of neutral placeholders. ---------- */
+  /* ---------- Knowledge layer: a fixed board, not a reactive "only if notable" list. JD's call
+     (2026-11-25): six slots, always present when their source has data, so the opener has a
+     stable, scannable shape instead of appearing almost empty on a quiet week. Color still does
+     the "is this fine or not" work (watch/good/neutral) — the fixed slots are WHAT gets asked;
+     the color is the ANSWER. Show-don't-tell throughout: short all-caps titles, one big value,
+     a terse sub-caption, never a sentence, never "worth knowing"/"things to know."
+       1. TEMPO        — sessions this week vs your recent average
+       2. [MUSCLE]      — the muscle group with the longest gap right now
+       3. CARDIO       — days since your last cardio session
+       4. [VITAL]       — your biggest vitals move vs your recent average
+       5. SLEEP        — last night vs your 7-night average
+       6. [CATEGORY] VOLUME — your biggest weekly-volume mover, up or down */
   function knowledgeTiles(api) {
     var tiles = [];
     var mm = CC.body && CC.body.model ? CC.body.model(api) : null;
@@ -198,32 +207,31 @@
     var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel() : null;
     var prog = PW.rows ? buildProgress(PW.rows, PW.header) : null;
 
-    var stale = mm && mm.any ? mm.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; })[0] : null;
-    if (stale && stale.eff <= 0.45) {
-      tiles.push({t: stale.name.toUpperCase(), v: dtext(stale.days != null ? stale.days : stale.indDays), s: "since trained", k: "watch"});
-    }
-    var cd = mm ? mm.cardio : null;
-    if (cd && cd.days != null && cd.days >= 4) {
-      tiles.push({t: "CARDIO", v: dtext(cd.days), s: "since last session", k: "watch"});
-    }
-    if (vm) {
-      var notable = vm.vals.filter(function (x) { return x.state === "watch" || x.state === "good"; }).sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); })[0];
-      if (notable) {
-        var f = notable.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
-        tiles.push({t: f.label.toUpperCase(), v: fmt(notable.v) + (f.unit ? " " + f.unit : ""), s: (notable.diff >= 0 ? "+" : "") + notable.diff.toFixed(1) + " vs avg", k: notable.state});
-      }
-    }
-    if (sm && sm.avg != null && sm.latest.min != null) {
-      var diff = sm.latest.min - sm.avg;
-      if (Math.abs(diff) >= 60) tiles.push({t: "SLEEP", v: hrs(sm.latest.min), s: (diff >= 0 ? "+" : "-") + hrs(Math.abs(diff)) + " vs avg", k: diff >= 0 ? "good" : "watch"});
-    }
     if (prog) {
       var td = tempoData(prog);
       if (td) tiles.push({t: "TEMPO", v: td.lastCount + "/wk", s: "vs " + td.avg.toFixed(1) + " avg", k: td.ratio < 0.7 ? "watch" : td.ratio >= 1.05 ? "good" : "n"});
-      var vd = volumeMoverData(prog);
-      if (vd) tiles.push({t: (vd.cat + " VOLUME").toUpperCase(), v: (vd.pct > 0 ? "+" : "") + Math.round(vd.pct * 100) + "%", s: "last 2 wks", k: vd.pct > 0 ? "good" : "watch"});
     }
-    if (!tiles.length) tiles.push({t: "STATUS", v: (mm && mm.any) || vm || sm || prog ? "On track" : "—", s: (mm && mm.any) || vm || sm || prog ? "nothing flagged" : "waiting on data", k: "n"});
+    if (mm && mm.any) {
+      var stale = mm.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; })[0];
+      if (stale) tiles.push({t: stale.name.toUpperCase(), v: dtext(stale.days != null ? stale.days : stale.indDays), s: "since trained", k: stale.eff <= 0.45 ? "watch" : stale.eff >= 0.85 ? "good" : "n"});
+    }
+    var cd = mm ? mm.cardio : null;
+    if (cd && cd.days != null) tiles.push({t: "CARDIO", v: dtext(cd.days), s: "since last session", k: cd.days >= 4 ? "watch" : cd.days <= 1 ? "good" : "n"});
+    if (vm && vm.vals.length) {
+      var notable = vm.vals.slice().sort(function (a, b) { return Math.abs(b.diff || 0) - Math.abs(a.diff || 0); })[0];
+      var f = notable.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
+      var nk = notable.state === "watch" || notable.state === "good" ? notable.state : "n";
+      tiles.push({t: f.label.toUpperCase(), v: fmt(notable.v) + (f.unit ? " " + f.unit : ""), s: notable.diff != null ? (notable.diff >= 0 ? "+" : "") + notable.diff.toFixed(1) + " vs avg" : "no trend yet", k: nk});
+    }
+    if (sm && sm.latest.min != null) {
+      var diff = sm.avg != null ? sm.latest.min - sm.avg : null;
+      tiles.push({t: "SLEEP", v: hrs(sm.latest.min), s: diff != null ? (diff >= 0 ? "+" : "-") + hrs(Math.abs(diff)) + " vs avg" : "last night", k: diff == null ? "n" : diff <= -60 ? "watch" : diff >= 60 ? "good" : "n"});
+    }
+    if (prog) {
+      var vd = volumeMoverAlways(prog);
+      if (vd) tiles.push({t: (vd.cat + " VOLUME").toUpperCase(), v: (vd.pct > 0 ? "+" : "") + Math.round(vd.pct * 100) + "%", s: "last 2 wks", k: Math.abs(vd.pct) < 0.15 ? "n" : vd.pct > 0 ? "good" : "watch"});
+    }
+    if (!tiles.length) tiles.push({t: "STATUS", v: "—", s: "waiting on data", k: "n"});
     return tiles;
   }
   function tileGrid(tiles) {
@@ -264,10 +272,26 @@
   };
 
   /* ---------- Page 3: Data = full-screen, edge-to-edge, literal grid of Workouts. Every row,
-     every column, straight from the sheet — click a header to sort, nothing grouped or themed
-     beyond a thin category-color rail (the same color-coding idiom used everywhere else in the
-     dashboard) so it still reads at a glance. ---------- */
+     every column, straight from the sheet — click a header to sort. Whole rows are tinted by
+     muscle category (not just a border — JD wants the category readable at a glance down the
+     page) and the Reps cell gets its own quick color band by range, since rep count is really a
+     second dimension (heavy/low-rep vs light/high-rep) worth seeing without reading the number. */
   function fmtCell(v) { return v == null || v === "" ? "" : String(v); }
+  function hexToRgba(hex, a) {
+    hex = String(hex || "").replace("#", "");
+    if (hex.length === 3) hex = hex.split("").map(function (c) { return c + c; }).join("");
+    var n = parseInt(hex, 16);
+    if (isNaN(n)) return "rgba(136,145,163," + a + ")";
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+  var REP_BANDS = [
+    {max: 5, c: "#9b7bd9", l: "1–5"},
+    {max: 8, c: "#5b9bd9", l: "6–8"},
+    {max: 12, c: "#5bc9a8", l: "9–12"},
+    {max: 20, c: "#d9b24c", l: "13–20"},
+    {max: Infinity, c: "#e08a3c", l: "21+"}
+  ];
+  function repBand(n) { if (n == null) return null; for (var i = 0; i < REP_BANDS.length; i++) if (n <= REP_BANDS[i].max) return REP_BANDS[i]; return REP_BANDS[REP_BANDS.length - 1]; }
   CC.views.HealthData = function (api) {
     var page = h("div", {class: "hp-data-full"});
     page.appendChild(h("div", {class: "hp-data-fhead"}, h("h2", null, "Workouts"),
@@ -280,7 +304,7 @@
       if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
       if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts…")); return; }
       if (!PW.rows.length) { body.appendChild(h("div", {class: "ov-empty"}, "No rows yet.")); return; }
-      var hdr = PW.header, iCat = col(hdr, "Category"), rows = PW.rows.slice();
+      var hdr = PW.header, iCat = col(hdr, "Category"), iRep = col(hdr, "Reps"), rows = PW.rows.slice();
       if (sortCol != null) {
         rows.sort(function (a, b) {
           var an = numAt(a, sortCol), bn = numAt(b, sortCol);
@@ -294,14 +318,21 @@
           name, sortCol === i ? h("i", {class: "hp-sort"}, sortDir > 0 ? "↑" : "↓") : null);
       }))));
       table.appendChild(h("tbody", null, rows.map(function (r) {
-        return h("tr", null, hdr.map(function (_, i) {
+        var cat = iCat != null ? r[iCat] : "", rowStyle = cat ? "background:" + hexToRgba(catColor(cat), 0.13) : "";
+        return h("tr", {style: rowStyle}, hdr.map(function (_, i) {
           var val = fmtCell(r[i]);
-          if (i === iCat && val) return h("td", {style: "border-left:3px solid " + catColor(val)}, val);
+          if (i === iCat && val) return h("td", {style: "border-left:3px solid " + catColor(val) + ";font-weight:600"}, val);
+          if (i === iRep && val) {
+            var b = repBand(numAt(r, iRep));
+            return b ? h("td", null, h("span", {class: "hp-pill", style: "background:" + hexToRgba(b.c, 0.25) + ";color:" + b.c}, val)) : h("td", null, val);
+          }
           return h("td", null, val);
         }));
       })));
       body.appendChild(table);
-      body.appendChild(h("div", {class: "hp-foot"}, rows.length.toLocaleString("en-US") + " rows · read only, straight from Health Data"));
+      body.appendChild(h("div", {class: "hp-foot"},
+        h("span", null, rows.length.toLocaleString("en-US") + " rows · read only, straight from Health Data"),
+        h("div", {class: "hp-legend"}, REP_BANDS.map(function (b) { return h("span", null, h("i", {style: "background:" + b.c}), b.l + " reps"); }))));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
@@ -335,8 +366,12 @@
     "table.hp-grid thead th{position:sticky;top:0;background:var(--panel2,var(--panel,#14161c));text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;border-bottom:1px solid var(--line,rgba(255,255,255,.12));user-select:none;z-index:1}" +
     "table.hp-grid thead th:hover{color:var(--text,inherit)}" +
     "table.hp-grid td{padding:6px 10px;border-bottom:1px solid var(--line,rgba(255,255,255,.07))}" +
-    "table.hp-grid tbody tr:nth-child(even){background:rgba(255,255,255,.02)}" +
+    "table.hp-grid tbody tr:hover{filter:brightness(1.25)}" +
     ".hp-sort{font-style:normal;margin-left:4px;color:var(--accent,#6bbf59)}" +
-    ".hp-foot{margin-top:8px;font-size:11px;color:var(--muted)}";
+    ".hp-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-weight:700;font-size:11.5px}" +
+    ".hp-foot{margin-top:8px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 16px}" +
+    ".hp-legend{display:flex;flex-wrap:wrap;gap:10px}" +
+    ".hp-legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}" +
+    ".hp-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}";
   document.head.appendChild(ST);
 })();
