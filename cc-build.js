@@ -1,11 +1,12 @@
 /* Command Center "Build" page. Owner: Atlas (claude).
-   A landscape "universe" of Command Center's own construction: every lane from the Build Status
-   tab as its own card (Data -> Information -> Knowledge, left to right). Each node's four stages
-   (Generated/Populated/Networked/Verified) show as a small color-coded ring instead of a list, so
-   the name/owner text can run bigger. The board's column count is chosen automatically, each time
-   it's fit, to whatever actually fills the screen best for that window's shape — not a fixed grid.
-   Navigation: pinch (trackpad)/ctrl+wheel/buttons/keyboard zoom; two-finger scroll or click-drag
-   pans; FIT snaps back to the whole board, re-picking columns for the current window.
+   2026-11-25 ground-up redesign per JD: this is a simple map, not a crowded board. Three fixed
+   depths, click down and back up — no pan, no zoom, no auto-fit column math, nothing that can
+   drift or overlap:
+     1. CATEGORIES  - all 10 top Vocation categories, one tile each, same size, overall % built.
+     2. LAYERS      - inside a category: Knowledge, Information, Data, in that order (closest to
+                      the surface first, rawest capture last) each with its own % and node count.
+     3. NODES       - inside a layer: the actual build-status rows, each a card with its stage
+                      ring, owner, notes, and a link straight to its row in the Build Status sheet.
    Data comes live from the CC Connected Sheets Reader (same Apps Script web app cc-sheets.js
    uses), reading this spreadsheet's own "Build Status" tab. Pure DOM + CSS, no libraries. */
 (function () {
@@ -16,6 +17,9 @@
   var SHEET_ID = "1w9xuc3IyVLkLRSyNTEVdaWlZQ54NCOVKyjW-E-xYGvY";
   var TAB_GID = "1499956834";
   var STAGES = ["Generated", "Populated", "Networked", "Verified"];
+  // Display order top (closest to the user-facing surface) to bottom (rawest capture) —
+  // matches JD's own layer numbering: Knowledge 2, Information 3, Data 4.
+  var LAYERS = [{key: "know", label: "Knowledge"}, {key: "info", label: "Information"}, {key: "data", label: "Data"}];
 
   var GROUPS = [
     {name: "Local / CENTCOM", data: ["d-locom", "d-centcomraw"], info: ["i-feed"], know: ["k-local", "k-roundup", "k-campusintel"]},
@@ -30,7 +34,7 @@
     {name: "Hub Core / Admin", data: ["hubc-data"], info: ["hubc-info"], know: ["hubc-know"]}
   ];
 
-  var S = {byId: {}, err: null, loading: false, at: null, view: {x: 0, y: 0, k: 1, userTouched: false}};
+  var S = {byId: {}, err: null, loading: false, at: null, openLane: null, openLayer: null};
 
   function h(tag, props) {
     var e = document.createElement(tag);
@@ -93,9 +97,9 @@
       .then(function () {
         var idx = {}; acc.header.forEach(function (name, i) { idx[name] = i; });
         var byId = {};
-        acc.rows.forEach(function (r) {
+        acc.rows.forEach(function (r, i) {
           var o = {}; Object.keys(idx).forEach(function (name) { o[name] = r[idx[name]]; });
-          if (o.NodeID) byId[o.NodeID] = o;
+          if (o.NodeID) { o._row = i + 2; byId[o.NodeID] = o; } // +2: header row + 1-based
         });
         S.byId = byId; S.err = null; S.at = api.nowMs ? api.nowMs() : Date.now();
       })
@@ -107,33 +111,39 @@
   function stageCount(node) { return node ? STAGES.filter(function (s) { return stageOn(node, s); }).length : 0; }
   function stateOf(node) { var n = stageCount(node); return n === 4 ? "live" : n === 0 ? "none" : "partial"; }
 
-  function laneStatus(g) {
+  // Shared progress math for any list of NodeIDs — a whole category, or just one of its layers.
+  function idsStatus(ids) {
+    if (!ids.length) return {pct: null, state: "na", n: 0};
     var pct = 0, max = 0;
-    [].concat(g.data, g.info, g.know).forEach(function (id) { pct += stageCount(S.byId[id]); max += 4; });
-    pct = max ? Math.round((pct / max) * 100) : 0;
-    return {pct: pct, state: pct >= 100 ? "live" : pct <= 0 ? "none" : "partial"};
+    ids.forEach(function (id) { pct += stageCount(S.byId[id]); max += 4; });
+    pct = Math.round((pct / max) * 100);
+    return {pct: pct, state: pct >= 100 ? "live" : pct <= 0 ? "none" : "partial", n: ids.length};
   }
 
-  // Shared surface so other pages (Wall) can read the same lane list and live status this page
-  // shows, instead of keeping a second copy that could drift out of sync.
+  function laneIds(g) { return [].concat(g.data, g.info, g.know); }
+  function laneStatus(g) { return idsStatus(laneIds(g)); }
+  function layerIds(g, key) { return g[key] || []; }
+
+  function sheetLink(node) {
+    return "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/edit#gid=" + TAB_GID + (node && node._row ? "&range=A" + node._row : "");
+  }
+
+  // Shared surface so other pages (Overview) can read the same category list and live status
+  // this page shows, and can open straight into a given category's drill-down.
   CC.buildStatus = {
     lanes: GROUPS,
     laneStatus: laneStatus,
     ready: function () { return Object.keys(S.byId).length > 0; },
     error: function () { return S.err; },
-    ensureLoaded: function (api) { if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api); }
+    ensureLoaded: function (api) { if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api); },
+    open: function (laneName) { S.openLane = laneName; S.openLayer = null; }
   };
 
-  function arrowGlyph(live) {
-    var p = svg("path", {d: "M2 9 H22 M16 2 L22 9 L16 16", fill: "none", "stroke-width": "2.4", "stroke-linecap": "round", "stroke-linejoin": "round"});
-    return svg("svg", {viewBox: "0 0 24 18", class: "bld-arrow" + (live ? " bld-arrow-live" : "")}, [p]);
-  }
-
   // A small ring whose perimeter is split into the four build stages (Generated, Populated,
-  // Networked, Verified), each its own arc, colored in when that stage is done. Replaces a
-  // four-line text list with one glyph, so the tile can spend its height on bigger text instead.
-  function stageRing(node) {
-    var size = 34, r = 13, cx = size / 2, cy = size / 2;
+  // Networked, Verified), each its own arc, colored in when that stage is done.
+  function stageRing(node, size) {
+    size = size || 34;
+    var r = size * 0.38, cx = size / 2, cy = size / 2;
     var circ = 2 * Math.PI * r;
     var segLen = circ / STAGES.length - 3;
     var ring = svg("svg", {viewBox: "0 0 " + size + " " + size, class: "bld-ring", width: size, height: size});
@@ -156,217 +166,110 @@
     return ring;
   }
 
-  function nodeTile(id) {
-    var node = S.byId[id];
-    var state = stateOf(node);
-    var tile = h("div", {class: "bld-tile bld-" + state});
-    tile.appendChild(h("div", {class: "bld-tile-top"},
-      stageRing(node),
-      h("div", {class: "bld-tile-tx"},
-        h("span", {class: "bld-tile-name"}, node ? node.Label : id),
-        h("span", {class: "bld-tile-owner"}, node ? node.Owner : "")
-      )
-    ));
-    if (node && node.Notes) tile.appendChild(h("div", {class: "bld-tile-note"}, node.Notes));
-    return {el: tile, networked: stageOn(node, "Networked")};
-  }
-
-  function column(ids, title) {
-    var col = h("div", {class: "bld-col"});
-    col.appendChild(h("div", {class: "bld-col-h"}, title));
-    var anyNetworked = false;
-    ids.forEach(function (id) { var t = nodeTile(id); col.appendChild(t.el); if (t.networked) anyNetworked = true; });
-    return {el: col, networked: anyNetworked, empty: ids.length === 0};
-  }
-
-  function laneCard(g) {
-    var st = laneStatus(g);
-
-    var card = h("div", {class: "bld-lane"});
-    card.appendChild(h("div", {class: "bld-lane-h"},
-      h("span", {class: "bld-lane-name"}, g.name),
-      h("span", {class: "bld-lane-pct bld-pct-" + st.state}, st.pct + "% BUILT")
-    ));
-
-    var dataCol = column(g.data, "Data"), infoCol = column(g.info, "Information"), knowCol = column(g.know, "Knowledge");
-    var flow = h("div", {class: "bld-flow"});
-    flow.appendChild(dataCol.el);
-    if (!infoCol.empty) {
-      flow.appendChild(arrowGlyph(dataCol.networked));
-      flow.appendChild(infoCol.el);
-      flow.appendChild(arrowGlyph(infoCol.networked));
-    } else {
-      flow.appendChild(arrowGlyph(dataCol.networked));
-    }
-    flow.appendChild(knowCol.el);
-    card.appendChild(flow);
-    return card;
-  }
-
   function legendRing(onCount) {
     var fake = {};
     STAGES.forEach(function (s, i) { fake[s] = i < onCount ? "TRUE" : "FALSE"; });
-    return stageRing(fake);
+    return stageRing(fake, 16);
   }
 
-  /* ---- pan/zoom "universe" engine -------------------------------------------------------
-     A world (CANVAS) sits inside an overflow:hidden viewport and is positioned with a single
-     translate()+scale() transform. The board is a CSS grid; FIT doesn't just rescale it, it
-     tries a few column counts, measures each one's real rendered size, and keeps whichever one
-     lets the whole board fill the most of the actual window — so "fit" adapts to the window's
-     own shape instead of assuming one fixed layout. */
+  function crumb(parts) {
+    // parts: [{label, onclick}] — last part is the current, non-clickable, location.
+    var bar = h("div", {class: "bld-crumb"});
+    parts.forEach(function (p, i) {
+      if (i) bar.appendChild(h("span", {class: "bld-crumb-sep"}, "›"));
+      bar.appendChild(p.onclick
+        ? h("button", {type: "button", class: "bld-crumb-b", onclick: p.onclick}, p.label)
+        : h("span", {class: "bld-crumb-cur"}, p.label));
+    });
+    return bar;
+  }
 
-  var COL_CANDIDATES = [2, 3, 4, 5];
-  var CARD_W = 480, GAP = 18, PAD = 22, CARD_MIN_W = 380;
+  // A single progress ring for a whole category's overall %, centered in its tile — so the tile's
+  // middle isn't empty space, it's the category's own headline number.
+  function pctRing(pct, state) {
+    var c = state === "live" ? "var(--green)" : state === "none" ? "var(--red)" : "var(--amber)";
+    var ring = h("div", {class: "bld-cat-ring", style: "--pct:" + pct + ";--c:" + c});
+    ring.appendChild(h("span", {class: "bld-cat-ring-n"}, pct + "%"));
+    return ring;
+  }
 
-  function widthForCols(n) { return n * CARD_W + (n - 1) * GAP + PAD * 2; }
+  function miniBars(g) {
+    // One short segment per layer (Know / Info / Data), colored by that layer's own state —
+    // the "simple map of progress" at a glance, without opening the category.
+    var row = h("div", {class: "bld-mini"});
+    LAYERS.forEach(function (ly) {
+      var ids = layerIds(g, ly.key), st = idsStatus(ids);
+      row.appendChild(h("div", {class: "bld-mini-seg bld-s-" + st.state, title: ly.label + ": " + (st.pct == null ? "no nodes yet" : st.pct + "% built")},
+        h("i", null, ly.label[0])));
+    });
+    return row;
+  }
 
-  function clampK(k) { return Math.max(0.12, Math.min(3, k)); }
+  // ---- Level 1: all categories --------------------------------------------------------------
+  function categoriesView(api) {
+    var grid = h("div", {class: "bld-grid"});
+    GROUPS.forEach(function (g) {
+      var st = laneStatus(g);
+      var tile = h("button", {type: "button", class: "bld-cat bld-s-" + st.state, onclick: function () { S.openLane = g.name; S.openLayer = null; api.render(); }},
+        h("div", {class: "bld-cat-top"}, h("span", {class: "bld-cat-name"}, g.name)),
+        h("div", {class: "bld-cat-mid"}, pctRing(st.pct, st.state)),
+        miniBars(g)
+      );
+      grid.appendChild(tile);
+    });
+    return grid;
+  }
 
-  function wireZoomPan(viewport, canvas) {
-    var raf = null;
-    function apply() {
-      canvas.style.transform = "translate(" + S.view.x.toFixed(1) + "px," + S.view.y.toFixed(1) + "px) scale(" + S.view.k.toFixed(4) + ")";
-    }
-    function schedule() {
-      if (raf) return;
-      raf = requestAnimationFrame(function () { raf = null; apply(); });
-    }
-    function touched() { S.view.userTouched = true; }
-
-    function zoomAt(cx, cy, factor) {
-      var k0 = S.view.k, k1 = clampK(k0 * factor);
-      if (k1 === k0) return;
-      S.view.x = cx - (cx - S.view.x) * (k1 / k0);
-      S.view.y = cy - (cy - S.view.y) * (k1 / k0);
-      S.view.k = k1;
-      schedule();
-    }
-
-    // Try every candidate column count, actually measure the board at each one (card heights
-    // depend on real content — notes, number of nodes per lane — so this can't be predicted,
-    // only measured), and keep whichever fills the window best. This is what makes FIT adapt
-    // to the window's own aspect ratio instead of assuming a fixed shape for the board.
-    function fit() {
-      var vw = viewport.clientWidth, vh = viewport.clientHeight;
-      if (!vw || !vh) return false;
-      var best = null;
-      COL_CANDIDATES.forEach(function (n) {
-        var w = widthForCols(n);
-        var cardW = (w - PAD * 2 - (n - 1) * GAP) / n;
-        if (cardW < CARD_MIN_W) return;
-        canvas.style.width = w + "px";
-        canvas.style.gridTemplateColumns = "repeat(" + n + ",1fr)";
-        var cw = canvas.offsetWidth, ch = canvas.offsetHeight;
-        if (!cw || !ch) return;
-        var k = clampK(Math.min((vw - 52) / cw, (vh - 52) / ch));
-        if (!best || k > best.k) best = {n: n, w: w, cw: cw, ch: ch, k: k};
+  // ---- Level 2: one category's three layers --------------------------------------------------
+  // Each row is sized to its content (not stretched) and previews every node in that layer as a
+  // small chip — a glance at what's there without a click, with the full detail one click away.
+  function layersView(api, g) {
+    var wrap = h("div", {class: "bld-layers"});
+    LAYERS.forEach(function (ly) {
+      var ids = layerIds(g, ly.key), st = idsStatus(ids);
+      var empty = ids.length === 0;
+      var chips = h("div", {class: "bld-layer-chips"});
+      ids.forEach(function (id) {
+        var node = S.byId[id];
+        chips.appendChild(h("span", {class: "bld-chip"}, stageRing(node, 18), h("span", {class: "bld-chip-n"}, node ? node.Label : id)));
       });
-      if (!best) return false;
-      canvas.style.width = best.w + "px";
-      canvas.style.gridTemplateColumns = "repeat(" + best.n + ",1fr)";
-      S.view.k = best.k;
-      S.view.x = (vw - best.cw * best.k) / 2;
-      S.view.y = (vh - best.ch * best.k) / 2;
-      apply();
-      return true;
-    }
-
-    apply();
-
-    // Trackpad gesture split: a pinch (stretch/squeeze) reaches the browser as a wheel event
-    // with ctrlKey set (true on every platform, including an actual Ctrl+wheel on a mouse) —
-    // that zooms. A plain two-finger scroll, with no ctrlKey, pans instead. Without this split
-    // every two-finger scroll was being hijacked into a zoom, which is the "janky" feeling.
-    viewport.addEventListener("wheel", function (e) {
-      e.preventDefault();
-      touched();
-      if (e.ctrlKey) {
-        var r = viewport.getBoundingClientRect();
-        // Clamp per-event so one unusually large delta (a fast pinch, or a synthetic/odd
-        // input device) can't jump the zoom level drastically in a single tick.
-        var factor = Math.max(0.5, Math.min(2, Math.exp(-e.deltaY * 0.01)));
-        zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
-      } else {
-        S.view.x -= e.deltaX;
-        S.view.y -= e.deltaY;
-        schedule();
-      }
-    }, {passive: false});
-
-    viewport.addEventListener("dblclick", function (e) {
-      touched();
-      var r = viewport.getBoundingClientRect();
-      zoomAt(e.clientX - r.left, e.clientY - r.top, 1.6);
+      var row = h("button", {
+        type: "button", class: "bld-layer bld-s-" + st.state + (empty ? " bld-layer-empty" : ""), disabled: empty,
+        onclick: empty ? null : function () { S.openLayer = ly.key; api.render(); }
+      },
+        h("div", {class: "bld-layer-head"},
+          h("div", {class: "bld-layer-l"}, h("span", {class: "bld-layer-name"}, ly.label), h("span", {class: "bld-layer-n"}, empty ? "no nodes yet" : ids.length + (ids.length === 1 ? " node" : " nodes"))),
+          h("div", {class: "bld-layer-r"}, h("span", {class: "bld-layer-pct"}, empty ? "—" : st.pct + "%"), empty ? null : h("span", {class: "bld-layer-go"}, "›"))
+        ),
+        empty ? null : chips
+      );
+      wrap.appendChild(row);
     });
+    return wrap;
+  }
 
-    // Click-and-drag (mouse) and touch (pinch with two fingers on a touchscreen) still work as
-    // alternatives to the trackpad gestures above.
-    var pts = {}, dragLast = null, pinchStart = null;
+  // ---- Level 3: the actual nodes in one layer ------------------------------------------------
+  function nodeCard(id, api) {
+    var node = S.byId[id];
+    var state = stateOf(node);
+    var card = h("div", {class: "bld-node bld-s-" + state});
+    card.appendChild(h("div", {class: "bld-node-top"},
+      stageRing(node, 40),
+      h("div", {class: "bld-node-tx"},
+        h("span", {class: "bld-node-name"}, node ? node.Label : id),
+        h("span", {class: "bld-node-meta"}, (node && node.Owner ? node.Owner : "") + (node && node.LastChecked ? " · checked " + node.LastChecked : ""))
+      ),
+      h("a", {class: "bld-node-link", href: sheetLink(node), target: "_blank", rel: "noopener", title: "Open this row in the Build Status sheet"}, "Open ↗")
+    ));
+    if (node && node.Notes) card.appendChild(h("div", {class: "bld-node-note"}, node.Notes));
+    return card;
+  }
 
-    viewport.addEventListener("pointerdown", function (e) {
-      if (e.button != null && e.button !== 0) return;
-      viewport.setPointerCapture(e.pointerId);
-      pts[e.pointerId] = {x: e.clientX, y: e.clientY};
-      var ids = Object.keys(pts);
-      if (ids.length === 1) { dragLast = {x: e.clientX, y: e.clientY}; viewport.classList.add("bld-dragging"); }
-      else if (ids.length === 2) {
-        var a = pts[ids[0]], b = pts[ids[1]];
-        pinchStart = {dist: Math.hypot(a.x - b.x, a.y - b.y), k: S.view.k, mid: {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}};
-        dragLast = null;
-      }
-    });
-    viewport.addEventListener("pointermove", function (e) {
-      if (!pts[e.pointerId]) return;
-      pts[e.pointerId] = {x: e.clientX, y: e.clientY};
-      var ids = Object.keys(pts);
-      if (ids.length === 1 && dragLast) {
-        var dx = e.clientX - dragLast.x, dy = e.clientY - dragLast.y;
-        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) touched();
-        S.view.x += dx; S.view.y += dy;
-        dragLast = {x: e.clientX, y: e.clientY};
-        schedule();
-      } else if (ids.length === 2 && pinchStart) {
-        touched();
-        var a = pts[ids[0]], b = pts[ids[1]];
-        var dist = Math.hypot(a.x - b.x, a.y - b.y);
-        var r = viewport.getBoundingClientRect();
-        var k1 = clampK(pinchStart.k * (dist / pinchStart.dist));
-        var mx = pinchStart.mid.x - r.left, my = pinchStart.mid.y - r.top;
-        S.view.x = mx - (mx - S.view.x) * (k1 / S.view.k);
-        S.view.y = my - (my - S.view.y) * (k1 / S.view.k);
-        S.view.k = k1;
-        schedule();
-      }
-    });
-    function endPt(e) {
-      delete pts[e.pointerId];
-      if (Object.keys(pts).length < 2) pinchStart = null;
-      if (Object.keys(pts).length === 0) { dragLast = null; viewport.classList.remove("bld-dragging"); }
-    }
-    viewport.addEventListener("pointerup", endPt);
-    viewport.addEventListener("pointercancel", endPt);
-    viewport.addEventListener("pointerleave", function (e) { if (Object.keys(pts).length <= 1) endPt(e); });
-
-    viewport.setAttribute("tabindex", "0");
-    viewport.addEventListener("keydown", function (e) {
-      var r = viewport.getBoundingClientRect();
-      if (e.key === "+" || e.key === "=") { touched(); zoomAt(r.width / 2, r.height / 2, 1.2); e.preventDefault(); }
-      else if (e.key === "-" || e.key === "_") { touched(); zoomAt(r.width / 2, r.height / 2, 1 / 1.2); e.preventDefault(); }
-      else if (e.key === "0") { S.view.userTouched = false; fit(); e.preventDefault(); }
-      else if (e.key === "ArrowLeft") { touched(); S.view.x += 60; schedule(); e.preventDefault(); }
-      else if (e.key === "ArrowRight") { touched(); S.view.x -= 60; schedule(); e.preventDefault(); }
-      else if (e.key === "ArrowUp") { touched(); S.view.y += 60; schedule(); e.preventDefault(); }
-      else if (e.key === "ArrowDown") { touched(); S.view.y -= 60; schedule(); e.preventDefault(); }
-    });
-
-    var resizeTimer = null;
-    window.addEventListener("resize", function () {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () { if (!S.view.userTouched) fit(); }, 120);
-    });
-
-    return {zoomAt: zoomAt, apply: apply, fit: fit};
+  function nodesView(api, g, layerKey) {
+    var ids = layerIds(g, layerKey);
+    var list = h("div", {class: "bld-nodelist"});
+    ids.forEach(function (id) { list.appendChild(nodeCard(id, api)); });
+    return list;
   }
 
   CC.views.Build = function (api) {
@@ -374,9 +277,17 @@
     if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api);
 
     var wrap = h("div", {class: "bld-wrap"});
+
+    var g = S.openLane ? GROUPS.filter(function (x) { return x.name === S.openLane; })[0] : null;
+    if (S.openLane && !g) { S.openLane = null; S.openLayer = null; } // stale state guard
+
+    var parts = [{label: "BUILD", onclick: g ? function () { S.openLane = null; S.openLayer = null; api.render(); } : null}];
+    if (g) parts.push({label: g.name, onclick: S.openLayer ? function () { S.openLayer = null; api.render(); } : null});
+    if (g && S.openLayer) parts.push({label: LAYERS.filter(function (l) { return l.key === S.openLayer; })[0].label});
+
     wrap.appendChild(h("div", {class: "bld-head"},
       h("div", {class: "bld-head-l"},
-        h("h2", null, "BUILD"),
+        crumb(parts),
         h("small", {class: "bld-read"}, S.err || (S.at ? "READ " + api.ago(new Date(S.at).toISOString()).toUpperCase() : S.loading ? "LOADING…" : ""))
       ),
       h("div", {class: "bld-legend"},
@@ -392,41 +303,24 @@
       return wrap;
     }
 
-    var canvas = h("div", {class: "bld-canvas", style: "width:" + widthForCols(3) + "px;grid-template-columns:repeat(3,1fr)"});
-    GROUPS.forEach(function (g) { canvas.appendChild(laneCard(g)); });
-
-    var viewport = h("div", {class: "bld-viewport"}, canvas);
-    var controls = h("div", {class: "bld-zoomctl"});
-    var zin = h("button", {type: "button", title: "Zoom in (+)"}, "+");
-    var zout = h("button", {type: "button", title: "Zoom out (−)"}, "−");
-    var zreset = h("button", {type: "button", class: "bld-zoomreset", title: "Fit to screen (0)"}, "FIT");
-    controls.appendChild(zin); controls.appendChild(zout); controls.appendChild(zreset);
-
-    var stage = h("div", {class: "bld-stagewrap"}, viewport, controls);
-    wrap.appendChild(stage);
-
-    var zp = wireZoomPan(viewport, canvas);
-    zin.addEventListener("click", function () { S.view.userTouched = true; var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1.3); });
-    zout.addEventListener("click", function () { S.view.userTouched = true; var r = viewport.getBoundingClientRect(); zp.zoomAt(r.width / 2, r.height / 2, 1 / 1.3); });
-    zreset.addEventListener("click", function () { S.view.userTouched = false; zp.fit(); });
-
-    // `wrap` isn't attached to the document yet — the caller (index.html's render()) appends
-    // the node this function returns right after it gets it back, so measuring the viewport
-    // here would read a detached 0x0 rect. Defer the first fit to the next animation frame,
-    // once it's actually on screen, so it's right the first time.
-    requestAnimationFrame(function () {
-      if (!document.body.contains(viewport)) return;
-      if (!S.view.userTouched) zp.fit();
-    });
+    var body = h("div", {class: "bld-body"});
+    if (!g) body.appendChild(categoriesView(api));
+    else if (!S.openLayer) body.appendChild(layersView(api, g));
+    else body.appendChild(nodesView(api, g, S.openLayer));
+    wrap.appendChild(body);
 
     return wrap;
   };
 
   var STYLE = "\n" +
-    ".bld-wrap{height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;padding:10px 14px 10px;font-family:'Space Grotesk',Arial,sans-serif;min-height:0}\n" +
+    ".bld-wrap{height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;padding:10px 14px 10px;font-family:'Space Grotesk',Arial,sans-serif;min-height:0}\n" +
     ".bld-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}\n" +
     ".bld-head-l{display:flex;align-items:baseline;gap:12px;min-width:0}\n" +
-    ".bld-head h2{margin:0;color:var(--text);font-weight:700;font-size:16px;letter-spacing:.08em}\n" +
+    ".bld-crumb{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}\n" +
+    ".bld-crumb-b{all:unset;cursor:pointer;color:var(--muted);font-weight:700;font-size:16px;letter-spacing:.06em}\n" +
+    ".bld-crumb-b:hover{color:var(--accent)}\n" +
+    ".bld-crumb-cur{color:var(--text);font-weight:700;font-size:16px;letter-spacing:.06em}\n" +
+    ".bld-crumb-sep{color:var(--muted);font-size:13px}\n" +
     ".bld-read{color:var(--muted);font-size:11px;letter-spacing:.05em;white-space:nowrap}\n" +
     ".bld-err{color:var(--muted);padding:40px;text-align:center;font-size:16px;letter-spacing:.05em}\n" +
     ".bld-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:10.5px;letter-spacing:.05em;font-weight:600}\n" +
@@ -434,36 +328,53 @@
     ".bld-legend-ring .bld-ring{width:16px;height:16px}\n" +
     ".bld-legend .bld-ring-n{display:none}\n" +
     ".bld-sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px}\n" +
-    ".bld-stagewrap{position:relative;flex:1 1 auto;min-height:0}\n" +
-    ".bld-viewport{position:absolute;inset:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--bg);touch-action:none;cursor:grab;user-select:none;outline:none}\n" +
-    ".bld-viewport.bld-dragging{cursor:grabbing}\n" +
-    ".bld-viewport:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}\n" +
-    ".bld-canvas{position:absolute;top:0;left:0;transform-origin:0 0;display:grid;align-items:start;padding:" + PAD + "px;gap:" + GAP + "px;box-sizing:border-box;will-change:transform}\n" +
-    ".bld-lane{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px 15px 15px;display:flex;flex-direction:column;gap:10px;min-width:0}\n" +
-    ".bld-lane-h{display:flex;align-items:center;justify-content:space-between;gap:10px}\n" +
-    ".bld-lane-name{color:var(--text);font-weight:700;font-size:16px;letter-spacing:.03em}\n" +
-    ".bld-lane-pct{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 9px;border-radius:20px;background:var(--panel2)}\n" +
-    ".bld-pct-live{color:var(--green)}\n.bld-pct-partial{color:var(--amber)}\n.bld-pct-none{color:var(--red)}\n" +
-    ".bld-flow{display:grid;grid-template-columns:1fr 22px 1fr 22px 1fr;gap:8px;align-items:start}\n" +
-    ".bld-col{display:flex;flex-direction:column;gap:8px;min-width:0}\n" +
-    ".bld-col-h{color:var(--muted);font-size:9.5px;letter-spacing:.1em;font-weight:700;text-transform:uppercase}\n" +
-    ".bld-arrow{align-self:center;margin-top:20px;width:22px;height:16px;color:var(--line);stroke:currentColor;overflow:visible}\n" +
-    ".bld-arrow path{stroke:var(--line);transition:stroke .4s}\n" +
-    ".bld-arrow-live path{stroke:var(--green);stroke-dasharray:6 5;animation:bld-flow 0.9s linear infinite}\n" +
-    "@keyframes bld-flow{to{stroke-dashoffset:-22}}\n" +
-    ".bld-tile{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px}\n" +
-    ".bld-tile-top{display:flex;align-items:center;gap:10px}\n" +
+    ".bld-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}\n" +
+    // Level 1: category grid — uniform tiles filling the screen, no scroll for 10 items.
+    ".bld-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(2,1fr);gap:14px}\n" +
+    "@media (max-width:1400px){.bld-grid{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr)}}\n" +
+    "@media (max-width:860px){.bld-grid{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(5,1fr)}}\n" +
+    ".bld-cat{all:unset;box-sizing:border-box;cursor:pointer;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:13px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}\n" +
+    ".bld-cat:hover{border-color:var(--accent)}\n" +
+    ".bld-cat.bld-s-live{border-left-color:var(--green)}.bld-cat.bld-s-partial{border-left-color:var(--amber)}.bld-cat.bld-s-none{border-left-color:var(--red)}\n" +
+    ".bld-cat-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}\n" +
+    ".bld-cat-name{color:var(--text);font-weight:700;font-size:16px;letter-spacing:.02em;line-height:1.2}\n" +
+    ".bld-cat-mid{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px 0}\n" +
+    ".bld-cat-ring{width:min(58%,190px);aspect-ratio:1;border-radius:50%;background:conic-gradient(var(--c) calc(var(--pct)*1%),var(--line) 0);display:flex;align-items:center;justify-content:center;position:relative}\n" +
+    ".bld-cat-ring::before{content:'';position:absolute;inset:15%;border-radius:50%;background:var(--card)}\n" +
+    ".bld-cat-ring-n{position:relative;z-index:1;font-size:26px;font-weight:800;color:var(--text)}\n" +
+    ".bld-mini{display:flex;gap:5px}\n" +
+    ".bld-mini-seg{flex:1;border-radius:7px;padding:5px 0;text-align:center;background:var(--panel2);color:var(--bg);font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}\n" +
+    ".bld-mini-seg.bld-s-live{background:var(--green)}.bld-mini-seg.bld-s-partial{background:var(--amber)}.bld-mini-seg.bld-s-none{background:var(--red);color:#fff;opacity:.75}.bld-mini-seg.bld-s-na{background:var(--panel2);color:var(--muted);opacity:.55}\n" +
+    // Level 2: the three layer rows, each sized to its own content — a compact header plus a
+    // preview chip per node — stacked top to bottom, not stretched to fill the screen.
+    ".bld-layers{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px}\n" +
+    ".bld-layer{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:14px;padding:16px 22px}\n" +
+    ".bld-layer:hover:not(:disabled){border-color:var(--accent)}\n" +
+    ".bld-layer.bld-s-live{border-left-color:var(--green)}.bld-layer.bld-s-partial{border-left-color:var(--amber)}.bld-layer.bld-s-none{border-left-color:var(--red)}.bld-layer.bld-layer-empty{border-left-color:var(--line);opacity:.5;cursor:default}\n" +
+    ".bld-layer-head{display:flex;align-items:center;justify-content:space-between;gap:18px}\n" +
+    ".bld-layer-l{display:flex;flex-direction:column;gap:3px;min-width:0}\n" +
+    ".bld-layer-name{color:var(--text);font-weight:700;font-size:19px;letter-spacing:.02em}\n" +
+    ".bld-layer-n{color:var(--muted);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}\n" +
+    ".bld-layer-r{display:flex;align-items:center;gap:12px;flex:0 0 auto}\n" +
+    ".bld-layer-pct{color:var(--text);font-weight:700;font-size:19px;font-variant-numeric:tabular-nums}\n" +
+    ".bld-layer-go{color:var(--muted);font-size:19px}\n" +
+    ".bld-layer-chips{display:flex;flex-wrap:wrap;gap:8px}\n" +
+    ".bld-chip{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 4px;max-width:280px}\n" +
+    ".bld-chip .bld-ring{flex:0 0 auto}\n" +
+    ".bld-chip-n{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n" +
+    // Level 3: node cards — simple vertical list, each card sized to its own content.
+    ".bld-nodelist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px}\n" +
+    ".bld-node{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:8px}\n" +
+    ".bld-node.bld-s-live{border-left-color:var(--green)}.bld-node.bld-s-partial{border-left-color:var(--amber)}.bld-node.bld-s-none{border-left-color:var(--red);opacity:.78}\n" +
+    ".bld-node-top{display:flex;align-items:center;gap:12px}\n" +
     ".bld-ring{flex:0 0 auto}\n" +
     ".bld-ring-n{font-size:9px;font-weight:700;fill:var(--text);font-family:'Space Grotesk',Arial,sans-serif}\n" +
-    ".bld-tile-tx{display:flex;flex-direction:column;gap:2px;min-width:0}\n" +
-    ".bld-tile-name{color:var(--text);font-size:15px;font-weight:700;line-height:1.25}\n" +
-    ".bld-tile-owner{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}\n" +
-    ".bld-tile-note{color:var(--muted);font-size:11px;line-height:1.45;border-top:1px solid var(--line);padding-top:7px}\n" +
-    ".bld-live{border-left-color:var(--green)}\n.bld-partial{border-left-color:var(--amber)}\n.bld-none{border-left-color:var(--red);opacity:.72}\n" +
-    ".bld-zoomctl{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:5}\n" +
-    ".bld-zoomctl button{width:36px;height:36px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--text);font-family:'Space Grotesk',Arial,sans-serif;font-size:17px;font-weight:700;cursor:pointer;line-height:1}\n" +
-    ".bld-zoomctl button:hover{border-color:var(--accent);color:var(--accent)}\n" +
-    ".bld-zoomctl .bld-zoomreset{font-size:10px;letter-spacing:.06em}\n" +
-    "@media (max-width:860px){.bld-legend{display:none}}\n";
+    ".bld-node-tx{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}\n" +
+    ".bld-node-name{color:var(--text);font-size:16px;font-weight:700;line-height:1.25}\n" +
+    ".bld-node-meta{color:var(--muted);font-size:11px;letter-spacing:.03em;font-weight:600}\n" +
+    ".bld-node-link{flex:0 0 auto;color:var(--accent);font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap}\n" +
+    ".bld-node-link:hover{text-decoration:underline}\n" +
+    ".bld-node-note{color:var(--muted);font-size:12px;line-height:1.5;border-top:1px solid var(--line);padding-top:8px}\n" +
+    "@media (max-width:860px){.bld-legend{display:none}.bld-layer-head{flex-wrap:wrap;row-gap:6px}}\n";
   var styleEl = document.createElement("style"); styleEl.textContent = STYLE; document.head.appendChild(styleEl);
 })();

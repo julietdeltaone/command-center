@@ -240,33 +240,27 @@
 
     page.appendChild(h("div", {class: "ov-main"}, needCard, h("div", {class: "ov-side"}, nextCard, bizCard)));
 
-    /* ---- category health ----
-       2026-11-25: switched from the old Today/Business/Local/Private/System/Sources strip to
-       the Vocation lanes from Build Status — same lane list Build itself reads (CC.buildStatus),
-       so the two pages can't drift apart. Routine health (the old "Sources" tile) folds into
-       Hub Core/Admin, which is where routine telemetry actually lands per the system map.
-       A few lanes don't have a page of their own yet (no Knowledge-tier surface built), so they
-       route to Build for now; swap the destination in LANE_DEST once each one gets a real page. */
-    var LANE_DEST = {
-      "Local / CENTCOM": "Local", "Business": "Business", "Uber / Taxi": "Build",
-      "Clarkson": "Build", "Faith": "Build", "Finance": "Private", "Health": "Private",
-      "Social": "Private", "Records & Files": "Records", "Hub Core / Admin": "System"
-    };
-    var strip = h("div", {class: "ov-health", role: "group", "aria-label": "Category health"});
+    /* ---- top categories ----
+       2026-11-25: this is now the front door to the whole build. Every one of the 10 top
+       Vocation categories gets a uniform tile reading live off CC.buildStatus (same source Build
+       itself uses, so the two pages can't drift apart); clicking one opens straight into that
+       category's own drill-down on the Build page instead of guessing a destination page, since
+       Build is now the one place that's live and accurate for every category. */
+    var cats = h("div", {class: "ov-catgrid", role: "group", "aria-label": "Top categories"});
     var BS = CC.buildStatus;
     if (BS) {
       BS.ensureLoaded(api);
       BS.lanes.forEach(function (g) {
-        var dest = LANE_DEST[g.name] || "Build";
+        function openCat() { BS.open(g.name); api.go("build"); }
         if (!BS.ready()) {
-          strip.appendChild(h("button", {type: "button", class: "ov-h", onclick: function () { api.go(dest); }}, h("i"), h("span", null, h("b", null, g.name), h("small", null, BS.error() || "Loading…"))));
+          cats.appendChild(h("button", {type: "button", class: "ov-cat", onclick: openCat}, h("b", null, g.name), h("small", null, BS.error() || "Loading…")));
           return;
         }
-        var st = BS.laneStatus(g), sc = st.state === "live" ? 1 : st.state === "none" ? 0.08 : 0.5;
-        strip.appendChild(h("button", {type: "button", class: "ov-h", style: "--c:" + col(sc), onclick: function () { api.go(dest); }}, h("i"), h("span", null, h("b", null, g.name), h("small", null, st.pct + "% built"))));
+        var st = BS.laneStatus(g);
+        cats.appendChild(h("button", {type: "button", class: "ov-cat ov-cat-" + st.state, onclick: openCat}, h("b", null, g.name), h("small", null, st.pct + "% built")));
       });
     }
-    page.appendChild(strip);
+    page.appendChild(cats);
     page.appendChild(CC.hubmap(api));
     page.appendChild(widgetsRow(api));
     return page;
