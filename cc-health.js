@@ -81,7 +81,14 @@
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j.ok) throw new Error(j.error || "error");
-        DS.header = j.header; DS.rows = j.rows; DS.total = j.total; DS.at = Date.now();
+        var header = j.header || [], rows = j.rows || [];
+        /* Workouts has a merged title row above the real header (frozenRowCount 2), so row 1
+           reads as one long string and the real column names sit in the first data row instead.
+           Detect that and shift by one rather than assume every sheet has a single header row. */
+        if (header.indexOf("Exercise") < 0 && rows.length && rows[0].indexOf("Exercise") >= 0) {
+          header = rows[0]; rows = rows.slice(1);
+        }
+        DS.header = header; DS.rows = rows; DS.total = j.total; DS.at = Date.now();
       })
       .catch(function () { DS.err = "Could not read the Workouts tab from Health Data."; })
       .then(function () { DS.loading = false; onDone(); });
@@ -145,7 +152,7 @@
     var page = h("div", {class: "hp-wrap"});
     page.appendChild(h("div", {class: "hp-head"},
       h("h2", null, "Health"),
-      h("span", {class: "hp-sub"}, "Knowledge and Data are live below; Information follows.")));
+      h("span", {class: "hp-sub"}, "Knowledge is live below. Data is one click in; Information follows.")));
 
     /* Knowledge: the enriched, widget-driven view — muscle map, cardio, vitals. */
     var know = h("section", {class: "hp-layer"});
@@ -162,10 +169,16 @@
     info.appendChild(stub("Information", "Habits, nutrition, and trend read-outs land here next."));
     page.appendChild(info);
 
-    /* Data: the live, color-coded Workouts log. */
+    /* Data: NOT inline. A teaser card that opens the themed, color-coded log in the sheet
+       overlay (CC.sheet) on click — the overlay itself carries the "Open ↗" link out to the
+       real Google Sheet, so the click-path is Knowledge -> Data (themed) -> Sheet (raw), three
+       real steps, not three sections stacked on one page. */
     var data = h("section", {class: "hp-layer"});
     data.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Data")));
-    data.appendChild(dataSection(api));
+    data.appendChild(h("section", {class: "wd ov-w hp-data-teaser"},
+      h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Workouts log")),
+      h("div", {class: "ov-empty"}, "Every set, straight from Health Data — color-coded by muscle group."),
+      h("button", {type: "button", class: "ov-go", onclick: function () { CC.sheet("Workouts — Health Data", dataSection(api)); }}, "View log →")));
     page.appendChild(data);
 
     return page;
