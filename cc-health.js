@@ -1,27 +1,29 @@
-/* Command Center: Health category page — the first real "Overview" destination (as opposed to
-   Build's construction-tracking view). Owner: Atlas (claude).
-   2026-11-25: JD's call — Overview and Build are now two separate deliverables. Build keeps
-   tracking construction status (categories -> layers -> nodes) forever; Overview is what the
-   finished dashboard actually looks like day to day. Health is the first category to get a real
-   Overview page. Registers itself in CC.catPages so cc-pages.js's Overview grid can route
-   Health's tile here instead of into Build, while every other category (nothing built yet)
-   still falls through to Build as before.
+/* Command Center: Health — three separate click-through pages, not three sections on one
+   screen. Owner: Atlas (claude).
 
-   Knowledge layer is built now: the muscle map, cardio, and vitals widgets already exist in
-   cc-body.js (CC.body.panel / CC.body.cardio, which folds vitals in) — this page just gives them
-   a real home instead of a cramped sidebar.
+   2026-11-25, JD's second call on this: the first cut stacked Knowledge, Information and Data
+   on a single scrolling page. That's wrong — he wants an actual click-down diagram:
 
-   Data layer, added same day: JD doesn't want to leave the dashboard to see his raw Workouts
-   log, so this reads it live, right here, color-coded by muscle category the way the sheet
-   itself is color-coded — same reader cc-sheets.js already uses (CC Connected Sheets Reader,
-   sheets_url in Config), pointed at Health Data's own Workouts tab, no separate "themed copy"
-   sheet in between. Pastel sheet-cell colors don't read well on a dark UI, so categories get a
-   colored dot + accent border instead of a tinted background — same idiom the rest of the
-   dashboard already uses for color-coding (cc-build.js's stage rings, cc-pages.js's category
-   tiles), not a literal reskin of the sheet.
+     Wall -> Health (Knowledge, the opener)   — stat tiles only. Show, don't tell: short titles,
+                                                 a number, a one-line sub-caption. No "worth
+                                                 knowing" / "things to know" labels, no sentences.
+       -> Information                         — the muscle map, cardio, vitals, sleep and
+                                                 progress widgets. Organizes the numbers; doesn't
+                                                 decide what matters (Knowledge already did).
+       -> Data                                — a real, full-screen, edge-to-edge grid: every
+                                                 row and column of the Workouts tab, sortable,
+                                                 nothing invented or grouped — a one-to-one
+                                                 reflection of Health Data, not a themed re-skin.
 
-   Information layer is still a stub — the acknowledged missing middle step between the widgets
-   (Knowledge) and the raw log (Data); nothing built for it yet, no content invented. */
+   Each level is its own tab id (health / health-info / health-data), registered in index.html's
+   TAB_MAP + CRUMB_TITLES so the crumb bar steps back one level at a time instead of always
+   jumping to Wall.
+
+   All three levels read off the same two live sources: CC.body's muscle/cardio/vitals/sleep
+   models (cc-body.js) and this file's own full-history Workouts pull (PW below), paginated
+   straight from Health Data via the Connected Sheets reader. Every computed figure here is
+   plain arithmetic — sums, averages, % change over fixed windows — never AI-generated text,
+   per JD's explicit request. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -41,19 +43,14 @@
     });
     return e;
   }
+  function dtext(d) { return d == null ? "no data" : d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days"; }
+  function hrs(min) { if (min == null) return "—"; var h2 = Math.floor(min / 60), m2 = Math.round(min % 60); return h2 + "h " + m2 + "m"; }
 
   /* Overview routing registry: category name -> hidden tab id. cc-pages.js's Wall checks this
      before falling back to Build. */
   CC.catPages = CC.catPages || {};
   CC.catPages.Health = "health";
 
-  function stub(title, note) {
-    return h("section", {class: "wd ov-w hp-stub"},
-      h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, title), h("span", {class: "hp-soon"}, "Coming soon")),
-      h("div", {class: "ov-empty"}, note));
-  }
-
-  /* ---------- Data layer: live Workouts tab, read straight out of Health Data ---------- */
   var HEALTH_SHEET_ID = "1f1EsQ-qwlJ4U_e7Qv77mUuQfaFov4Ye4rquoGlX6k9w";
   var WORKOUTS_GID = "73573522";
   var CATS = {
@@ -66,96 +63,18 @@
     if (/leg|quad|hamstring|glute|calv/.test(k)) return CATS.legs;
     return "#8891a3";
   }
-  var DS = {rows: null, header: null, err: null, loading: false, at: null};
   function sheetsUrl(api) {
     var rows = (api.data && api.data.config) || [];
     var r = rows.filter(function (x) { return x.key === "sheets_url"; })[0];
     return r && r.value ? String(r.value) : "";
   }
-  function loadWorkouts(api, onDone) {
-    if (DS.loading || DS.rows) return;
-    var u = sheetsUrl(api);
-    if (!u) { DS.err = "Not connected: add sheets_url in Config."; onDone(); return; }
-    DS.loading = true;
-    fetch(u + (u.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(HEALTH_SHEET_ID) + "&tab=" + WORKOUTS_GID + "&from=0&n=400")
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j.ok) throw new Error(j.error || "error");
-        var header = j.header || [], rows = j.rows || [];
-        /* Workouts has a merged title row above the real header (frozenRowCount 2), so row 1
-           reads as one long string and the real column names sit in the first data row instead.
-           Detect that and shift by one rather than assume every sheet has a single header row. */
-        if (header.indexOf("Exercise") < 0 && rows.length && rows[0].indexOf("Exercise") >= 0) {
-          header = rows[0]; rows = rows.slice(1);
-        }
-        DS.header = header; DS.rows = rows; DS.total = j.total; DS.at = Date.now();
-      })
-      .catch(function () { DS.err = "Could not read the Workouts tab from Health Data."; })
-      .then(function () { DS.loading = false; onDone(); });
-  }
   function col(header, name) { var i = header.indexOf(name); return i < 0 ? null : i; }
   function ms(x) { var t = x ? Date.parse(x) : NaN; return isNaN(t) ? null : t; }
   function numAt(row, i) { if (i == null) return null; var v = row[i]; if (v == null || v === "") return null; var n = Number(String(v).replace(/,/g, "")); return isNaN(n) ? null : n; }
-  function dataSection(api, repaint) {
-    var wrap = h("section", {class: "wd ov-w hp-data"});
-    wrap.appendChild(h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Data"),
-      h("a", {class: "ov-go", href: "https://docs.google.com/spreadsheets/d/" + HEALTH_SHEET_ID + "/edit#gid=" + WORKOUTS_GID, target: "_blank", rel: "noopener"}, "Open ↗")));
-    var body = h("div", {class: "hp-data-body"});
-    wrap.appendChild(body);
-    function paint() {
-      body.textContent = "";
-      if (DS.err) { body.appendChild(h("div", {class: "ov-empty"}, DS.err)); return; }
-      if (!DS.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts…")); return; }
-      if (!DS.rows.length) { body.appendChild(h("div", {class: "ov-empty"}, "No rows yet.")); return; }
-      var hdr = DS.header;
-      var iDate = col(hdr, "Date"), iDay = col(hdr, "Weekday"), iWk = col(hdr, "Workout #"),
-        iCat = col(hdr, "Category"), iEx = col(hdr, "Exercise"), iSet = col(hdr, "Set #"),
-        iWt = col(hdr, "Weight (lb)"), iRep = col(hdr, "Reps"), iTime = col(hdr, "Time (min:sec)") != null ? col(hdr, "Time (min:sec)") : col(hdr, "Time"),
-        iDist = col(hdr, "Distance"), iUnit = col(hdr, "Unit"), iNote = col(hdr, "Set note");
-      var sessions = [], cur = null;
-      DS.rows.forEach(function (r) {
-        var key = (iDate != null ? r[iDate] : "") + "|" + (iWk != null ? r[iWk] : "");
-        if (!cur || cur.key !== key) { cur = {key: key, date: iDate != null ? r[iDate] : "", day: iDay != null ? r[iDay] : "", wk: iWk != null ? r[iWk] : "", rows: []}; sessions.push(cur); }
-        cur.rows.push(r);
-      });
-      var list = h("div", {class: "hp-sessions"});
-      sessions.slice(0, 12).forEach(function (s) {
-        var sec = h("div", {class: "hp-sess"});
-        sec.appendChild(h("div", {class: "hp-sess-h"}, h("b", null, s.date), h("span", null, s.day), s.wk ? h("i", null, "#" + s.wk) : null));
-        var tbl = h("div", {class: "hp-rows"});
-        s.rows.forEach(function (r) {
-          var cat = iCat != null ? r[iCat] : "", ex = iEx != null ? r[iEx] : "";
-          var bits = [];
-          if (iSet != null && r[iSet]) bits.push("set " + r[iSet]);
-          if (iWt != null && r[iWt]) bits.push(r[iWt] + " lb");
-          if (iRep != null && r[iRep]) bits.push(r[iRep] + " rep" + (r[iRep] === "1" ? "" : "s"));
-          if (iTime != null && r[iTime]) bits.push(r[iTime]);
-          if (iDist != null && r[iDist]) bits.push(r[iDist] + (iUnit != null && r[iUnit] ? " " + r[iUnit] : ""));
-          tbl.appendChild(h("div", {class: "hp-row"},
-            h("i", {class: "hp-dot", style: "background:" + catColor(cat)}),
-            h("b", null, ex || cat || "—"),
-            h("span", {class: "hp-bits"}, bits.join(" · ")),
-            iNote != null && r[iNote] ? h("small", null, r[iNote]) : null));
-        });
-        sec.appendChild(tbl);
-        list.appendChild(sec);
-      });
-      body.appendChild(list);
-      var cats = Object.keys(CATS);
-      body.appendChild(h("div", {class: "hp-key"}, cats.map(function (k) { return h("span", null, h("i", {style: "background:" + CATS[k]}), k.charAt(0).toUpperCase() + k.slice(1)); })));
-      body.appendChild(h("div", {class: "hp-foot"}, "Showing the most recent " + Math.min(sessions.length, 12) + " of " + sessions.length + " logged sessions · read only, straight from Health Data"));
-    }
-    if (!DS.rows && !DS.err) loadWorkouts(api, function () { paint(); });
-    paint();
-    return wrap;
-  }
 
-  /* ---------- Progress: full-history Workouts pull, paginated, for consistency + volume/strength
-     trends (JD's wish list, 2026-11-25). Separate cache from DS above, which only keeps the most
-     recent ~400 rows for the Data-layer log — these computations need months, not the last dozen
-     sessions, so this paginates through the reader (same endpoint, n=500 per page) until it has
-     everything or hits a 4000-row ceiling (plenty for a year of sets). Everything here is plain
-     arithmetic on what's already in the sheet — no AI text, by JD's explicit request. */
+  /* ---------- full-history Workouts pull: one cache, used by Knowledge tiles, the Information
+     Progress widget, and the Data grid. Paginates the reader (n=500 per page) until it has
+     everything or hits a 4000-row ceiling (plenty for a year of sets). ---------- */
   var PW = {rows: null, header: null, err: null, loading: false};
   function loadAllWorkouts(api, onDone) {
     if (PW.loading || PW.rows) { onDone(); return; }
@@ -173,6 +92,8 @@
           if (firstPage) {
             firstPage = false;
             var hdr = j.header || [];
+            /* Workouts has a merged title row above the real header (frozenRowCount 2), so row 1
+               reads as one long string and the real column names sit in the first data row. */
             if (hdr.indexOf("Exercise") < 0 && rows.length && rows[0].indexOf("Exercise") >= 0) { header = rows[0]; rows = rows.slice(1); }
             else header = hdr;
           }
@@ -211,18 +132,18 @@
     return {weeks: weeks, sessByWeek: sessByWeek, volByWeekCat: volByWeekCat, repWtByWeekCat: repWtByWeekCat};
   }
   function completeWeeks(prog) { var cur = weekKey(Date.now()); return prog.weeks.filter(function (w) { return w < cur; }); }
-  function tempoVerdict(prog) {
+  /* Data-only versions (no sentence text) — the Knowledge tiles format these as number + short
+     sub-caption themselves; nothing here produces a narrative string. */
+  function tempoData(prog) {
     var complete = completeWeeks(prog); if (!complete.length) return null;
     var last = complete[complete.length - 1], prior = complete.slice(0, -1).slice(-6);
     if (!prior.length) return null;
     var lastCount = prog.sessByWeek[last] || 0;
     var avg = prior.reduce(function (a, w) { return a + (prog.sessByWeek[w] || 0); }, 0) / prior.length;
     if (avg <= 0) return null;
-    var ratio = lastCount / avg;
-    var trend = ratio >= 1.05 ? "picking up" : ratio <= 0.85 ? "dropping off" : "holding steady";
-    return {k: ratio < 0.7 ? "watch" : "good", t: "Training tempo is " + trend + ": " + lastCount + " session" + (lastCount === 1 ? "" : "s") + " last week vs a " + avg.toFixed(1) + "-session average."};
+    return {lastCount: lastCount, avg: avg, ratio: lastCount / avg};
   }
-  function volumeVerdict(prog) {
+  function volumeMoverData(prog) {
     var complete = completeWeeks(prog); if (complete.length < 4) return null;
     var recent = complete.slice(-2), prior = complete.slice(-4, -2), best = null;
     PROG_CATS.forEach(function (cat) {
@@ -232,26 +153,10 @@
       if (!best || Math.abs(pct) > Math.abs(best.pct)) best = {cat: cat, pct: pct};
     });
     if (!best || Math.abs(best.pct) < 0.15) return null;
-    return {k: best.pct > 0 ? "good" : "watch", t: best.cat + " volume is " + (best.pct > 0 ? "up " : "down ") + Math.round(Math.abs(best.pct) * 100) + "% over the last 2 weeks vs the 2 before."};
+    return best;
   }
-  function trainingLoadCard(api) {
-    var wrap = h("section", {class: "wt kn"}), body = h("div", {class: "kn-list"});
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Training load")));
-    wrap.appendChild(body);
-    function paint() {
-      body.innerHTML = "";
-      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts history…")); return; }
-      var prog = buildProgress(PW.rows, PW.header), lines = [];
-      var tv = tempoVerdict(prog); if (tv) lines.push(tv);
-      var vv = volumeVerdict(prog); if (vv) lines.push(vv);
-      if (!lines.length) lines.push({k: "n", t: "Not enough weekly history yet to call a trend."});
-      lines.forEach(function (x) { body.appendChild(h("div", {class: "kn-row " + x.k}, h("i"), h("span", null, x.t))); });
-    }
-    paint();
-    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
-    return wrap;
-  }
+
+  /* ---------- Information layer: Progress widget (weekly volume sparklines per muscle group) ---------- */
   function progressWidget(api) {
     var wrap = h("section", {class: "wt pg"}), body = h("div", {class: "pg-body"});
     wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Progress"), h("span", {class: "bd-sub"}, "weekly volume by muscle group, last 8 weeks")));
@@ -282,51 +187,124 @@
     return wrap;
   }
 
-  /* 2026-11-25: re-sequenced per JD's call. The muscle/cardio/sleep widgets were labeled
-     "Knowledge" but they only organize and compare the raw numbers (days since trained, this
-     week vs target, vs your average) — that's Information in the data/information/knowledge
-     sense, not Knowledge. Real Knowledge is a level up: a short, direct answer to "what do I
-     need to know right now," synthesized across those same signals (CC.body.insights). So the
-     page now reads top to bottom Knowledge -> Information -> Data, most-distilled first,
-     rawest last — matching the click-depth the Data layer already uses. */
+  /* ---------- Knowledge layer: stat tiles, show-don't-tell. Short all-caps titles, one big
+     value, a terse sub-caption — never a sentence, never the words "worth knowing" or "things
+     to know." Only surfaces what's actually notable; a quiet week gets one calm tile, not a
+     wall of neutral placeholders. ---------- */
+  function knowledgeTiles(api) {
+    var tiles = [];
+    var mm = CC.body && CC.body.model ? CC.body.model(api) : null;
+    var vm = CC.body && CC.body.vitalsModel ? CC.body.vitalsModel() : null;
+    var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel() : null;
+    var prog = PW.rows ? buildProgress(PW.rows, PW.header) : null;
+
+    var stale = mm && mm.any ? mm.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; })[0] : null;
+    if (stale && stale.eff <= 0.45) {
+      tiles.push({t: stale.name.toUpperCase(), v: dtext(stale.days != null ? stale.days : stale.indDays), s: "since trained", k: "watch"});
+    }
+    var cd = mm ? mm.cardio : null;
+    if (cd && cd.days != null && cd.days >= 4) {
+      tiles.push({t: "CARDIO", v: dtext(cd.days), s: "since last session", k: "watch"});
+    }
+    if (vm) {
+      var notable = vm.vals.filter(function (x) { return x.state === "watch" || x.state === "good"; }).sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); })[0];
+      if (notable) {
+        var f = notable.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
+        tiles.push({t: f.label.toUpperCase(), v: fmt(notable.v) + (f.unit ? " " + f.unit : ""), s: (notable.diff >= 0 ? "+" : "") + notable.diff.toFixed(1) + " vs avg", k: notable.state});
+      }
+    }
+    if (sm && sm.avg != null && sm.latest.min != null) {
+      var diff = sm.latest.min - sm.avg;
+      if (Math.abs(diff) >= 60) tiles.push({t: "SLEEP", v: hrs(sm.latest.min), s: (diff >= 0 ? "+" : "-") + hrs(Math.abs(diff)) + " vs avg", k: diff >= 0 ? "good" : "watch"});
+    }
+    if (prog) {
+      var td = tempoData(prog);
+      if (td) tiles.push({t: "TEMPO", v: td.lastCount + "/wk", s: "vs " + td.avg.toFixed(1) + " avg", k: td.ratio < 0.7 ? "watch" : td.ratio >= 1.05 ? "good" : "n"});
+      var vd = volumeMoverData(prog);
+      if (vd) tiles.push({t: (vd.cat + " VOLUME").toUpperCase(), v: (vd.pct > 0 ? "+" : "") + Math.round(vd.pct * 100) + "%", s: "last 2 wks", k: vd.pct > 0 ? "good" : "watch"});
+    }
+    if (!tiles.length) tiles.push({t: "STATUS", v: (mm && mm.any) || vm || sm || prog ? "On track" : "—", s: (mm && mm.any) || vm || sm || prog ? "nothing flagged" : "waiting on data", k: "n"});
+    return tiles;
+  }
+  function tileGrid(tiles) {
+    return h("div", {class: "kt-grid"}, tiles.map(function (x) {
+      return h("div", {class: "kt " + x.k}, h("div", {class: "kt-l"}, x.t), h("div", {class: "kt-v"}, x.v), h("div", {class: "kt-s"}, x.s));
+    }));
+  }
+
+  function hpHead(title, nextLabel, onNext) {
+    return h("div", {class: "hp-head"}, h("h2", null, title),
+      onNext ? h("button", {type: "button", class: "hp-next", onclick: onNext}, nextLabel + " →") : null);
+  }
+
+  /* ---------- Page 1: Health opener = Knowledge only ---------- */
   CC.views.Health = function (api) {
     var page = h("div", {class: "hp-wrap"});
-    page.appendChild(h("div", {class: "hp-head"},
-      h("h2", null, "Health"),
-      h("span", {class: "hp-sub"}, "Knowledge answers first; Information backs it up; Data is one click in.")));
+    page.appendChild(hpHead("Health", "Information", function () { api.go("health-info"); }));
+    var body = h("div", null);
+    page.appendChild(body);
+    function paint() { body.innerHTML = ""; body.appendChild(tileGrid(knowledgeTiles(api))); }
+    paint();
+    if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return page;
+  };
 
-    /* Knowledge: the real top layer — a few rule-based callouts, not a bigger widget. */
-    var know = h("section", {class: "hp-layer"});
-    know.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Knowledge")));
-    know.appendChild(CC.body && CC.body.insights ? CC.body.insights(api) : stub("Knowledge", "Waiting on the widgets below."));
-    know.appendChild(trainingLoadCard(api));
-    page.appendChild(know);
-
-    /* Information: the enriched, widget-driven view — muscle map, cardio, vitals, sleep. This
-       organizes the raw numbers (recency, this-week-vs-target, vs-your-average) but doesn't
-       decide what matters most; Knowledge above does that. */
-    var info = h("section", {class: "hp-layer"});
-    info.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Information")));
+  /* ---------- Page 2: Information = muscle map, cardio, vitals, sleep, progress ---------- */
+  CC.views.HealthInfo = function (api) {
+    var page = h("div", {class: "hp-wrap"});
+    page.appendChild(hpHead("Information", "Data", function () { api.go("health-data"); }));
     var row = h("div", {class: "pv-wr hp-know"});
     row.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null));
     row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
-    info.appendChild(row);
-    if (CC.body && CC.body.sleep) info.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
-    info.appendChild(h("div", {class: "hp-know-sl"}, progressWidget(api)));
-    page.appendChild(info);
+    page.appendChild(row);
+    if (CC.body && CC.body.sleep) page.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
+    page.appendChild(h("div", {class: "hp-know-sl"}, progressWidget(api)));
+    return page;
+  };
 
-    /* Data: NOT inline. A teaser card that opens the themed, color-coded log in the sheet
-       overlay (CC.sheet) on click — the overlay itself carries the "Open ↗" link out to the
-       real Google Sheet, so the click-path is Information -> Data (themed) -> Sheet (raw), three
-       real steps, not three sections stacked on one page. */
-    var data = h("section", {class: "hp-layer"});
-    data.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Data")));
-    data.appendChild(h("section", {class: "wd ov-w hp-data-teaser"},
-      h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Workouts log")),
-      h("div", {class: "ov-empty"}, "Every set, straight from Health Data — color-coded by muscle group."),
-      h("button", {type: "button", class: "ov-go", onclick: function () { CC.sheet("Workouts — Health Data", dataSection(api)); }}, "View log →")));
-    page.appendChild(data);
-
+  /* ---------- Page 3: Data = full-screen, edge-to-edge, literal grid of Workouts. Every row,
+     every column, straight from the sheet — click a header to sort, nothing grouped or themed
+     beyond a thin category-color rail (the same color-coding idiom used everywhere else in the
+     dashboard) so it still reads at a glance. ---------- */
+  function fmtCell(v) { return v == null || v === "" ? "" : String(v); }
+  CC.views.HealthData = function (api) {
+    var page = h("div", {class: "hp-data-full"});
+    page.appendChild(h("div", {class: "hp-data-fhead"}, h("h2", null, "Workouts"),
+      h("a", {class: "ov-go", href: "https://docs.google.com/spreadsheets/d/" + HEALTH_SHEET_ID + "/edit#gid=" + WORKOUTS_GID, target: "_blank", rel: "noopener"}, "Open in Google Sheets ↗")));
+    var body = h("div", {class: "hp-grid-wrap"});
+    page.appendChild(body);
+    var sortCol = null, sortDir = 1;
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts…")); return; }
+      if (!PW.rows.length) { body.appendChild(h("div", {class: "ov-empty"}, "No rows yet.")); return; }
+      var hdr = PW.header, iCat = col(hdr, "Category"), rows = PW.rows.slice();
+      if (sortCol != null) {
+        rows.sort(function (a, b) {
+          var an = numAt(a, sortCol), bn = numAt(b, sortCol);
+          var cmp = (an != null && bn != null) ? an - bn : String(a[sortCol] || "").localeCompare(String(b[sortCol] || ""));
+          return cmp * sortDir;
+        });
+      }
+      var table = h("table", {class: "hp-grid"});
+      table.appendChild(h("thead", null, h("tr", null, hdr.map(function (name, i) {
+        return h("th", {onclick: function () { sortDir = sortCol === i ? -sortDir : 1; sortCol = i; paint(); }},
+          name, sortCol === i ? h("i", {class: "hp-sort"}, sortDir > 0 ? "↑" : "↓") : null);
+      }))));
+      table.appendChild(h("tbody", null, rows.map(function (r) {
+        return h("tr", null, hdr.map(function (_, i) {
+          var val = fmtCell(r[i]);
+          if (i === iCat && val) return h("td", {style: "border-left:3px solid " + catColor(val)}, val);
+          return h("td", null, val);
+        }));
+      })));
+      body.appendChild(table);
+      body.appendChild(h("div", {class: "hp-foot"}, rows.length.toLocaleString("en-US") + " rows · read only, straight from Health Data"));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
     return page;
   };
 
@@ -334,31 +312,31 @@
   var ST = document.createElement("style");
   ST.textContent =
     ".hp-wrap{padding:4px 2px}" +
-    ".hp-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}" +
+    ".hp-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}" +
     ".hp-head h2{margin:0;font-size:20px}" +
-    ".hp-sub{font-size:12.5px;color:var(--muted)}" +
-    ".hp-layer{margin-bottom:16px}" +
-    ".hp-layer-h{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}" +
-    ".hp-layer-t{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}" +
+    ".hp-next{appearance:none;border:1px solid var(--line,rgba(255,255,255,.14));background:var(--inset,rgba(255,255,255,.04));color:var(--text,inherit);border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}" +
+    ".hp-next:hover{border-color:var(--accent,#6bbf59);color:var(--accent,#6bbf59)}" +
+    ".kt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}" +
+    ".kt{border:1px solid var(--line,rgba(255,255,255,.14));border-radius:14px;padding:14px 16px;background:var(--inset,rgba(255,255,255,.03));display:flex;flex-direction:column;gap:4px}" +
+    ".kt.watch{border-color:rgba(230,160,60,.45)}" +
+    ".kt.good{border-color:rgba(107,191,89,.4)}" +
+    ".kt-l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
+    ".kt-v{font-size:26px;font-weight:800;line-height:1.1}" +
+    ".kt.watch .kt-v{color:#e0a53c}" +
+    ".kt.good .kt-v{color:#6bbf59}" +
+    ".kt-s{font-size:11.5px;color:var(--muted)}" +
     ".hp-know.pv-wr{margin-top:0}" +
     ".hp-know-sl{margin-top:12px}" +
-    ".hp-layer .wt.kn + .wt.kn{margin-top:10px}" +
-    ".hp-stub{opacity:.6;border-style:dashed}" +
-    ".hp-soon{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}" +
-    ".hp-data-body{max-height:480px;overflow-y:auto}" +
-    ".hp-sessions{display:flex;flex-direction:column;gap:12px}" +
-    ".hp-sess-h{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;position:sticky;top:0;background:var(--panel,var(--card));padding:2px 0}" +
-    ".hp-sess-h b{font-size:13px}.hp-sess-h span{font-size:11.5px;color:var(--muted)}.hp-sess-h i{font-style:normal;font-size:11px;color:var(--muted)}" +
-    ".hp-rows{display:flex;flex-direction:column;gap:3px}" +
-    ".hp-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:8px;font-size:12.5px}" +
-    ".hp-row:hover{background:rgba(255,255,255,.04)}" +
-    ".hp-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}" +
-    ".hp-row b{font-weight:600;min-width:120px}" +
-    ".hp-bits{color:var(--muted);flex:1}" +
-    ".hp-row small{color:var(--muted);font-style:italic}" +
-    ".hp-key{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;padding-top:8px;border-top:1px solid var(--line,rgba(255,255,255,.08))}" +
-    ".hp-key span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}" +
-    ".hp-key i{width:8px;height:8px;border-radius:50%;display:inline-block}" +
+    ".hp-data-full{padding:4px 2px;display:flex;flex-direction:column}" +
+    ".hp-data-fhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}" +
+    ".hp-data-fhead h2{margin:0;font-size:20px}" +
+    ".hp-grid-wrap{overflow:auto;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;max-height:calc(100vh - 180px)}" +
+    "table.hp-grid{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}" +
+    "table.hp-grid thead th{position:sticky;top:0;background:var(--panel2,var(--panel,#14161c));text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;border-bottom:1px solid var(--line,rgba(255,255,255,.12));user-select:none;z-index:1}" +
+    "table.hp-grid thead th:hover{color:var(--text,inherit)}" +
+    "table.hp-grid td{padding:6px 10px;border-bottom:1px solid var(--line,rgba(255,255,255,.07))}" +
+    "table.hp-grid tbody tr:nth-child(even){background:rgba(255,255,255,.02)}" +
+    ".hp-sort{font-style:normal;margin-left:4px;color:var(--accent,#6bbf59)}" +
     ".hp-foot{margin-top:8px;font-size:11px;color:var(--muted)}";
   document.head.appendChild(ST);
 })();

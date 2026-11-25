@@ -405,6 +405,14 @@
     },
     sleep: sleepBlock,
     insights: insights,
+    vitalsModel: vitalsModel,
+    sleepModel: sleepModel,
+    ensureHealthData: function (api, onDone) {
+      var n = 0, done = function () { n--; if (n <= 0) onDone(); };
+      if (!VS.rows && !VS.err) { n++; loadVitals(api, done); }
+      if (!SL.rows && !SL.err) { n++; loadSleep(api, done); }
+      if (n === 0) onDone();
+    },
     mini: function (api) {
       var m = model(api), cd = m.cardio;
       var over = m.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; }).slice(0, 3);
