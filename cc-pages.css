@@ -171,6 +171,13 @@
 .sl-grid{grid-template-columns:1fr 1.4fr;align-items:center}
 @media (max-width:900px){.sl-grid{grid-template-columns:1fr}}
 .wt.cd.sl .cd-days{height:38px}
+/* Knowledge: "Worth knowing" callouts (cc-body.js CC.body.insights) */
+.kn-list{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+.kn-row{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--inset);font-size:13px}
+.kn-row i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:var(--muted)}
+.kn-row.watch{border-color:color-mix(in srgb,var(--amber) 45%,transparent)}.kn-row.watch i{background:var(--amber)}
+.kn-row.good{border-color:color-mix(in srgb,var(--green) 40%,transparent)}.kn-row.good i{background:var(--green)}
+.kn-row.n{color:var(--muted)}
 /* Sources hero map */
 .hm2{padding:10px 14px 12px;margin-bottom:10px}.hm2 .wd-h{flex-wrap:wrap;gap:4px 14px}.hm2-key{display:flex;gap:14px;margin-left:auto;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .hm2-key span{display:inline-flex;align-items:center;gap:5px}.hm2-key i{width:9px;height:9px;border-radius:50%;background:var(--c)}.hm2-key i.d{background:none;border:1.5px dashed var(--c)}

@@ -257,6 +257,43 @@
     return wrap;
   }
 
+  /* ---------- Knowledge: the real top layer. Not a bigger version of the widgets below it —
+     a short, rule-based read of what's actually worth knowing right now, pulled from the same
+     muscle/cardio/vitals/sleep models that already compute "how does this compare to normal."
+     Deliberately not free-text/AI-generated: fixed thresholds so it's fast and predictable. */
+  function insights(api) {
+    var wrap = h("section", {class: "wt kn"}), body = h("div", {class: "kn-list"});
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Worth knowing")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      var lines = [], mm = model(api), cd = mm ? mm.cardio : null;
+      var stale = mm && mm.any ? mm.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; })[0] : null;
+      if (stale && stale.eff <= 0.45) lines.push({k: "watch", t: stale.name + " hasn't been trained in " + dtext(stale.days != null ? stale.days : stale.indDays) + " — the longest gap right now."});
+      if (cd && cd.days != null && cd.days >= 4) lines.push({k: "watch", t: "No cardio logged in " + dtext(cd.days) + "."});
+      var vm = vitalsModel();
+      if (vm) {
+        var notable = vm.vals.filter(function (x) { return x.state === "watch" || x.state === "good"; }).sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); })[0];
+        if (notable) {
+          var f = notable.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
+          lines.push({k: notable.state, t: f.label + " is " + fmt(notable.v) + (f.unit ? " " + f.unit : "") + ", " + (notable.diff >= 0 ? "+" : "") + notable.diff.toFixed(1) + " vs your recent average."});
+        }
+      }
+      var sm = sleepModel();
+      if (sm && sm.avg != null && sm.latest.min != null) {
+        var diff = sm.latest.min - sm.avg;
+        if (diff <= -60) lines.push({k: "watch", t: "Only " + hrs(sm.latest.min) + " of sleep last night, well under your 7-night average of " + hrs(sm.avg) + "."});
+        else if (diff >= 60) lines.push({k: "good", t: hrs(sm.latest.min) + " of sleep last night, well above your 7-night average of " + hrs(sm.avg) + "."});
+      }
+      if (!lines.length) lines.push({k: "n", t: (mm && mm.any) || vm || sm ? "Nothing standing out right now — numbers are holding steady." : "Waiting on data before there's anything worth saying yet."});
+      lines.slice(0, 4).forEach(function (x) { body.appendChild(h("div", {class: "kn-row " + x.k}, h("i"), h("span", null, x.t))); });
+    }
+    paint();
+    if (!VS.rows && !VS.err) loadVitals(api, paint);
+    if (!SL.rows && !SL.err) loadSleep(api, paint);
+    return wrap;
+  }
+
   /* anatomical shapes, left half drawn, right half mirrored */
   var FRONT = [
     ["back", "M110 50 L99 53 C90 55 80 57 72 61 L86 68 L110 62 Z"],
@@ -367,6 +404,7 @@
       return wrap;
     },
     sleep: sleepBlock,
+    insights: insights,
     mini: function (api) {
       var m = model(api), cd = m.cardio;
       var over = m.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; }).slice(0, 3);

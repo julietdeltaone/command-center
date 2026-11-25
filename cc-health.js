@@ -148,31 +148,40 @@
     return wrap;
   }
 
+  /* 2026-11-25: re-sequenced per JD's call. The muscle/cardio/sleep widgets were labeled
+     "Knowledge" but they only organize and compare the raw numbers (days since trained, this
+     week vs target, vs your average) — that's Information in the data/information/knowledge
+     sense, not Knowledge. Real Knowledge is a level up: a short, direct answer to "what do I
+     need to know right now," synthesized across those same signals (CC.body.insights). So the
+     page now reads top to bottom Knowledge -> Information -> Data, most-distilled first,
+     rawest last — matching the click-depth the Data layer already uses. */
   CC.views.Health = function (api) {
     var page = h("div", {class: "hp-wrap"});
     page.appendChild(h("div", {class: "hp-head"},
       h("h2", null, "Health"),
-      h("span", {class: "hp-sub"}, "Knowledge is live below. Data is one click in; Information follows.")));
+      h("span", {class: "hp-sub"}, "Knowledge answers first; Information backs it up; Data is one click in.")));
 
-    /* Knowledge: the enriched, widget-driven view — muscle map, cardio, vitals. */
+    /* Knowledge: the real top layer — a few rule-based callouts, not a bigger widget. */
     var know = h("section", {class: "hp-layer"});
     know.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Knowledge")));
+    know.appendChild(CC.body && CC.body.insights ? CC.body.insights(api) : stub("Knowledge", "Waiting on the widgets below."));
+    page.appendChild(know);
+
+    /* Information: the enriched, widget-driven view — muscle map, cardio, vitals, sleep. This
+       organizes the raw numbers (recency, this-week-vs-target, vs-your-average) but doesn't
+       decide what matters most; Knowledge above does that. */
+    var info = h("section", {class: "hp-layer"});
+    info.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Information")));
     var row = h("div", {class: "pv-wr hp-know"});
     row.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null));
     row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
-    know.appendChild(row);
-    if (CC.body && CC.body.sleep) know.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
-    page.appendChild(know);
-
-    /* Information: still a stub — the acknowledged missing middle layer. */
-    var info = h("section", {class: "hp-layer"});
-    info.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Information")));
-    info.appendChild(stub("Information", "Habits, nutrition, and trend read-outs land here next."));
+    info.appendChild(row);
+    if (CC.body && CC.body.sleep) info.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
     page.appendChild(info);
 
     /* Data: NOT inline. A teaser card that opens the themed, color-coded log in the sheet
        overlay (CC.sheet) on click — the overlay itself carries the "Open ↗" link out to the
-       real Google Sheet, so the click-path is Knowledge -> Data (themed) -> Sheet (raw), three
+       real Google Sheet, so the click-path is Information -> Data (themed) -> Sheet (raw), three
        real steps, not three sections stacked on one page. */
     var data = h("section", {class: "hp-layer"});
     data.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Data")));
