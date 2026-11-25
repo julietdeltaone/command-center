@@ -240,14 +240,32 @@
 
     page.appendChild(h("div", {class: "ov-main"}, needCard, h("div", {class: "ov-side"}, nextCard, bizCard)));
 
-    /* ---- section health ---- */
-    var secs = ["Today", "Business", "Local", "Private", "System"], strip = h("div", {class: "ov-health", role: "group", "aria-label": "Section health"});
-    secs.forEach(function (n) {
-      var s = api.summaryStatus ? api.summaryStatus(n) : null, sc = s === "good" ? 1 : s === "alert" ? 0.08 : s ? 0.5 : null, rows = api.summaryRows ? api.summaryRows(n) : [], hl = rows[0] ? rows[0].headline : (s === "good" ? "Healthy" : s === "alert" ? "Needs attention" : s ? "In progress" : "");
-      strip.appendChild(h("button", {type: "button", class: "ov-h", style: sc == null ? "" : "--c:" + col(sc), onclick: function () { api.go(n); }}, h("i"), h("span", null, h("b", null, TL[n]), h("small", null, hl))));
-    });
-    var routines = arr(api.data.routines), badR = routines.filter(function (r) { return F().level(ms(r.last_run), Number(r.cadence_min) || 1440) !== "ok"; }).length;
-    strip.appendChild(h("button", {type: "button", class: "ov-h", style: "--c:" + col(badR ? 0.15 : 1), onclick: function () { api.go("Sources"); }}, h("i"), h("span", null, h("b", null, "Sources"), h("small", null, badR ? badR + " of " + routines.length + " routines need attention" : "All " + routines.length + " routines on schedule"))));
+    /* ---- category health ----
+       2026-11-25: switched from the old Today/Business/Local/Private/System/Sources strip to
+       the Vocation lanes from Build Status — same lane list Build itself reads (CC.buildStatus),
+       so the two pages can't drift apart. Routine health (the old "Sources" tile) folds into
+       Hub Core/Admin, which is where routine telemetry actually lands per the system map.
+       A few lanes don't have a page of their own yet (no Knowledge-tier surface built), so they
+       route to Build for now; swap the destination in LANE_DEST once each one gets a real page. */
+    var LANE_DEST = {
+      "Local / CENTCOM": "Local", "Business": "Business", "Uber / Taxi": "Build",
+      "Clarkson": "Build", "Faith": "Build", "Finance": "Private", "Health": "Private",
+      "Social": "Private", "Records & Files": "Records", "Hub Core / Admin": "System"
+    };
+    var strip = h("div", {class: "ov-health", role: "group", "aria-label": "Category health"});
+    var BS = CC.buildStatus;
+    if (BS) {
+      BS.ensureLoaded(api);
+      BS.lanes.forEach(function (g) {
+        var dest = LANE_DEST[g.name] || "Build";
+        if (!BS.ready()) {
+          strip.appendChild(h("button", {type: "button", class: "ov-h", onclick: function () { api.go(dest); }}, h("i"), h("span", null, h("b", null, g.name), h("small", null, BS.error() || "Loading…"))));
+          return;
+        }
+        var st = BS.laneStatus(g), sc = st.state === "live" ? 1 : st.state === "none" ? 0.08 : 0.5;
+        strip.appendChild(h("button", {type: "button", class: "ov-h", style: "--c:" + col(sc), onclick: function () { api.go(dest); }}, h("i"), h("span", null, h("b", null, g.name), h("small", null, st.pct + "% built"))));
+      });
+    }
     page.appendChild(strip);
     page.appendChild(CC.hubmap(api));
     page.appendChild(widgetsRow(api));

@@ -107,6 +107,23 @@
   function stageCount(node) { return node ? STAGES.filter(function (s) { return stageOn(node, s); }).length : 0; }
   function stateOf(node) { var n = stageCount(node); return n === 4 ? "live" : n === 0 ? "none" : "partial"; }
 
+  function laneStatus(g) {
+    var pct = 0, max = 0;
+    [].concat(g.data, g.info, g.know).forEach(function (id) { pct += stageCount(S.byId[id]); max += 4; });
+    pct = max ? Math.round((pct / max) * 100) : 0;
+    return {pct: pct, state: pct >= 100 ? "live" : pct <= 0 ? "none" : "partial"};
+  }
+
+  // Shared surface so other pages (Wall) can read the same lane list and live status this page
+  // shows, instead of keeping a second copy that could drift out of sync.
+  CC.buildStatus = {
+    lanes: GROUPS,
+    laneStatus: laneStatus,
+    ready: function () { return Object.keys(S.byId).length > 0; },
+    error: function () { return S.err; },
+    ensureLoaded: function (api) { if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api); }
+  };
+
   function arrowGlyph(live) {
     var p = svg("path", {d: "M2 9 H22 M16 2 L22 9 L16 16", fill: "none", "stroke-width": "2.4", "stroke-linecap": "round", "stroke-linejoin": "round"});
     return svg("svg", {viewBox: "0 0 24 18", class: "bld-arrow" + (live ? " bld-arrow-live" : "")}, [p]);
@@ -163,15 +180,12 @@
   }
 
   function laneCard(g) {
-    var pct = 0, max = 0;
-    [].concat(g.data, g.info, g.know).forEach(function (id) { pct += stageCount(S.byId[id]); max += 4; });
-    pct = max ? Math.round((pct / max) * 100) : 0;
-    var state = pct >= 100 ? "live" : pct <= 0 ? "none" : "partial";
+    var st = laneStatus(g);
 
     var card = h("div", {class: "bld-lane"});
     card.appendChild(h("div", {class: "bld-lane-h"},
       h("span", {class: "bld-lane-name"}, g.name),
-      h("span", {class: "bld-lane-pct bld-pct-" + state}, pct + "% BUILT")
+      h("span", {class: "bld-lane-pct bld-pct-" + st.state}, st.pct + "% BUILT")
     ));
 
     var dataCol = column(g.data, "Data"), infoCol = column(g.info, "Information"), knowCol = column(g.know, "Knowledge");
