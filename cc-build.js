@@ -281,7 +281,7 @@
     var g = S.openLane ? GROUPS.filter(function (x) { return x.name === S.openLane; })[0] : null;
     if (S.openLane && !g) { S.openLane = null; S.openLayer = null; } // stale state guard
 
-    var parts = [{label: "BUILD", onclick: g ? function () { S.openLane = null; S.openLayer = null; api.render(); } : null}];
+    var parts = [{label: "UPDATE", onclick: g ? function () { S.openLane = null; S.openLayer = null; api.render(); } : null}];
     if (g) parts.push({label: g.name, onclick: S.openLayer ? function () { S.openLayer = null; api.render(); } : null});
     if (g && S.openLayer) parts.push({label: LAYERS.filter(function (l) { return l.key === S.openLayer; })[0].label});
 

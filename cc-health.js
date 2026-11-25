@@ -1,29 +1,32 @@
-/* Command Center: Health — three separate click-through pages, not three sections on one
-   screen. Owner: Atlas (claude).
+/* Command Center: Health. Owner: Atlas (claude).
 
-   2026-11-25, JD's second call on this: the first cut stacked Knowledge, Information and Data
-   on a single scrolling page. That's wrong — he wants an actual click-down diagram:
+   2026-11-25, JD's third call on this, and the terminology that now sets the precedent for the
+   rest of Command Center:
 
-     Wall -> Health (Knowledge, the opener)   — stat tiles only. Show, don't tell: short titles,
-                                                 a number, a one-line sub-caption. No "worth
-                                                 knowing" / "things to know" labels, no sentences.
-       -> Information                         — the muscle map, cardio, vitals, sleep and
-                                                 progress widgets. Organizes the numbers; doesn't
-                                                 decide what matters (Knowledge already did).
-       -> Data                                — a real, full-screen, edge-to-edge grid: every
-                                                 row and column of the Workouts tab, sortable,
-                                                 nothing invented or grouped — a one-to-one
-                                                 reflection of Health Data, not a themed re-skin.
+     - Knowledge = the dashboard itself, the thing you land on. Stat tiles AND the muscle map,
+       cardio, vitals, sleep and progress widgets live TOGETHER on this one page — the questions
+       answered sit right alongside the numbers that back them, not behind an extra click. Show,
+       don't tell throughout: short titles, a number, a one-line sub-caption, never a sentence,
+       never "worth knowing" / "things to know."
+     - Information = one click down: the full-screen, edge-to-edge grid — every row and column of
+       the Workouts tab, sortable, color-coded. It's still "information" rather than "data"
+       because it's organized, sorted and color-coded for a human to read, even though it's a
+       table.
+     - Data = the actual Google Sheet (Health Data) that this all comes from — raw, unformatted,
+       makes sense only to whoever built it. That's not a page in Command Center at all; it's the
+       "Open in Google Sheets ↗" link out of Information.
 
-   Each level is its own tab id (health / health-info / health-data), registered in index.html's
-   TAB_MAP + CRUMB_TITLES so the crumb bar steps back one level at a time instead of always
-   jumping to Wall.
+   So two click-through levels, not three: Wall -> Health (Knowledge) -> Information. Tab ids:
+   health, health-data (the id stays as it was named before this rename; only the displayed
+   label changed to Information — renaming the id too would be a bigger, purely cosmetic diff for
+   no behavior change). Registered in index.html's TAB_MAP + CRUMB_TITLES so the crumb bar steps
+   back one level at a time instead of always jumping to Wall.
 
-   All three levels read off the same two live sources: CC.body's muscle/cardio/vitals/sleep
-   models (cc-body.js) and this file's own full-history Workouts pull (PW below), paginated
-   straight from Health Data via the Connected Sheets reader. Every computed figure here is
-   plain arithmetic — sums, averages, % change over fixed windows — never AI-generated text,
-   per JD's explicit request. */
+   Both levels read off the same two live sources: CC.body's muscle/cardio/vitals/sleep models
+   (cc-body.js) and this file's own full-history Workouts pull (PW below), paginated straight from
+   Health Data via the Connected Sheets reader. Every computed figure here is plain arithmetic —
+   sums, averages, % change over fixed windows — never AI-generated text, per JD's explicit
+   request. */
 (function () {
   "use strict";
   var CC = window.CC = window.CC || {views: {}, subviews: {}};
@@ -245,23 +248,20 @@
       onNext ? h("button", {type: "button", class: "hp-next", onclick: onNext}, nextLabel + " →") : null);
   }
 
-  /* ---------- Page 1: Health opener = Knowledge only ---------- */
+  /* ---------- Health = Knowledge: the merged dashboard. Tiles first (the questions, answered),
+     then the muscle map, cardio, vitals, sleep and progress widgets right below on the same
+     page/scroll — no extra click to see them. One "Information →" affordance takes you down to
+     the full-screen grid. ---------- */
   CC.views.Health = function (api) {
     var page = h("div", {class: "hp-wrap"});
-    page.appendChild(hpHead("Health", "Information", function () { api.go("health-info"); }));
-    var body = h("div", null);
-    page.appendChild(body);
-    function paint() { body.innerHTML = ""; body.appendChild(tileGrid(knowledgeTiles(api))); }
+    page.appendChild(hpHead("Health", "Information", function () { api.go("health-data"); }));
+    var tiles = h("div", null);
+    page.appendChild(tiles);
+    function paint() { tiles.innerHTML = ""; tiles.appendChild(tileGrid(knowledgeTiles(api))); }
     paint();
     if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
-    return page;
-  };
 
-  /* ---------- Page 2: Information = muscle map, cardio, vitals, sleep, progress ---------- */
-  CC.views.HealthInfo = function (api) {
-    var page = h("div", {class: "hp-wrap"});
-    page.appendChild(hpHead("Information", "Data", function () { api.go("health-data"); }));
     var row = h("div", {class: "pv-wr hp-know"});
     row.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null));
     row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
@@ -271,11 +271,13 @@
     return page;
   };
 
-  /* ---------- Page 3: Data = full-screen, edge-to-edge, literal grid of Workouts. Every row,
-     every column, straight from the sheet — click a header to sort. Whole rows are tinted by
-     muscle category (not just a border — JD wants the category readable at a glance down the
-     page) and the Reps cell gets its own quick color band by range, since rep count is really a
-     second dimension (heavy/low-rep vs light/high-rep) worth seeing without reading the number. */
+  /* ---------- Information: full-screen, edge-to-edge, literal grid of Workouts. Every row, every
+     column, straight from the sheet — click a header to sort. Whole rows are tinted by muscle
+     category (not just a border — JD wants the category readable at a glance down the page) and
+     the Reps cell gets its own quick color band by range, since rep count is really a second
+     dimension (heavy/low-rep vs light/high-rep) worth seeing without reading the number. The
+     "Open in Google Sheets" link is where Data actually lives — raw, unformatted, the real
+     source — this grid is the organized, color-coded read of it. */
   function fmtCell(v) { return v == null || v === "" ? "" : String(v); }
   function hexToRgba(hex, a) {
     hex = String(hex || "").replace("#", "");
@@ -356,7 +358,7 @@
     ".kt.watch .kt-v{color:#e0a53c}" +
     ".kt.good .kt-v{color:#6bbf59}" +
     ".kt-s{font-size:11.5px;color:var(--muted)}" +
-    ".hp-know.pv-wr{margin-top:0}" +
+    ".hp-know.pv-wr{margin-top:16px}" +
     ".hp-know-sl{margin-top:12px}" +
     ".hp-data-full{padding:4px 2px;display:flex;flex-direction:column}" +
     ".hp-data-fhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}" +

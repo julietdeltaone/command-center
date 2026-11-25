@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261125.10
-     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.10"
+     BUILD VERSION — single source of truth: 20261125.11
+     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.11"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
      Browsers and GitHub Pages' CDN cache by the exact URL including the
@@ -246,12 +246,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261125.10">
-<link rel="stylesheet" href="cc-skin.css?v=20261125.10">
-<link rel="stylesheet" href="cc-widgets.css?v=20261125.10">
-<link rel="stylesheet" href="cc-pages.css?v=20261125.10">
-<link rel="stylesheet" href="cc-sources2.css?v=20261125.10">
-<link rel="stylesheet" href="views/views.css?v=20261125.10">
+<link rel="stylesheet" href="cc-design.css?v=20261125.11">
+<link rel="stylesheet" href="cc-skin.css?v=20261125.11">
+<link rel="stylesheet" href="cc-widgets.css?v=20261125.11">
+<link rel="stylesheet" href="cc-pages.css?v=20261125.11">
+<link rel="stylesheet" href="cc-sources2.css?v=20261125.11">
+<link rel="stylesheet" href="views/views.css?v=20261125.11">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -267,7 +267,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
       <h1>Command Center</h1>
     </div>
     <div class="tb-status">
-      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.10</span>
+      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.11</span>
       <span class="live off" id="live-ind">Offline</span>
       <span class="refreshed" id="refreshed"></span>
       <span class="sample-tag" id="stag" hidden>SAMPLE</span>
@@ -288,7 +288,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261125.10"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261125.11"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -309,7 +309,7 @@ var TABS=[
   // {id:"biz",l:"Business",i:'<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>'},
   // {id:"priv",l:"Private",i:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'},
   // {id:"sys",l:"System",i:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'},
-  {id:"build",l:"Build",i:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>'}
+  {id:"build",l:"Update",i:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/>'}
   // {id:"crew",l:"Crew",i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'}
 ];
 var CREW=[
@@ -990,10 +990,11 @@ function render(){
   var RAIL_IDS=TABS.map(function(t){return t.id});
   if(RAIL_IDS.indexOf(TAB)===-1){
     var CRUMB_TITLES={Sources:"Sources",Records:"Records",Sheets:"Connected Sheets",Local:"Local",Status:"Status",health:"Health",
-      "health-info":"Health — Information","health-data":"Health — Data"};
-    /* Health is now three click-through levels (Knowledge opener -> Information -> Data), so the
-       crumb has to step back one level at a time instead of always jumping to Wall. */
-    var CRUMB_BACK={"health-info":{id:"health",l:"Health"},"health-data":{id:"health-info",l:"Information"}};
+      "health-data":"Health — Information"};
+    /* Health is two click-through levels (Knowledge, the merged dashboard -> Information, the
+       full-screen grid), so the crumb steps back one level at a time instead of always jumping to
+       Wall. */
+    var CRUMB_BACK={"health-data":{id:"health",l:"Health"}};
     var back=CRUMB_BACK[TAB]||{id:"wall",l:"Wall"};
     app.appendChild(h("div",{class:"crumb"},
       h("button",{type:"button",class:"crumb-back",onclick:function(){go(back.id)}},"← "+back.l),
@@ -1003,7 +1004,7 @@ function render(){
 
   /* Check for external view overrides (CC.views.Business etc.) */
   var TAB_MAP = {wall:"Wall",today:"Today",biz:"Business",priv:"Private",sys:"System",build:"Build",crew:"Crew",
-    health:"Health","health-info":"HealthInfo","health-data":"HealthData"};
+    health:"Health","health-data":"HealthData"};
   var tabName = TAB_MAP[TAB] || TAB;
   if(CC.views[tabName]){
     try{
@@ -1190,33 +1191,33 @@ function loadData(){
 </script>
 
 <!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing -->
-<script src="cc-fresh.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-inbox.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-motion.js?v=20261125.10" onerror="void 0"></script>
+<script src="cc-fresh.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-inbox.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-motion.js?v=20261125.11" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script src="views/timeline.js?v=20261125.10" onerror="void 0"></script>
-<script src="views/system.js?v=20261125.10" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-nurture.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-crm.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-active.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-sources2.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-map.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-records.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-sheets.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-build.js?v=20261125.10" onerror="void 0"></script>
+<script src="views/timeline.js?v=20261125.11" onerror="void 0"></script>
+<script src="views/system.js?v=20261125.11" onerror="void 0"></script>
+<script src="views/shooting.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-widgets.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-nurture.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-crm.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-active.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-sources2.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-map.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-records.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-sheets.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-build.js?v=20261125.11" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script src="cc-body.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-health.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-pages.js?v=20261125.10" onerror="void 0"></script>
-<script src="cc-know.js?v=20261125.10" onerror="void 0"></script>
+<script src="cc-body.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-health.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-pages.js?v=20261125.11" onerror="void 0"></script>
+<script src="cc-know.js?v=20261125.11" onerror="void 0"></script>
 </body>
 </html>
