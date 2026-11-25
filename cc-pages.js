@@ -208,7 +208,13 @@
   /* 2026-11-25: JD's call — while the build is in progress, Overview is nothing but the 10 top
      categories, full screen. Needs-you, Next up, Business snapshot, the hub map and the widgets
      row are cut from this page (not deleted: CC.needs/CC.needsCount still back the rail badges,
-     and CC.hubmap/widgetsRow stay defined above for whatever they get folded back into later). */
+     and CC.hubmap/widgetsRow stay defined above for whatever they get folded back into later).
+
+     2026-11-25, same day: Overview and Build are now two separate deliverables, not one view
+     wearing two hats. A category tile routes to its own real Overview page (CC.catPages, e.g.
+     cc-health.js) once one exists; until then it still falls through to Build's drill-down so
+     there's always something to click. Do not merge this back into always-go("build") — that's
+     the behavior JD specifically asked to end. */
   CC.views.Wall = function (api) {
     var page = h("div", {class: "ov ov-onlycats"});
     var cats = h("div", {class: "ov-catgrid", role: "group", "aria-label": "Top categories"});
@@ -216,7 +222,11 @@
     if (BS) {
       BS.ensureLoaded(api);
       BS.lanes.forEach(function (g) {
-        function openCat() { BS.open(g.name); api.go("build"); }
+        function openCat() {
+          var realPage = CC.catPages && CC.catPages[g.name];
+          if (realPage) { api.go(realPage); return; }
+          BS.open(g.name); api.go("build");
+        }
         if (!BS.ready()) {
           cats.appendChild(h("button", {type: "button", class: "ov-cat", onclick: openCat}, h("b", null, g.name), h("small", null, BS.error() || "Loading…")));
           return;
