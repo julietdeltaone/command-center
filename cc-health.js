@@ -94,6 +94,8 @@
       .then(function () { DS.loading = false; onDone(); });
   }
   function col(header, name) { var i = header.indexOf(name); return i < 0 ? null : i; }
+  function ms(x) { var t = x ? Date.parse(x) : NaN; return isNaN(t) ? null : t; }
+  function numAt(row, i) { if (i == null) return null; var v = row[i]; if (v == null || v === "") return null; var n = Number(String(v).replace(/,/g, "")); return isNaN(n) ? null : n; }
   function dataSection(api, repaint) {
     var wrap = h("section", {class: "wd ov-w hp-data"});
     wrap.appendChild(h("div", {class: "wd-h"}, h("span", {class: "wd-t"}, "Data"),
@@ -108,7 +110,7 @@
       var hdr = DS.header;
       var iDate = col(hdr, "Date"), iDay = col(hdr, "Weekday"), iWk = col(hdr, "Workout #"),
         iCat = col(hdr, "Category"), iEx = col(hdr, "Exercise"), iSet = col(hdr, "Set #"),
-        iWt = col(hdr, "Weight (lb)"), iRep = col(hdr, "Rep"), iTime = col(hdr, "Time (m:s)") != null ? col(hdr, "Time (m:s)") : col(hdr, "Time"),
+        iWt = col(hdr, "Weight (lb)"), iRep = col(hdr, "Reps"), iTime = col(hdr, "Time (min:sec)") != null ? col(hdr, "Time (min:sec)") : col(hdr, "Time"),
         iDist = col(hdr, "Distance"), iUnit = col(hdr, "Unit"), iNote = col(hdr, "Set note");
       var sessions = [], cur = null;
       DS.rows.forEach(function (r) {
@@ -148,6 +150,138 @@
     return wrap;
   }
 
+  /* ---------- Progress: full-history Workouts pull, paginated, for consistency + volume/strength
+     trends (JD's wish list, 2026-11-25). Separate cache from DS above, which only keeps the most
+     recent ~400 rows for the Data-layer log — these computations need months, not the last dozen
+     sessions, so this paginates through the reader (same endpoint, n=500 per page) until it has
+     everything or hits a 4000-row ceiling (plenty for a year of sets). Everything here is plain
+     arithmetic on what's already in the sheet — no AI text, by JD's explicit request. */
+  var PW = {rows: null, header: null, err: null, loading: false};
+  function loadAllWorkouts(api, onDone) {
+    if (PW.loading || PW.rows) { onDone(); return; }
+    var u = sheetsUrl(api);
+    if (!u) { PW.err = "Not connected: add sheets_url in Config."; onDone(); return; }
+    PW.loading = true;
+    var acc = [], header = null, fetchedRaw = 0, firstPage = true;
+    function page() {
+      fetch(u + (u.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(HEALTH_SHEET_ID) + "&tab=" + WORKOUTS_GID + "&from=" + fetchedRaw + "&n=500")
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) throw new Error(j.error || "error");
+          var rows = j.rows || [];
+          fetchedRaw += rows.length;
+          if (firstPage) {
+            firstPage = false;
+            var hdr = j.header || [];
+            if (hdr.indexOf("Exercise") < 0 && rows.length && rows[0].indexOf("Exercise") >= 0) { header = rows[0]; rows = rows.slice(1); }
+            else header = hdr;
+          }
+          acc = acc.concat(rows);
+          if (rows.length && acc.length < Math.min(j.total || 0, 4000)) page();
+          else { PW.header = header; PW.rows = acc; PW.loading = false; onDone(); }
+        })
+        .catch(function () { PW.err = "Could not read the full Workouts history."; PW.loading = false; onDone(); });
+    }
+    page();
+  }
+  var PROG_CATS = ["Chest", "Back", "Shoulders", "Biceps", "Triceps", "Legs"];
+  function weekKey(t) { var d = new Date(t); var day = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - day); return d.getTime(); }
+  function fmtWeek(t) { return new Date(t).toLocaleDateString("en-US", {month: "short", day: "numeric"}); }
+  function buildProgress(rows, header) {
+    var iDate = col(header, "Date"), iCat = col(header, "Category"), iWt = col(header, "Weight (lb)"),
+      iRep = col(header, "Reps"), iWk = col(header, "Workout #");
+    var sessionWeek = {}, volByWeekCat = {}, repWtByWeekCat = {}, weeksSeen = {};
+    rows.forEach(function (r) {
+      var t = iDate != null ? ms(r[iDate]) : null; if (t == null) return;
+      var wk = weekKey(t); weeksSeen[wk] = true;
+      var sid = (iWk != null ? r[iWk] : "") + "|" + r[iDate];
+      sessionWeek[sid] = wk;
+      var cat = iCat != null ? r[iCat] : "";
+      if (!cat || cat === "Cardio") return;
+      var wt = numAt(r, iWt), rep = numAt(r, iRep);
+      if (wt == null || rep == null) return;
+      var key = wk + "|" + cat;
+      volByWeekCat[key] = (volByWeekCat[key] || 0) + wt * rep;
+      var rw = repWtByWeekCat[key] || (repWtByWeekCat[key] = {sw: 0, sr: 0});
+      rw.sw += wt * rep; rw.sr += rep;
+    });
+    var sessByWeek = {};
+    Object.keys(sessionWeek).forEach(function (sid) { var wk = sessionWeek[sid]; sessByWeek[wk] = (sessByWeek[wk] || 0) + 1; });
+    var weeks = Object.keys(weeksSeen).map(Number).sort(function (a, b) { return a - b; });
+    return {weeks: weeks, sessByWeek: sessByWeek, volByWeekCat: volByWeekCat, repWtByWeekCat: repWtByWeekCat};
+  }
+  function completeWeeks(prog) { var cur = weekKey(Date.now()); return prog.weeks.filter(function (w) { return w < cur; }); }
+  function tempoVerdict(prog) {
+    var complete = completeWeeks(prog); if (!complete.length) return null;
+    var last = complete[complete.length - 1], prior = complete.slice(0, -1).slice(-6);
+    if (!prior.length) return null;
+    var lastCount = prog.sessByWeek[last] || 0;
+    var avg = prior.reduce(function (a, w) { return a + (prog.sessByWeek[w] || 0); }, 0) / prior.length;
+    if (avg <= 0) return null;
+    var ratio = lastCount / avg;
+    var trend = ratio >= 1.05 ? "picking up" : ratio <= 0.85 ? "dropping off" : "holding steady";
+    return {k: ratio < 0.7 ? "watch" : "good", t: "Training tempo is " + trend + ": " + lastCount + " session" + (lastCount === 1 ? "" : "s") + " last week vs a " + avg.toFixed(1) + "-session average."};
+  }
+  function volumeVerdict(prog) {
+    var complete = completeWeeks(prog); if (complete.length < 4) return null;
+    var recent = complete.slice(-2), prior = complete.slice(-4, -2), best = null;
+    PROG_CATS.forEach(function (cat) {
+      function sum(ws) { return ws.reduce(function (a, w) { return a + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0); }
+      var r = sum(recent), p = sum(prior); if (p <= 0) return;
+      var pct = (r - p) / p;
+      if (!best || Math.abs(pct) > Math.abs(best.pct)) best = {cat: cat, pct: pct};
+    });
+    if (!best || Math.abs(best.pct) < 0.15) return null;
+    return {k: best.pct > 0 ? "good" : "watch", t: best.cat + " volume is " + (best.pct > 0 ? "up " : "down ") + Math.round(Math.abs(best.pct) * 100) + "% over the last 2 weeks vs the 2 before."};
+  }
+  function trainingLoadCard(api) {
+    var wrap = h("section", {class: "wt kn"}), body = h("div", {class: "kn-list"});
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Training load")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts history…")); return; }
+      var prog = buildProgress(PW.rows, PW.header), lines = [];
+      var tv = tempoVerdict(prog); if (tv) lines.push(tv);
+      var vv = volumeVerdict(prog); if (vv) lines.push(vv);
+      if (!lines.length) lines.push({k: "n", t: "Not enough weekly history yet to call a trend."});
+      lines.forEach(function (x) { body.appendChild(h("div", {class: "kn-row " + x.k}, h("i"), h("span", null, x.t))); });
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return wrap;
+  }
+  function progressWidget(api) {
+    var wrap = h("section", {class: "wt pg"}), body = h("div", {class: "pg-body"});
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Progress"), h("span", {class: "bd-sub"}, "weekly volume by muscle group, last 8 weeks")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts history…")); return; }
+      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog).slice(-8);
+      if (!complete.length) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough weekly history yet.")); return; }
+      PROG_CATS.forEach(function (cat) {
+        var vals = complete.map(function (w) { return prog.volByWeekCat[w + "|" + cat] || 0; });
+        var mx = Math.max.apply(null, vals.concat([1]));
+        var bars = h("div", {class: "pg-spark", style: "--c:" + catColor(cat), role: "img", "aria-label": cat + " weekly volume"},
+          vals.map(function (v, i) { return h("i", {style: "height:" + (v ? 8 + v / mx * 92 : 3) + "%", class: v ? "on" : "", title: fmtWeek(complete[i]) + ": " + Math.round(v).toLocaleString("en-US") + " lb·reps"}); }));
+        var recent = complete.slice(-2), prior = complete.slice(-4, -2);
+        function avgWtPerRep(ws) { var sw = 0, sr = 0; ws.forEach(function (w) { var rw = prog.repWtByWeekCat[w + "|" + cat]; if (rw) { sw += rw.sw; sr += rw.sr; } }); return sr > 0 ? sw / sr : null; }
+        var rNow = avgWtPerRep(recent), rPrior = prior.length ? avgWtPerRep(prior) : null, note = "";
+        if (rNow != null && rPrior != null && rPrior > 0) {
+          var d = (rNow - rPrior) / rPrior;
+          note = Math.abs(d) < 0.08 ? "steady load" : (d > 0 ? "heavier, fewer reps" : "lighter, more reps");
+        }
+        body.appendChild(h("div", {class: "pg-row"}, h("div", {class: "pg-cat", style: "--c:" + catColor(cat)}, h("i"), cat), bars, h("small", null, note)));
+      });
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return wrap;
+  }
+
   /* 2026-11-25: re-sequenced per JD's call. The muscle/cardio/sleep widgets were labeled
      "Knowledge" but they only organize and compare the raw numbers (days since trained, this
      week vs target, vs your average) — that's Information in the data/information/knowledge
@@ -165,6 +299,7 @@
     var know = h("section", {class: "hp-layer"});
     know.appendChild(h("div", {class: "hp-layer-h"}, h("span", {class: "hp-layer-t"}, "Knowledge")));
     know.appendChild(CC.body && CC.body.insights ? CC.body.insights(api) : stub("Knowledge", "Waiting on the widgets below."));
+    know.appendChild(trainingLoadCard(api));
     page.appendChild(know);
 
     /* Information: the enriched, widget-driven view — muscle map, cardio, vitals, sleep. This
@@ -177,6 +312,7 @@
     row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
     info.appendChild(row);
     if (CC.body && CC.body.sleep) info.appendChild(h("div", {class: "hp-know-sl"}, CC.body.sleep(api)));
+    info.appendChild(h("div", {class: "hp-know-sl"}, progressWidget(api)));
     page.appendChild(info);
 
     /* Data: NOT inline. A teaser card that opens the themed, color-coded log in the sheet
@@ -206,6 +342,7 @@
     ".hp-layer-t{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}" +
     ".hp-know.pv-wr{margin-top:0}" +
     ".hp-know-sl{margin-top:12px}" +
+    ".hp-layer .wt.kn + .wt.kn{margin-top:10px}" +
     ".hp-stub{opacity:.6;border-style:dashed}" +
     ".hp-soon{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}" +
     ".hp-data-body{max-height:480px;overflow-y:auto}" +
