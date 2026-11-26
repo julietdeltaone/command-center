@@ -778,33 +778,73 @@
      ═══════════════════════════════════════════════════════════════════ */
   CC.catPages["Hub Core / Admin"] = "admin";
 
-  /* Admin Data (personal Drive, COMMAND CENTER folder) is the source for Routines: the Routine Guide
-     tab is the display table (category > routine > what it does / how often / last run / health);
-     Routines and RunLog hold the raw registry and history. Command Center Data's own Routines and
-     RunLog tabs stay live only until Luna finishes repointing each routine. */
+  /* Admin Data (personal Drive, COMMAND CENTER folder) is the source for routines. The Routines tab is the
+     single master registry (one row per routine: A-H run state written by Muse each run, I-R the
+     descriptive fields: id, category, description, frequency, feeds_hub, feeds_to, why_not_in_hub,
+     runs_on, status, notes). RunLog holds per-run history. Health is computed here from last_run,
+     cadence_min and last_status, so nothing has to be hand-maintained. The old Routine Guide tab is
+     no longer read. Command Center Data's own Routines/RunLog tabs stay live only until each routine
+     is repointed. */
   var ADMIN_DATA = "1_CstkGl_8mQStmX2r2dIZNJ29CHKFpQApFlS0kIJrxA";
-  var GUIDE_GID = "320156294";
-  var GUIDE_CACHE = {rows: null, header: null, err: null, loading: false};
+  var GUIDE_GID = "320156294", ROUT_GID = "0", RUNLOG_GID = "783423352";
+  var ROUT_CACHE = {rows: null, header: null, err: null, loading: false};
+  var RUNLOG_CACHE = {rows: null, header: null, err: null, loading: false};
+  var CATS = ["Business", "Social", "Finance", "Clarkson", "Uber / Taxi", "Hub Core / Admin", "Records & Files", "Faith", "Local / CENTCOM", "Health"];
+  var ADM = {cat: null, rid: null};
 
   function colCI(hdr, name) {
     for (var i = 0; i < hdr.length; i++) if (String(hdr[i]).trim().toLowerCase() === name) return i;
     return null;
   }
-  function catLabel(c) {
-    c = String(c || "").trim();
-    if (/^hubcore/i.test(c)) return "Hub Core / Admin";
-    return c || "Other";
+  function eastern(t) {
+    return new Date(t).toLocaleString("en-US", {timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
   }
-  function healthClass(t) {
-    t = String(t || "");
-    if (/^healthy|^ok/i.test(t)) return "good";
-    if (/fail|error/i.test(t)) return "bad";
-    return "warn";
+  function cadText(min) {
+    if (!min) return "";
+    if (min < 60) return "every " + min + " minutes";
+    if (min === 60) return "hourly";
+    if (min < 1440) return "every " + Math.round(min / 60) + " hours";
+    if (min === 1440) return "daily";
+    if (min === 10080) return "weekly";
+    if (min >= 40000) return "monthly";
+    return "every " + Math.round(min / 1440) + " days";
   }
-  /* "2026-11-26 2:04 PM" is already Eastern in the sheet; show it as written plus a relative age */
-  function lastRunText(v) {
-    var t = ms(v);
-    return t ? fmtCell(v) + " · " + ago(t) : (fmtCell(v) || "never");
+  function admHealth(r) {
+    if (/fail|error/i.test(r.status)) return {cls: "bad", text: "Failed last run"};
+    if (!r.t) return {cls: "warn", text: "Never run"};
+    if (r.cad && Date.now() - r.t > r.cad * 60000 * 2) return {cls: "warn", text: "Overdue · last ran " + eastern(r.t)};
+    return {cls: "good", text: "Healthy"};
+  }
+  function admRoutines() {
+    if (!ROUT_CACHE.rows) return [];
+    var H = ROUT_CACHE.header, ix = {};
+    ["routine", "cadence_min", "last_run", "last_status", "last_output_count", "writer", "routine_id", "category", "description", "frequency",
+     "feeds_hub", "feeds_to", "why_not_in_hub", "runs_on", "status", "notes"].forEach(function (n) { ix[n] = colCI(H, n); });
+    function g(row, n) { return ix[n] != null && row[ix[n]] != null ? String(row[ix[n]]).trim() : ""; }
+    return ROUT_CACHE.rows.filter(function (r) { return g(r, "routine"); }).map(function (r) {
+      var o = {name: g(r, "routine"), id: g(r, "routine_id") || g(r, "routine").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        cat: g(r, "category") || "Unsorted", desc: g(r, "description"), freq: g(r, "frequency"), cad: Number(g(r, "cadence_min")) || 0,
+        t: ms(g(r, "last_run")), status: g(r, "last_status"), outputs: g(r, "last_output_count"),
+        feeds: g(r, "feeds_hub").toLowerCase(), feedsTo: g(r, "feeds_to"), whyNot: g(r, "why_not_in_hub"), runsOn: g(r, "runs_on"),
+        life: g(r, "status"), notes: g(r, "notes")};
+      o.h = admHealth(o);
+      return o;
+    });
+  }
+  function admRuns(o) {
+    if (!RUNLOG_CACHE.rows) return [];
+    var H = RUNLOG_CACHE.header, iN = colCI(H, "routine"), iT = colCI(H, "run_time"), iS = colCI(H, "status"), iO = colCI(H, "output_count"), iNote = colCI(H, "note"), iId = colCI(H, "routine_id");
+    return RUNLOG_CACHE.rows.filter(function (r) {
+      return (iId != null && r[iId] && r[iId] === o.id) || (iN != null && String(r[iN]).trim() === o.name);
+    }).map(function (r) { return {t: ms(r[iT]), s: String(r[iS] || ""), n: iO != null ? r[iO] : "", note: iNote != null ? r[iNote] : ""}; })
+      .sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
+  }
+  function pill(hh) { return h("span", {class: "adm-pill " + hh.cls}, hh.text); }
+  function feedChip(o) {
+    if (o.feeds === "yes") return h("span", {class: "adm-feed yes"}, "Feeds hub");
+    if (o.feeds === "partial") return h("span", {class: "adm-feed partial"}, "Partly feeds hub");
+    if (o.feeds === "no") return h("span", {class: "adm-feed no"}, "Not in hub");
+    return h("span", {class: "adm-feed unk"}, "Not reviewed yet");
   }
 
   CC.views.HubCoreAdmin = function (api) {
@@ -812,90 +852,125 @@
     page.appendChild(catHead("Hub Core / Admin", "admin", api));
     var tilesWrap = h("div", {class: "hp-tilesbar"});
     page.appendChild(tilesWrap);
-    var body = canvasBody("1.6fr 1fr", "1fr 1fr", []); body.classList.add("adm-body");
+    var body = canvasBody("1.5fr 1fr", "1fr 1fr", []);
+    body.classList.add("adm-body");
     page.appendChild(body);
 
+    function crumb(items) {
+      return h("div", {class: "adm-crumb"}, items.map(function (it, i) {
+        return [i ? h("i", null, "›") : null, it.on ? h("button", {type: "button", onclick: it.on}, it.t) : h("b", null, it.t)];
+      }));
+    }
+    function goAll() { ADM.cat = null; ADM.rid = null; paint(); }
+    function goCat(c) { ADM.cat = c; ADM.rid = null; paint(); }
+    function goRoutine(id) { ADM.rid = id; paint(); }
+
     function paint() {
-      var tiles = [], total = null, good = 0, bad = 0, warn = 0, items = [], lastAny = null;
-      if (GUIDE_CACHE.rows) {
-        var hdr = GUIDE_CACHE.header, iC = colCI(hdr, "category"), iR = colCI(hdr, "routine"), iW = colCI(hdr, "what it does"),
-            iF = colCI(hdr, "how often"), iL = colCI(hdr, "last run"), iH = colCI(hdr, "health");
-        GUIDE_CACHE.rows.forEach(function (r) {
-          if (iR == null || !r[iR]) return;
-          var it = {cat: catLabel(iC != null ? r[iC] : ""), name: String(r[iR]), what: iW != null ? r[iW] : "", freq: iF != null ? r[iF] : "",
-                    last: iL != null ? r[iL] : "", health: iH != null ? r[iH] : "", t: iL != null ? ms(r[iL]) : null};
-          it.cls = healthClass(it.health);
-          items.push(it);
-          if (it.cls === "good") good++; else if (it.cls === "bad") bad++; else warn++;
-          if (it.t && (!lastAny || it.t > lastAny)) lastAny = it.t;
-        });
-        total = items.length;
-        var attn = bad + warn;
-        tiles.push(tile("Routines", total, "registered in Admin Data"));
-        tiles.push(tile("Healthy", good + " of " + total, "last run OK", attn === 0 ? "good" : ""));
-        tiles.push(tile("Needs attention", attn, attn === 0 ? "all clear" : bad + " failed · " + warn + " overdue or stale", bad ? "bad" : attn ? "watch" : "good"));
-        tiles.push(tile("Latest run", lastAny ? ago(lastAny) : "—", lastAny ? new Date(lastAny).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}) : ""));
-      } else if (GUIDE_CACHE.err) {
-        tiles.push(tile("Routines", "!", GUIDE_CACHE.err, "watch"));
-      } else {
-        tiles.push(tile("Routines", "…", "loading"));
-      }
+      var R = admRoutines(), tiles = [];
+      if (R.length) {
+        var good = R.filter(function (x) { return x.h.cls === "good"; }).length, bad = R.filter(function (x) { return x.h.cls === "bad"; }).length,
+            warn = R.length - good - bad, last = 0, fed = R.filter(function (x) { return x.feeds === "yes"; }).length, rev = R.filter(function (x) { return x.feeds; }).length;
+        R.forEach(function (x) { if (x.t && x.t > last) last = x.t; });
+        tiles.push(tile("Routines", R.length, "across " + new Set(R.map(function (x) { return x.cat; })).size + " categories"));
+        tiles.push(tile("Healthy", good + " of " + R.length, "last run OK", bad + warn === 0 ? "good" : ""));
+        tiles.push(tile("Needs attention", bad + warn, bad + warn === 0 ? "all clear" : bad + " failed · " + warn + " overdue", bad ? "bad" : warn ? "watch" : "good"));
+        tiles.push(tile("Feed the hub", rev ? fed + " of " + R.length : "—", rev ? (R.length - rev ? (R.length - rev) + " not reviewed yet" : "all reviewed") : "Muse is still classifying", rev && fed === R.length ? "good" : ""));
+        tiles.push(tile("Latest run", last ? ago(last) : "—", last ? eastern(last) : ""));
+      } else if (ROUT_CACHE.err) tiles.push(tile("Routines", "!", ROUT_CACHE.err, "watch"));
+      else tiles.push(tile("Routines", "…", "loading"));
       tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
-
-      var byCat = h("div", {class: "adm-cats"}), attnBody, healthBody;
-      if (items.length) {
-        var order = [], groups = {};
-        items.forEach(function (it) { if (!groups[it.cat]) { groups[it.cat] = []; order.push(it.cat); } groups[it.cat].push(it); });
-        order.forEach(function (c) {
-          var g = groups[c], gb = g.filter(function (x) { return x.cls !== "good"; }).length;
-          byCat.appendChild(h("section", {class: "adm-cat"},
-            h("header", null, h("b", null, c), h("span", {class: "adm-cnt" + (gb ? " warn" : "")}, gb ? gb + " of " + g.length + " need attention" : g.length + " healthy")),
-            g.map(function (it) {
-              return h("div", {class: "adm-row"},
-                h("div", {class: "adm-main"}, h("b", null, it.name), h("span", null, it.what)),
-                h("div", {class: "adm-meta"}, h("span", {class: "adm-pill " + it.cls}, it.health || "—"), h("small", null, it.freq + " · " + lastRunText(it.last))));
-            })));
-        });
-        var bad2 = items.filter(function (x) { return x.cls !== "good"; });
-        attnBody = bad2.length ? h("div", {class: "adm-attn"}, bad2.map(function (it) {
-          return h("div", {class: "adm-row"},
-            h("div", {class: "adm-main"}, h("b", null, it.name), h("span", null, it.cat + " · " + it.freq)),
-            h("div", {class: "adm-meta"}, h("span", {class: "adm-pill " + it.cls}, it.health), h("small", null, "last " + lastRunText(it.last))));
-        })) : modPlaceholder("All routines healthy", "Nothing overdue or failing.");
-        healthBody = h("div", {class: "adm-bars"}, order.map(function (c) {
-          var g = groups[c], ok = g.filter(function (x) { return x.cls === "good"; }).length, pct = Math.round(ok / g.length * 100);
-          return h("div", {class: "adm-bar"}, h("span", null, c), h("div", {class: "adm-track"}, h("i", {class: pct === 100 ? "good" : pct >= 75 ? "warn" : "bad", style: "width:" + pct + "%"})), h("em", null, ok + "/" + g.length));
-        }));
-        byCat = byCat;
-      } else if (GUIDE_CACHE.err) {
-        byCat = modPlaceholder("Couldn't load routines", GUIDE_CACHE.err); attnBody = modPlaceholder("Unavailable"); healthBody = modPlaceholder("Unavailable");
-      } else {
-        byCat = modPlaceholder(readingText("routines", GUIDE_CACHE)); attnBody = modPlaceholder("Reading…"); healthBody = modPlaceholder("Reading…");
-      }
-
       body.innerHTML = "";
-      var m1 = mod("Routines by category", null, null, byCat); m1.style.gridRow = "1 / span 2";
-      body.appendChild(m1);
-      body.appendChild(mod("Needs attention", null, null, attnBody));
-      body.appendChild(mod("Health by category", null, null, healthBody));
+      body.style.gridTemplateColumns = ""; body.style.gridTemplateRows = "";
+
+      if (!R.length) {
+        body.style.gridTemplateColumns = "1fr"; body.style.gridTemplateRows = "1fr";
+        body.appendChild(mod("Routines", null, null, ROUT_CACHE.err ? modPlaceholder("Couldn't load routines", ROUT_CACHE.err) : modPlaceholder(readingText("routines", ROUT_CACHE))));
+        return;
+      }
+      var byCat = {};
+      R.forEach(function (x) { (byCat[x.cat] = byCat[x.cat] || []).push(x); });
+      var cur = ADM.rid ? R.filter(function (x) { return x.id === ADM.rid; })[0] : null;
+      if (ADM.rid && !cur) ADM.rid = null;
+
+      if (cur) {
+        /* level 3: one routine */
+        body.style.gridTemplateColumns = "1.2fr 1fr"; body.style.gridTemplateRows = "1fr";
+        var runs = admRuns(cur).slice(0, 12);
+        var kv = function (k, v) { return v ? h("div", {class: "adm-kv"}, h("span", null, k), h("b", null, v)) : null; };
+        var next = cur.t && cur.cad ? cur.t + cur.cad * 60000 : null;
+        body.appendChild(mod(cur.name, null, crumb([{t: "All routines", on: goAll}, {t: cur.cat, on: function () { goCat(cur.cat); }}, {t: cur.name}]),
+          h("div", {class: "adm-detail"},
+            h("p", {class: "adm-desc"}, cur.desc || "No description yet."),
+            h("div", {class: "adm-chips"}, pill(cur.h), feedChip(cur), cur.life ? h("span", {class: "adm-feed unk"}, cur.life) : null),
+            h("div", {class: "adm-kvs"},
+              kv("How often", cur.freq || cadText(cur.cad)),
+              kv("Last ran", cur.t ? eastern(cur.t) + " · " + ago(cur.t) : "never"),
+              kv("Next expected", next ? (next < Date.now() ? "due now (expected " + eastern(next) + ")" : eastern(next)) : ""),
+              kv("Last result", cur.status ? cur.status + (cur.outputs !== "" ? " · " + cur.outputs + " item" + (cur.outputs === "1" ? "" : "s") + " produced" : "") : ""),
+              kv("Runs on", cur.runsOn),
+              kv("Feeds", cur.feedsTo),
+              kv("Why not in the hub", cur.whyNot),
+              kv("Notes", cur.notes)))));
+        body.appendChild(mod("Recent runs", null, h("span", {class: "adm-sub"}, RUNLOG_CACHE.rows ? runs.length + " shown" : "loading"),
+          runs.length ? h("div", null,
+            h("div", {class: "adm-dots"}, runs.slice().reverse().map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good", title: r.t ? eastern(r.t) : ""}); })),
+            runs.map(function (r) {
+              return h("div", {class: "adm-run"}, h("span", {class: "adm-pill " + (/fail|error/i.test(r.s) ? "bad" : "good")}, r.s || "—"),
+                h("b", null, r.t ? eastern(r.t) : "?"), h("small", null, (r.n !== "" ? r.n + " item" + (String(r.n) === "1" ? "" : "s") : "") + (r.note ? " · " + r.note : "")));
+            })) : modPlaceholder(RUNLOG_CACHE.err ? "Run history unavailable" : RUNLOG_CACHE.rows ? "No runs logged yet" : "Reading run history…")));
+      } else if (ADM.cat) {
+        /* level 2: routines in a category */
+        body.style.gridTemplateColumns = "1fr"; body.style.gridTemplateRows = "1fr";
+        var list = (byCat[ADM.cat] || []).slice().sort(function (a, b) { return ({bad: 0, warn: 1, good: 2})[a.h.cls] - ({bad: 0, warn: 1, good: 2})[b.h.cls] || a.name.localeCompare(b.name); });
+        body.appendChild(mod(ADM.cat, null, crumb([{t: "All routines", on: goAll}, {t: ADM.cat}]),
+          list.length ? list.map(function (o) {
+            return h("button", {type: "button", class: "adm-row adm-click", onclick: function () { goRoutine(o.id); }},
+              h("div", {class: "adm-main"}, h("b", null, o.name), h("span", null, o.desc)),
+              h("div", {class: "adm-meta"}, pill(o.h), feedChip(o), h("small", null, (o.freq || cadText(o.cad)) + " · " + (o.t ? eastern(o.t) : "never"))));
+          }) : modPlaceholder("No routines here", "Nothing registered in this category.")));
+      } else {
+        /* level 1: category overview */
+        body.style.gridTemplateColumns = "1.6fr 1fr"; body.style.gridTemplateRows = "1fr 1fr";
+        var grid = h("div", {class: "adm-cgrid"}, CATS.concat(Object.keys(byCat).filter(function (c) { return CATS.indexOf(c) < 0; })).map(function (c) {
+          var g = byCat[c] || [], ok = g.filter(function (x) { return x.h.cls === "good"; }).length, att = g.length - ok, pct = g.length ? Math.round(ok / g.length * 100) : 0;
+          return h("button", {type: "button", class: "adm-ccard" + (g.length ? "" : " empty"), disabled: g.length ? null : "disabled", onclick: function () { goCat(c); }},
+            h("b", null, c),
+            h("div", {class: "adm-big"}, g.length ? String(g.length) : "—", h("small", null, g.length === 1 ? " routine" : " routines")),
+            h("div", {class: "adm-track"}, g.length ? h("i", {class: att === 0 ? "good" : pct >= 75 ? "warn" : "bad", style: "width:" + pct + "%"}) : null),
+            h("span", {class: "adm-cnt" + (att ? " warn" : "")}, g.length ? (att ? att + " need attention" : "all healthy") : "none yet"));
+        }));
+        var m1 = mod("Routines by category", null, crumb([{t: "All routines"}]), grid); m1.style.gridRow = "1 / span 2";
+        body.appendChild(m1);
+        var need = R.filter(function (x) { return x.h.cls !== "good"; });
+        body.appendChild(mod("Needs attention", null, null, need.length ? need.map(function (o) {
+          return h("button", {type: "button", class: "adm-row adm-click", onclick: function () { ADM.cat = o.cat; goRoutine(o.id); }},
+            h("div", {class: "adm-main"}, h("b", null, o.name), h("span", null, o.cat + " · " + (o.freq || cadText(o.cad)))),
+            h("div", {class: "adm-meta"}, pill(o.h)));
+        }) : modPlaceholder("All routines healthy", "Nothing overdue or failing.")));
+        var out = R.filter(function (x) { return x.feeds && x.feeds !== "yes"; }), unrev = R.filter(function (x) { return !x.feeds; });
+        body.appendChild(mod("Not feeding the hub", null, null,
+          out.length ? out.map(function (o) {
+            return h("button", {type: "button", class: "adm-row adm-click", onclick: function () { ADM.cat = o.cat; goRoutine(o.id); }},
+              h("div", {class: "adm-main"}, h("b", null, o.name), h("span", null, o.whyNot || o.cat)), h("div", {class: "adm-meta"}, feedChip(o)));
+          }) : modPlaceholder(unrev.length === R.length ? "Not reviewed yet" : "Everything feeds the hub",
+            unrev.length === R.length ? "Muse is classifying which routines land in the Command Center." : unrev.length + " routine" + (unrev.length === 1 ? "" : "s") + " still to review.")));
+      }
 
       if (CC.setCatSummary) {
-        var line = total != null ? good + "/" + total + " routines healthy" + (bad + warn ? " · " + (bad + warn) + " need attention" : "") : "Loading routines…";
-        CC.setCatSummary("Hub Core / Admin", line, bad + warn > 0);
+        var gd = R.filter(function (x) { return x.h.cls === "good"; }).length, na = R.length - gd;
+        CC.setCatSummary("Hub Core / Admin", gd + "/" + R.length + " routines healthy" + (na ? " · " + na + " need attention" : ""), na > 0);
       }
     }
     paint();
 
-    if (!GUIDE_CACHE.rows && !GUIDE_CACHE.err)
-      loadSheet(ADMIN_DATA, GUIDE_GID, api, GUIDE_CACHE, paint, 300, "Routine Guide");
-
+    if (!ROUT_CACHE.rows && !ROUT_CACHE.err) loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, paint, 300, "Routines");
+    if (!RUNLOG_CACHE.rows && !RUNLOG_CACHE.err) loadSheet(ADMIN_DATA, RUNLOG_GID, api, RUNLOG_CACHE, paint, 1500, "RunLog");
     return page;
   };
 
   CC.views.HubCoreAdminData = infoPage(ADMIN_DATA, [
-    {id: "routine-guide", label: "Routine Guide", gid: GUIDE_GID},
-    {id: "routines", label: "Routines", gid: "0"},
-    {id: "run-log", label: "Run Log", gid: "783423352"}
+    {id: "routines", label: "Routines", gid: ROUT_GID},
+    {id: "run-log", label: "Run Log", gid: RUNLOG_GID}
   ], "HubCoreAdminData");
 
   /* Command Center Data's own admin tabs (messages board, usage, problems, config) stay on that sheet */
