@@ -578,7 +578,10 @@
       if (CLK_OVERVIEW_CACHE.rows) {
         var ohdr = CLK_OVERVIEW_CACHE.header;
         var iItem = col(ohdr, "item"), iVal = col(ohdr, "value"), iSrc = col(ohdr, "source");
-        CLK_OVERVIEW_CACHE.rows.slice(0, 6).forEach(function (r) {
+        CLK_OVERVIEW_CACHE.rows.filter(function (r) {
+          var it = iItem != null ? fmtCell(r[iItem]).trim() : "", vl = iVal != null ? fmtCell(r[iVal]).trim() : "";
+          return it || vl;
+        }).slice(0, 6).forEach(function (r) {
           tiles.push(tile(
             iItem != null ? fmtCell(r[iItem]) : "—",
             iVal != null ? fmtCell(r[iVal]) : "—",
