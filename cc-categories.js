@@ -839,137 +839,150 @@
     }).map(function (r) { return {t: ms(r[iT]), s: String(r[iS] || ""), n: iO != null ? r[iO] : "", note: iNote != null ? r[iNote] : ""}; })
       .sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
   }
-  function pill(hh) { return h("span", {class: "adm-pill " + hh.cls}, hh.text); }
-  function feedChip(o) {
-    if (o.feeds === "yes") return h("span", {class: "adm-feed yes"}, "Feeds hub");
-    if (o.feeds === "partial") return h("span", {class: "adm-feed partial"}, "Partly feeds hub");
-    if (o.feeds === "no") return h("span", {class: "adm-feed no"}, "Not in hub");
-    return h("span", {class: "adm-feed unk"}, "Not reviewed yet");
+  /* Pattern: List / Index (scan and manage many records). One glass panel, grouped by hub category,
+     compact rows, status strip + search + filter above, detail in a slide-over (not a new page). */
+  function shortTime(t) {
+    if (!t) return "never";
+    var d = new Date(t), tz = {timeZone: "America/New_York"};
+    var same = d.toLocaleDateString("en-US", tz) === new Date().toLocaleDateString("en-US", tz);
+    return same ? d.toLocaleTimeString("en-US", {timeZone: "America/New_York", hour: "numeric", minute: "2-digit"})
+                : d.toLocaleString("en-US", {timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
+  }
+  function hubGlyph(o) {
+    var m = {yes: ["✓", "Feeds the hub"], partial: ["~", "Partly feeds the hub"], no: ["✕", "Not in the hub"]}[o.feeds];
+    return h("span", {class: "rt-hub " + (o.feeds || "unk"), title: m ? m[1] : "Not reviewed yet"}, m ? m[0] : "–");
+  }
+  function runsIndex() {
+    var idx = {};
+    if (!RUNLOG_CACHE.rows) return idx;
+    var H = RUNLOG_CACHE.header, iN = colCI(H, "routine"), iT = colCI(H, "run_time"), iS = colCI(H, "status"), iO = colCI(H, "output_count"), iNote = colCI(H, "note"), iId = colCI(H, "routine_id");
+    RUNLOG_CACHE.rows.forEach(function (r) {
+      var k = (iId != null && r[iId]) ? String(r[iId]).trim() : (iN != null ? String(r[iN]).trim() : "");
+      if (!k) return;
+      (idx[k] = idx[k] || []).push({t: iT != null ? ms(r[iT]) : null, s: String(r[iS] || ""), n: iO != null ? r[iO] : "", note: iNote != null ? r[iNote] : ""});
+    });
+    Object.keys(idx).forEach(function (k) { idx[k].sort(function (a, b) { return (b.t || 0) - (a.t || 0); }); });
+    return idx;
   }
 
   CC.views.HubCoreAdmin = function (api) {
-    var page = h("div", {class: "hp-wrap hp-canvas"});
+    var page = h("div", {class: "hp-wrap hp-canvas rt-page"});
     page.appendChild(catHead("Hub Core / Admin", "admin", api));
-    var tilesWrap = h("div", {class: "hp-tilesbar"});
-    page.appendChild(tilesWrap);
-    var body = canvasBody("1.5fr 1fr", "1fr 1fr", []);
-    body.classList.add("adm-body");
-    page.appendChild(body);
-
-    function crumb(items) {
-      return h("div", {class: "adm-crumb"}, items.map(function (it, i) {
-        return [i ? h("i", null, "›") : null, it.on ? h("button", {type: "button", onclick: it.on}, it.t) : h("b", null, it.t)];
-      }));
+    var bar = h("div", {class: "rt-bar"});
+    var panel = h("div", {class: "rt-panel"});
+    var sheet = h("aside", {class: "rt-sheet", "aria-hidden": "true"});
+    var scrim = h("div", {class: "rt-scrim"});
+    page.appendChild(bar); page.appendChild(panel); page.appendChild(scrim); page.appendChild(sheet);
+    ADM.q = ADM.q || ""; ADM.f = ADM.f || "all"; ADM.open = ADM.open || {}; ADM.seeded = ADM.seeded || false;
+    var idxCache = {n: -1, v: {}};
+    function runsFor(o) {
+      var n = RUNLOG_CACHE.rows ? RUNLOG_CACHE.rows.length : 0;
+      if (idxCache.n !== n) idxCache = {n: n, v: runsIndex()};
+      return idxCache.v[o.id] || idxCache.v[o.name] || [];
     }
-    function goAll() { ADM.cat = null; ADM.rid = null; paint(); }
-    function goCat(c) { ADM.cat = c; ADM.rid = null; paint(); }
-    function goRoutine(id) { ADM.rid = id; paint(); loadRuns(); }
+    function close() { ADM.rid = null; paintSheet(); }
+    scrim.addEventListener("click", close);
+    page.addEventListener("keydown", function (e) { if (e.key === "Escape" && ADM.rid) close(); });
 
-    function paint() {
-      var R = admRoutines(), tiles = [];
-      if (R.length) {
-        var good = R.filter(function (x) { return x.h.cls === "good"; }).length, bad = R.filter(function (x) { return x.h.cls === "bad"; }).length,
-            warn = R.length - good - bad, last = 0, fed = R.filter(function (x) { return x.feeds === "yes"; }).length, rev = R.filter(function (x) { return x.feeds; }).length;
-        R.forEach(function (x) { if (x.t && x.t > last) last = x.t; });
-        if (!ADM.pulled) ADM.pulled = Date.now();
-        tiles.push(tile("Routines", R.length, "across " + new Set(R.map(function (x) { return x.cat; })).size + " categories · pulled " + new Date(ADM.pulled).toLocaleTimeString("en-US", {timeZone: "America/New_York", hour: "numeric", minute: "2-digit"})));
-        tiles.push(tile("Healthy", good + " of " + R.length, "last run OK", bad + warn === 0 ? "good" : ""));
-        tiles.push(tile("Needs attention", bad + warn, bad + warn === 0 ? "all clear" : bad + " failed · " + warn + " overdue", bad ? "bad" : warn ? "watch" : "good"));
-        tiles.push(tile("Feed the hub", rev ? fed + " of " + R.length : "—", rev ? (R.length - rev ? (R.length - rev) + " not reviewed yet" : "all reviewed") : "Muse is still classifying", rev && fed === R.length ? "good" : ""));
-        tiles.push(tile("Latest run", last ? ago(last) : "—", last ? eastern(last) : ""));
-      } else if (ROUT_CACHE.err) tiles.push(tile("Routines", "!", ROUT_CACHE.err, "watch"));
-      else tiles.push(tile("Routines", "…", "loading"));
-      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
-      body.innerHTML = "";
-      body.style.gridTemplateColumns = ""; body.style.gridTemplateRows = "";
+    function paintBar(R) {
+      bar.innerHTML = "";
+      var attn = R.filter(function (x) { return x.h.cls !== "good"; });
+      bar.appendChild(h("button", {type: "button", class: "rt-verdict " + (attn.length ? (attn.some(function (x) { return x.h.cls === "bad"; }) ? "bad" : "warn") : "good"),
+        onclick: function () { ADM.f = attn.length ? "attn" : "all"; paint(); }}, h("i"), attn.length ? attn.length + " need attention" : "All healthy"));
+      if (!ADM.pulled && R.length) ADM.pulled = Date.now();
+      bar.appendChild(h("span", {class: "rt-meta"}, R.length ? R.length + " routines · pulled " + shortTime(ADM.pulled) : ""));
+      bar.appendChild(h("span", {class: "rt-gap"}));
+      var q = h("input", {type: "search", class: "rt-search", placeholder: "Search routines", "aria-label": "Search routines", value: ADM.q});
+      q.addEventListener("input", function () { ADM.q = q.value; paintPanel(R); });
+      bar.appendChild(q);
+      var seg = h("div", {class: "rt-seg", role: "group", "aria-label": "Filter"}, [["all", "All"], ["attn", "Needs attention"], ["nohub", "Not in hub"]].map(function (f) {
+        return h("button", {type: "button", class: ADM.f === f[0] ? "on" : "", "aria-pressed": ADM.f === f[0] ? "true" : "false", onclick: function () { ADM.f = f[0]; paint(); }}, f[1]);
+      }));
+      bar.appendChild(seg);
+    }
 
+    function paintPanel(R) {
+      panel.innerHTML = "";
       if (!R.length) {
-        body.style.gridTemplateColumns = "1fr"; body.style.gridTemplateRows = "1fr";
-        body.appendChild(mod("Routines", null, null, ROUT_CACHE.err
+        panel.appendChild(ROUT_CACHE.err
           ? h("div", {class: "hp-mod-ph"}, h("b", null, "Couldn't load routines"), h("span", null, ROUT_CACHE.err),
               h("button", {type: "button", class: "adm-retry", onclick: function () { ROUT_CACHE.err = null; ROUT_CACHE.rows = null; paint(); loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, paint, 300, "Routines"); }}, "Try again"))
-          : h("div", {class: "adm-cgrid"}, [1, 2, 3, 4, 5, 6, 7, 8].map(function () { return h("div", {class: "adm-ccard adm-skel"}, h("b", null, "\u00a0"), h("div", {class: "adm-big"}, "\u00a0"), h("div", {class: "adm-track"}), h("span", null, "\u00a0")); }))));
+          : h("div", {class: "rt-skel"}, [1, 2, 3, 4, 5, 6, 7, 8].map(function () { return h("div", {class: "rt-skrow"}); })));
         return;
       }
-      var byCat = {};
-      R.forEach(function (x) { (byCat[x.cat] = byCat[x.cat] || []).push(x); });
-      var cur = ADM.rid ? R.filter(function (x) { return x.id === ADM.rid; })[0] : null;
-      if (ADM.rid && !cur) ADM.rid = null;
+      var q = ADM.q.trim().toLowerCase();
+      var rows = R.filter(function (o) {
+        if (ADM.f === "attn" && o.h.cls === "good") return false;
+        if (ADM.f === "nohub" && !(o.feeds === "no" || o.feeds === "partial")) return false;
+        return !q || (o.name + " " + o.cat + " " + o.desc).toLowerCase().indexOf(q) >= 0;
+      });
+      var groups = {};
+      rows.forEach(function (o) { (groups[o.cat] = groups[o.cat] || []).push(o); });
+      var order = CATS.concat(Object.keys(groups).filter(function (c) { return CATS.indexOf(c) < 0; })).filter(function (c) { return groups[c]; });
+      if (!ADM.seeded) { order.forEach(function (c) { ADM.open[c] = groups[c].some(function (x) { return x.h.cls !== "good"; }); }); ADM.seeded = true; }
+      var head = h("div", {class: "rt-row rt-head", role: "row"}, h("span", null, "Routine"), h("span", {class: "c-runs"}, "Recent runs"), h("span", {class: "c-every"}, "Every"), h("span", null, "Last run"), h("span", null, "Health"), h("span", {class: "c-hub"}, "Hub"));
+      panel.appendChild(head);
+      var scroll = h("div", {class: "rt-scroll"});
+      if (!order.length) scroll.appendChild(h("div", {class: "hp-mod-ph"}, h("b", null, "No routines match"), h("button", {type: "button", class: "adm-retry", onclick: function () { ADM.q = ""; ADM.f = "all"; paint(); }}, "Clear filters")));
+      order.forEach(function (c) {
+        var g = groups[c].slice().sort(function (a, b) { return ({bad: 0, warn: 1, good: 2})[a.h.cls] - ({bad: 0, warn: 1, good: 2})[b.h.cls] || a.name.localeCompare(b.name); });
+        var open = q || ADM.f !== "all" ? true : !!ADM.open[c], att = g.filter(function (x) { return x.h.cls !== "good"; }).length, last = 0;
+        g.forEach(function (x) { if (x.t > last) last = x.t; });
+        scroll.appendChild(h("button", {type: "button", class: "rt-grp", "aria-expanded": open ? "true" : "false", onclick: function () { ADM.open[c] = !open; paintPanel(R); }},
+          h("span", {class: "rt-chev" + (open ? " open" : "")}, "›"), h("b", null, c), h("span", {class: "rt-cnt"}, g.length),
+          h("span", {class: "rt-seg3"}, g.map(function (x) { return h("i", {class: x.h.cls}); })),
+          h("span", {class: "rt-gmeta"}, att ? att + " need attention" : "healthy" + (last ? " · last " + shortTime(last) : ""))));
+        if (open) g.forEach(function (o) {
+          var runs = runsFor(o).slice(0, 12).reverse();
+          scroll.appendChild(h("button", {type: "button", class: "rt-row rt-item" + (ADM.rid === o.id ? " sel" : ""), role: "row", onclick: function () { ADM.rid = o.id; paintSheet(); paintPanel(R); }},
+            h("span", {class: "c-name"}, o.name),
+            h("span", {class: "c-runs"}, h("span", {class: "rt-strip"}, runs.map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good"}); }))),
+            h("span", {class: "c-every"}, o.freq || cadText(o.cad)),
+            h("span", {class: "c-last"}, shortTime(o.t)),
+            h("span", {class: "rt-health " + o.h.cls}, h("i"), o.h.cls === "good" ? "Healthy" : o.h.cls === "bad" ? "Failed" : /^Never/.test(o.h.text) ? "Never run" : "Overdue"),
+            h("span", {class: "c-hub"}, hubGlyph(o))));
+        });
+      });
+      panel.appendChild(scroll);
+    }
 
-      if (cur) {
-        /* level 3: one routine */
-        body.style.gridTemplateColumns = "1.2fr 1fr"; body.style.gridTemplateRows = "1fr";
-        var runs = admRuns(cur).slice(0, 12);
-        var kv = function (k, v) { return v ? h("div", {class: "adm-kv"}, h("span", null, k), h("b", null, v)) : null; };
-        var next = cur.t && cur.cad ? cur.t + cur.cad * 60000 : null;
-        body.appendChild(mod(cur.name, null, crumb([{t: "All routines", on: goAll}, {t: cur.cat, on: function () { goCat(cur.cat); }}, {t: cur.name}]),
-          h("div", {class: "adm-detail"},
-            h("p", {class: "adm-desc"}, cur.desc || "No description yet."),
-            h("div", {class: "adm-chips"}, pill(cur.h), feedChip(cur), cur.life ? h("span", {class: "adm-feed unk"}, cur.life) : null),
-            h("div", {class: "adm-kvs"},
-              kv("How often", cur.freq || cadText(cur.cad)),
-              kv("Last ran", cur.t ? eastern(cur.t) + " · " + ago(cur.t) : "never"),
-              kv("Next expected", next ? (next < Date.now() ? "due now (expected " + eastern(next) + ")" : eastern(next)) : ""),
-              kv("Last result", cur.status ? cur.status + (cur.outputs !== "" ? " · " + cur.outputs + " item" + (cur.outputs === "1" ? "" : "s") + " produced" : "") : ""),
-              kv("Runs on", cur.runsOn),
-              kv("Feeds", cur.feedsTo),
-              kv("Why not in the hub", cur.whyNot),
-              kv("Notes", cur.notes)))));
-        body.appendChild(mod("Recent runs", null, h("span", {class: "adm-sub"}, RUNLOG_CACHE.rows ? runs.length + " shown" : "loading"),
-          runs.length ? h("div", null,
-            h("div", {class: "adm-dots"}, runs.slice().reverse().map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good", title: r.t ? eastern(r.t) : ""}); })),
-            runs.map(function (r) {
-              return h("div", {class: "adm-run"}, h("span", {class: "adm-pill " + (/fail|error/i.test(r.s) ? "bad" : "good")}, r.s || "—"),
-                h("b", null, r.t ? eastern(r.t) : "?"), h("small", null, (r.n !== "" ? r.n + " item" + (String(r.n) === "1" ? "" : "s") : "") + (r.note ? " · " + r.note : "")));
-            })) : modPlaceholder(RUNLOG_CACHE.err ? "Run history unavailable" : RUNLOG_CACHE.rows ? "No runs logged yet" : "Reading run history…")));
-      } else if (ADM.cat) {
-        /* level 2: routines in a category */
-        body.style.gridTemplateColumns = "1fr"; body.style.gridTemplateRows = "1fr";
-        var list = (byCat[ADM.cat] || []).slice().sort(function (a, b) { return ({bad: 0, warn: 1, good: 2})[a.h.cls] - ({bad: 0, warn: 1, good: 2})[b.h.cls] || a.name.localeCompare(b.name); });
-        body.appendChild(mod(ADM.cat, null, crumb([{t: "All routines", on: goAll}, {t: ADM.cat}]),
-          list.length ? list.map(function (o) {
-            return h("button", {type: "button", class: "adm-row adm-click", onclick: function () { goRoutine(o.id); }},
-              h("div", {class: "adm-main"}, h("b", null, o.name), h("span", null, o.desc)),
-              h("div", {class: "adm-meta"}, pill(o.h), feedChip(o), h("small", null, (o.freq || cadText(o.cad)) + " · " + (o.t ? eastern(o.t) : "never"))));
-          }) : modPlaceholder("No routines here", "Nothing registered in this category.")));
-      } else {
-        /* level 1: category overview */
-        body.style.gridTemplateColumns = "1.6fr 1fr"; body.style.gridTemplateRows = "1fr 1fr";
-        var grid = h("div", {class: "adm-cgrid"}, CATS.concat(Object.keys(byCat).filter(function (c) { return CATS.indexOf(c) < 0; })).map(function (c) {
-          var g = byCat[c] || [], ok = g.filter(function (x) { return x.h.cls === "good"; }).length, att = g.length - ok, pct = g.length ? Math.round(ok / g.length * 100) : 0;
-          return h("button", {type: "button", class: "adm-ccard" + (g.length ? "" : " empty"), disabled: g.length ? null : "disabled", onclick: function () { goCat(c); }},
-            h("b", null, c),
-            h("div", {class: "adm-big"}, g.length ? String(g.length) : "—", h("small", null, g.length === 1 ? " routine" : " routines")),
-            h("div", {class: "adm-track"}, g.length ? h("i", {class: att === 0 ? "good" : pct >= 75 ? "warn" : "bad", style: "width:" + pct + "%"}) : null),
-            h("span", {class: "adm-cnt" + (att ? " warn" : "")}, g.length ? (att ? att + " need attention" : "all healthy") : "none yet"));
-        }));
-        var m1 = mod("Routines by category", null, crumb([{t: "All routines"}]), grid); m1.style.gridRow = "1 / span 2";
-        body.appendChild(m1);
-        var need = R.filter(function (x) { return x.h.cls !== "good"; });
-        body.appendChild(mod("Needs attention", null, null, need.length ? need.map(function (o) {
-          return h("button", {type: "button", class: "adm-row adm-click", onclick: function () { ADM.cat = o.cat; goRoutine(o.id); }},
-            h("div", {class: "adm-main"}, h("b", null, o.name), h("span", null, o.cat + " · " + (o.freq || cadText(o.cad)))),
-            h("div", {class: "adm-meta"}, pill(o.h)));
-        }) : modPlaceholder("All routines healthy", "Nothing overdue or failing.")));
-        var out = R.filter(function (x) { return x.feeds && x.feeds !== "yes"; }), unrev = R.filter(function (x) { return !x.feeds; });
-        body.appendChild(mod("Not feeding the hub", null, null,
-          out.length ? out.map(function (o) {
-            return h("button", {type: "button", class: "adm-row adm-click", onclick: function () { ADM.cat = o.cat; goRoutine(o.id); }},
-              h("div", {class: "adm-main"}, h("b", null, o.name), h("span", null, o.whyNot || o.cat)), h("div", {class: "adm-meta"}, feedChip(o)));
-          }) : modPlaceholder(unrev.length === R.length ? "Not reviewed yet" : "Everything feeds the hub",
-            unrev.length === R.length ? "Muse is classifying which routines land in the Command Center." : unrev.length + " routine" + (unrev.length === 1 ? "" : "s") + " still to review.")));
-      }
+    function paintSheet() {
+      var R = admRoutines(), o = ADM.rid ? R.filter(function (x) { return x.id === ADM.rid; })[0] : null;
+      sheet.innerHTML = ""; sheet.classList.toggle("open", !!o); scrim.classList.toggle("open", !!o); sheet.setAttribute("aria-hidden", o ? "false" : "true");
+      if (!o) return;
+      var runs = runsFor(o).slice(0, 10), next = o.t && o.cad ? o.t + o.cad * 60000 : null;
+      var rowNum = ROUT_CACHE.rows.findIndex(function (r) { return String(r[0]).trim() === o.name; }) + 2;
+      var kv = function (k, v) { return v ? h("div", {class: "adm-kv"}, h("span", null, k), h("b", null, v)) : null; };
+      var closeBtn = h("button", {type: "button", class: "rt-x", "aria-label": "Close", title: "Close (Esc)", onclick: close}, "✕");
+      sheet.appendChild(h("header", null, h("div", null, h("small", null, o.cat), h("h3", null, o.name)), closeBtn));
+      sheet.appendChild(h("div", {class: "rt-sbody"},
+        o.desc ? h("p", {class: "adm-desc"}, o.desc) : null,
+        h("div", {class: "rt-health lg " + o.h.cls}, h("i"), o.h.text, o.life && o.life !== "active" ? h("em", null, " · " + o.life) : null),
+        h("div", {class: "adm-kvs"},
+          kv("Last ran", o.t ? eastern(o.t) : "never"),
+          kv("Next expected", next ? (next < Date.now() ? "due now" : eastern(next)) : ""),
+          kv("Result", o.status ? o.status + (o.outputs !== "" ? " · " + o.outputs + " out" : "") : ""),
+          kv("Feeds", o.feeds === "no" ? "Not in the hub" : o.feedsTo),
+          kv("Why not in hub", o.whyNot),
+          kv("Runs on", o.runsOn),
+          kv("Notes", o.notes)),
+        h("h4", null, "Recent runs"),
+        runs.length ? runs.map(function (r) { return h("div", {class: "adm-run"}, h("span", {class: "rt-health " + (/fail|error/i.test(r.s) ? "bad" : "good")}, h("i"), r.s || "—"), h("b", null, r.t ? eastern(r.t) : "?"), h("small", null, (r.note || (r.n !== "" ? r.n + " out" : "")))); })
+          : h("div", {class: "rt-none"}, RUNLOG_CACHE.rows ? "No runs logged" : "Loading history"),
+        h("a", {class: "rt-open", href: "https://docs.google.com/spreadsheets/d/" + ADMIN_DATA + "/edit#gid=" + ROUT_GID + (rowNum > 1 ? "&range=A" + rowNum : ""), target: "_blank", rel: "noopener"}, "Open in Google Sheets")));
+      closeBtn.focus({preventScroll: true});
+    }
 
-      if (CC.setCatSummary) {
+    function paint() {
+      var R = admRoutines();
+      paintBar(R); paintPanel(R); paintSheet();
+      if (CC.setCatSummary && R.length) {
         var gd = R.filter(function (x) { return x.h.cls === "good"; }).length, na = R.length - gd;
         CC.setCatSummary("Hub Core / Admin", gd + "/" + R.length + " routines healthy" + (na ? " · " + na + " need attention" : ""), na > 0);
       }
     }
     paint();
-
     if (!ROUT_CACHE.rows && !ROUT_CACHE.err) loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, paint, 300, "Routines");
-    /* Run history is the big tab and only the detail view needs it, so it loads after the first paint
-       (idle time) instead of competing with the routines the page opens on. */
     function loadRuns() { if (!RUNLOG_CACHE.rows && !RUNLOG_CACHE.err) loadSheet(ADMIN_DATA, RUNLOG_GID, api, RUNLOG_CACHE, paint, 1500, "RunLog"); }
     if (window.requestIdleCallback) requestIdleCallback(loadRuns, {timeout: 1500}); else setTimeout(loadRuns, 400);
     return page;
