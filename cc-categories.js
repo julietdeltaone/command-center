@@ -871,7 +871,8 @@
         var good = R.filter(function (x) { return x.h.cls === "good"; }).length, bad = R.filter(function (x) { return x.h.cls === "bad"; }).length,
             warn = R.length - good - bad, last = 0, fed = R.filter(function (x) { return x.feeds === "yes"; }).length, rev = R.filter(function (x) { return x.feeds; }).length;
         R.forEach(function (x) { if (x.t && x.t > last) last = x.t; });
-        tiles.push(tile("Routines", R.length, "across " + new Set(R.map(function (x) { return x.cat; })).size + " categories"));
+        if (!ADM.pulled) ADM.pulled = Date.now();
+        tiles.push(tile("Routines", R.length, "across " + new Set(R.map(function (x) { return x.cat; })).size + " categories · pulled " + new Date(ADM.pulled).toLocaleTimeString("en-US", {timeZone: "America/New_York", hour: "numeric", minute: "2-digit"})));
         tiles.push(tile("Healthy", good + " of " + R.length, "last run OK", bad + warn === 0 ? "good" : ""));
         tiles.push(tile("Needs attention", bad + warn, bad + warn === 0 ? "all clear" : bad + " failed · " + warn + " overdue", bad ? "bad" : warn ? "watch" : "good"));
         tiles.push(tile("Feed the hub", rev ? fed + " of " + R.length : "—", rev ? (R.length - rev ? (R.length - rev) + " not reviewed yet" : "all reviewed") : "Muse is still classifying", rev && fed === R.length ? "good" : ""));
@@ -884,7 +885,10 @@
 
       if (!R.length) {
         body.style.gridTemplateColumns = "1fr"; body.style.gridTemplateRows = "1fr";
-        body.appendChild(mod("Routines", null, null, ROUT_CACHE.err ? modPlaceholder("Couldn't load routines", ROUT_CACHE.err) : modPlaceholder(readingText("routines", ROUT_CACHE))));
+        body.appendChild(mod("Routines", null, null, ROUT_CACHE.err
+          ? h("div", {class: "hp-mod-ph"}, h("b", null, "Couldn't load routines"), h("span", null, ROUT_CACHE.err),
+              h("button", {type: "button", class: "adm-retry", onclick: function () { ROUT_CACHE.err = null; ROUT_CACHE.rows = null; paint(); loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, paint, 300, "Routines"); }}, "Try again"))
+          : h("div", {class: "adm-cgrid"}, [1, 2, 3, 4, 5, 6, 7, 8].map(function () { return h("div", {class: "adm-ccard adm-skel"}, h("b", null, "\u00a0"), h("div", {class: "adm-big"}, "\u00a0"), h("div", {class: "adm-track"}), h("span", null, "\u00a0")); }))));
         return;
       }
       var byCat = {};

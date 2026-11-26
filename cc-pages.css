@@ -348,3 +348,7 @@ button.adm-click:hover,button.adm-click:focus-visible{background:var(--inset)}
 .adm-run{display:grid;grid-template-columns:auto auto 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);font-size:12px}.adm-run small{color:var(--muted);overflow-wrap:anywhere}
 .adm-sub{font-size:11px;color:var(--muted)}
 @media (max-width:760px){.adm-kv{grid-template-columns:1fr;gap:2px}button.adm-click{flex-direction:column}}
+.adm-skel{pointer-events:none;background:linear-gradient(100deg,var(--inset) 30%,color-mix(in srgb,var(--inset) 60%,var(--text) 8%) 50%,var(--inset) 70%);background-size:220% 100%;animation:adm-shim 1.3s linear infinite}@keyframes adm-shim{to{background-position:-220% 0}}
+.adm-retry{all:unset;cursor:pointer;margin-top:10px;padding:6px 14px;border-radius:999px;border:1px solid var(--line);font-size:12px}.adm-retry:hover{border-color:var(--text)}
+@media (prefers-reduced-motion:reduce){.adm-skel{animation:none}}
+.adm-row,button.adm-click{flex-wrap:wrap}.adm-main{flex:1 1 150px}.adm-meta{flex:0 1 auto;max-width:100%}.adm-pill{white-space:normal}
