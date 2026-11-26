@@ -70,7 +70,14 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
    (.hp-mod-scroll) — only the page-level scroll is banned. */
 .hp-canvas{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:12px}
 .hp-canvas-body{flex:1 1 auto;min-height:0;display:grid;gap:12px}
-.hp-mod{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+/* Narrow screens: the per-category 2-column grids would squeeze two modules into ~180px each and
+   overlap their content. Below 760px the canvas stacks to one column and is allowed to scroll, with
+   each module given a workable minimum height instead of being crushed into the split row. */
+@media (max-width:760px){
+  .hp-canvas{overflow:auto}
+  .hp-canvas-body{grid-template-columns:1fr!important;grid-template-rows:none!important;grid-auto-rows:minmax(220px,auto)}
+}
+.hp-mod{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .hp-mod-scroll{overflow-y:auto}
 .hp-mod-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px;justify-content:space-between;flex:0 0 auto;margin-bottom:10px;white-space:nowrap}
 .hp-mod-title svg{width:13px;height:13px;flex:0 0 auto;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
@@ -92,7 +99,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .main{flex:1;min-width:0;padding:0 16px 20px}
 
 /* ═══════════════ TOPBAR ═══════════════ */
-.topbar{display:flex;align-items:center;gap:14px;padding:10px 16px;margin:12px 0 14px;border-radius:14px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);position:sticky;top:0;z-index:50}
+.topbar{display:flex;align-items:center;gap:14px;padding:10px 16px;margin:12px 0 14px;border-radius:14px;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);border:1px solid var(--line);position:sticky;top:0;z-index:50}
 .tb-brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .tb-mark{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;flex:0 0 auto;box-shadow:0 0 16px color-mix(in srgb,var(--accent) 50%,transparent)}
 .tb-mark svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -276,9 +283,9 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
 <link rel="stylesheet" href="cc-design.css?v=20261125.19">
-<link rel="stylesheet" href="cc-skin.css?v=20261125.19">
+<link rel="stylesheet" href="cc-skin.css?v=20261126.9">
 <link rel="stylesheet" href="cc-widgets.css?v=20261125.19">
-<link rel="stylesheet" href="cc-pages.css?v=20261126.8">
+<link rel="stylesheet" href="cc-pages.css?v=20261126.9">
 <link rel="stylesheet" href="cc-sources2.css?v=20261125.19">
 <link rel="stylesheet" href="views/views.css?v=20261125.19">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
@@ -1267,7 +1274,7 @@ function loadData(){
 <script defer src="cc-body-fig.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
-<script defer src="cc-health.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261126.9" onerror="void 0"></script>
 <script defer src="cc-categories.js?v=20261126.8" onerror="void 0"></script>
 <script defer src="cc-pages.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>

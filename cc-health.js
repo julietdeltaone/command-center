@@ -873,7 +873,7 @@
     ".hp-next{appearance:none;border:1px solid var(--line,rgba(255,255,255,.14));background:var(--inset,rgba(255,255,255,.04));color:var(--text,inherit);border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}" +
     ".hp-next:hover{border-color:var(--accent,#6bbf59);color:var(--accent,#6bbf59)}" +
     ".kt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}" +
-    ".kt{border:1px solid var(--line,rgba(255,255,255,.14));border-radius:14px;padding:14px 16px;background:var(--inset,rgba(255,255,255,.03));display:flex;flex-direction:column;gap:4px}" +
+    ".kt{border:1px solid var(--line,rgba(255,255,255,.14));border-radius:14px;padding:14px 16px;background:var(--glass-bg,rgba(255,255,255,.055));-webkit-backdrop-filter:var(--glass-blur,blur(16px) saturate(135%));backdrop-filter:var(--glass-blur,blur(16px) saturate(135%));box-shadow:var(--glass-sh);display:flex;flex-direction:column;gap:4px}" +
     ".kt.watch{border-color:rgba(230,160,60,.45)}" +
     ".kt.good{border-color:rgba(107,191,89,.4)}" +
     ".kt-l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}" +
@@ -885,9 +885,9 @@
     ".hp-data-full{padding:4px 2px;display:flex;flex-direction:column}" +
     ".hp-data-fhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap}" +
     ".hp-data-fhead h2{margin:0;font-size:20px}" +
-    ".hp-grid-wrap{overflow:auto;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;max-height:calc(100vh - 180px)}" +
+    ".hp-grid-wrap{overflow:auto;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;max-height:calc(100vh - 180px);background:var(--glass-bg,rgba(255,255,255,.055));-webkit-backdrop-filter:var(--glass-blur,blur(16px) saturate(135%));backdrop-filter:var(--glass-blur,blur(16px) saturate(135%));box-shadow:var(--glass-sh)}" +
     "table.hp-grid{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap}" +
-    "table.hp-grid thead th{position:sticky;top:0;background:var(--panel2,var(--panel,#14161c));text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;border-bottom:1px solid var(--line,rgba(255,255,255,.12));user-select:none;z-index:1}" +
+    "table.hp-grid thead th{position:sticky;top:0;background:var(--glass-solid,#14161c);text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;border-bottom:1px solid var(--line,rgba(255,255,255,.12));user-select:none;z-index:1}" +
     "table.hp-grid thead th:hover{color:var(--text,inherit)}" +
     "table.hp-grid td{padding:6px 10px;border-bottom:1px solid var(--line,rgba(255,255,255,.07))}" +
     "table.hp-grid tbody tr:hover{filter:brightness(1.25);cursor:pointer}" +
@@ -904,7 +904,7 @@
     ".hp-data-split.has-detail{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,1fr);gap:16px;align-items:start}" +
     "@media (max-width:980px){.hp-data-split.has-detail{grid-template-columns:1fr}}" +
     ".hp-data-split.has-detail .hp-grid-wrap{max-height:calc(100vh - 180px)}" +
-    ".hp-detail-wrap{position:relative;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;padding:16px;background:var(--panel2,var(--panel,#14161c));max-height:calc(100vh - 180px);overflow:auto}" +
+    ".hp-detail-wrap{position:relative;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:12px;padding:16px;background:var(--glass-bg,rgba(255,255,255,.055));-webkit-backdrop-filter:var(--glass-blur,blur(16px) saturate(135%));backdrop-filter:var(--glass-blur,blur(16px) saturate(135%));box-shadow:var(--glass-sh);max-height:calc(100vh - 180px);overflow:auto}" +
     ".hp-detail-close{position:absolute;top:10px;right:10px;appearance:none;border:1px solid var(--line);background:var(--panel,transparent);color:var(--muted);border-radius:8px;width:26px;height:26px;cursor:pointer;line-height:1}" +
     ".hp-detail-close:hover{color:var(--text);border-color:var(--ring)}" +
     ".hp-detail-h{padding-right:28px}" +

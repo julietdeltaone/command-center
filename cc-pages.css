@@ -36,7 +36,7 @@
 /* 2026-11-25 card redesign: icon + live % ring up top, name, one real line of preview data
    (CC.catSummary) instead of a plain "X% built" subtitle. Left-aligned, not centered — these
    read as information-dense tiles now, not big empty buttons. */
-.ov-cat{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:10px;padding:16px 18px;border-radius:16px;border:1px solid var(--border,rgba(255,255,255,.1));background:linear-gradient(160deg,var(--panel2),var(--panel));text-align:left;position:relative;overflow:hidden;transition:border-color .15s,transform .15s}
+.ov-cat{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:10px;padding:16px 18px;border-radius:16px;border:var(--glass-bd);background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);text-align:left;position:relative;overflow:hidden;transition:border-color .15s,transform .15s}
 .ov-cat::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c,var(--line))}
 .ov-cat:hover{border-color:var(--c,var(--accent));transform:translateY(-1px)}
 .ov-cat-top{display:flex;align-items:center;justify-content:space-between}

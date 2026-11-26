@@ -14,6 +14,13 @@
   --orb:.9; --btntext:#0b0d18;
   --font:"Manrope",-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --r:22px; --gap:18px;
+  /* ── Shared glass recipe (one source of truth for every panel). A panel reads as glass by
+     setting: background:var(--glass-bg); backdrop-filter:var(--glass-blur); border:var(--glass-bd);
+     box-shadow:var(--glass-sh). The single @supports fallback below swaps --glass-bg to an opaque
+     solid everywhere at once when backdrop-filter isn't supported. */
+  --glass-bg:rgba(255,255,255,.055); --glass-blur:blur(16px) saturate(135%);
+  --glass-bd:1px solid var(--line); --glass-sh:var(--edge),var(--shadow-1);
+  --glass-solid:#121726;
 }
 :root[data-theme="light"]{
   --bg:#dde2f5; --card:rgba(255,255,255,.82); --panel:rgba(255,255,255,.68); --panel2:rgba(255,255,255,.96);
@@ -26,8 +33,14 @@
   --shadow-1:0 18px 40px -26px rgba(24,28,60,.4); --shadow-2:0 24px 50px -24px rgba(24,28,60,.48);
   --glow:0 0 0 1px rgba(58,43,208,.45);
   --orb:.35; --btntext:#fff;
+  --glass-bg:rgba(255,255,255,.72); --glass-solid:#f3f5fd;
 }
 :root[data-theme="light"] meta{color-scheme:light}
+/* Opaque fallback for the whole site when backdrop-filter is unavailable (keeps every glass
+   panel readable with a solid surface + its 1px border, per the anti-slop rule). */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--glass-bg:var(--glass-solid)}
+}
 
 html{background:var(--bg);color-scheme:dark}
 :root[data-theme="light"]{color-scheme:light}
@@ -370,7 +383,7 @@ body:has(.wall.fit){padding-bottom:0}
 .lochead b{font-size:clamp(22px,1.9vw,30px);font-weight:300}
 .lochead span{font-size:12px;color:var(--muted)}
 .week7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;flex:1;min-height:0}
-.wd{display:flex;flex-direction:column;gap:6px;padding:8px 7px;border:1px solid var(--line);border-radius:14px;background:var(--inset);min-width:0;min-height:0;overflow:hidden}
+.wd{display:flex;flex-direction:column;gap:6px;padding:8px 7px;border:1px solid var(--line);border-radius:14px;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);min-width:0;min-height:0;overflow:hidden}
 .wd.today{border-color:rgba(143,155,255,.65);box-shadow:inset 0 0 0 1px rgba(143,155,255,.25)}
 .wd.wkend{background:color-mix(in srgb,var(--accent) 7%,var(--inset))}
 .wd.idle{opacity:.6}
