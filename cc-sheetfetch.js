@@ -143,4 +143,60 @@
       opts.onDone();
     });
   };
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Shared category registry: icons, accent colors, and a one-line live
+     summary per category. Loaded before cc-health.js/cc-categories.js (the
+     Knowledge dashboards) and cc-pages.js (the Wall), so all three can read
+     and write the same objects.
+
+     - CC.catIcon[name]  → a 24x24 stroke-icon path set, drawn by catIconSvg()
+     - CC.catColor[name] → one accent hex per category, used on the Wall tile
+       and inside that category's own dashboard for consistency
+     - CC.catSummary[name] = {line, placeholder, updatedAt} — each category's
+       dashboard calls CC.setCatSummary() once it knows its own numbers, so
+       the Wall card can show one real line of preview data instead of just
+       a name and a percentage. `placeholder` means "this category is still
+       a placeholder, not real data" — cc-build.js reads that to keep the
+       Build % honest even if the Build Status sheet hasn't caught up.
+     ═══════════════════════════════════════════════════════════════════ */
+  CC.catIcon = {
+    "Health": "M12.1 20.3c-.2 0-.4-.1-.6-.2C8.6 18.2 3 14.3 3 9.3 3 6.4 5.3 4 8.2 4c1.6 0 3.1.8 4 2 .9-1.2 2.4-2 4-2 2.9 0 5.2 2.4 5.2 5.3 0 5-5.6 8.9-8.5 10.8-.2.1-.4.2-.6.2z",
+    "Business": "M3 8.5A1.5 1.5 0 0 1 4.5 7h15A1.5 1.5 0 0 1 21 8.5v10A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5z M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7 M3 12.5h18",
+    "Social": "M21 14.5a2 2 0 0 1-2 2H8l-4 3.5V6.5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z",
+    "Finance": "M12 2v20 M17 6.5H9.8a3.3 3.3 0 0 0 0 6.6h4.4a3.3 3.3 0 0 1 0 6.6H6",
+    "Clarkson": "M12 3 2 8l10 5 10-5z M6 10.5V16c0 1.9 2.7 3.5 6 3.5s6-1.6 6-3.5v-5.5 M22 8v6",
+    "Uber / Taxi": "M5 16h14 M5 16a1.6 1.6 0 1 0 0 3.2A1.6 1.6 0 0 0 5 16z M19 16a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z M5 16l1.3-5.4A2 2 0 0 1 8.2 9h7.6a2 2 0 0 1 1.9 1.6L19 16 M4 13h16",
+    "Faith": "M12 2v11 M8.5 6h7 M6 21v-6a6 6 0 0 1 12 0v6 M4 21h16",
+    "Hub Core / Admin": "M12 2l7.5 3.5v5.3c0 4.7-3.2 8.2-7.5 10.2-4.3-2-7.5-5.5-7.5-10.2V5.5z M9 12l2.2 2.2L15.5 10",
+    "Records & Files": "M3 5h18v4H3z M4 9v10h16V9 M9.5 13h5",
+    "Local / CENTCOM": "M12 21s7-7.6 7-12.4A7 7 0 0 0 5 8.6C5 13.4 12 21 12 21z M12 11.3a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z"
+  };
+  CC.catColor = {
+    "Health": "#6bbf59", "Business": "#5b9bd5", "Social": "#d583c9", "Finance": "#e0b23e",
+    "Clarkson": "#8d6fd1", "Uber / Taxi": "#4fbfb0", "Faith": "#d98c5f",
+    "Hub Core / Admin": "#8a93a6", "Records & Files": "#5fb0d9", "Local / CENTCOM": "#c96a6a"
+  };
+  CC.catIconSvg = function (name, size) {
+    var d = CC.catIcon[name];
+    if (!d) return null;
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 24 24");
+    s.setAttribute("width", size || 18); s.setAttribute("height", size || 18);
+    var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d);
+    p.setAttribute("fill", "none"); p.setAttribute("stroke", "currentColor");
+    p.setAttribute("stroke-width", "1.8"); p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round");
+    s.appendChild(p);
+    return s;
+  };
+
+  CC.catSummary = CC.catSummary || {};
+  CC.setCatSummary = function (name, line, placeholder) {
+    CC.catSummary[name] = {line: line, placeholder: !!placeholder, updatedAt: Date.now()};
+  };
+  /* Known-placeholder categories as of 2026-11-25, used as a fallback by the stricter Build %
+     rule (cc-build.js) before the category's own dashboard has run once this session and
+     reported a live CC.catSummary. Once a dashboard runs, its own live signal takes over. */
+  CC.catPlaceholderDefault = {"Faith": true, "Local / CENTCOM": true};
 })();

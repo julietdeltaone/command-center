@@ -215,6 +215,28 @@
      cc-health.js) once one exists; until then it still falls through to Build's drill-down so
      there's always something to click. Do not merge this back into always-go("build") — that's
      the behavior JD specifically asked to end. */
+  /* % ring — a small SVG arc instead of plain text, colored by state. */
+  function pctRing(pct, color) {
+    var r = 15, c = 2 * Math.PI * r;
+    var svgNS = "http://www.w3.org/2000/svg";
+    var s = document.createElementNS(svgNS, "svg");
+    s.setAttribute("viewBox", "0 0 36 36"); s.setAttribute("width", "36"); s.setAttribute("height", "36");
+    s.setAttribute("class", "ov-cat-ring");
+    var track = document.createElementNS(svgNS, "circle");
+    track.setAttribute("cx", "18"); track.setAttribute("cy", "18"); track.setAttribute("r", r);
+    track.setAttribute("fill", "none"); track.setAttribute("stroke", "rgba(255,255,255,.08)"); track.setAttribute("stroke-width", "3");
+    var arc = document.createElementNS(svgNS, "circle");
+    arc.setAttribute("cx", "18"); arc.setAttribute("cy", "18"); arc.setAttribute("r", r);
+    arc.setAttribute("fill", "none"); arc.setAttribute("stroke", color); arc.setAttribute("stroke-width", "3");
+    arc.setAttribute("stroke-linecap", "round");
+    arc.setAttribute("stroke-dasharray", c.toFixed(1));
+    arc.setAttribute("stroke-dashoffset", (c * (1 - Math.max(0, Math.min(100, pct)) / 100)).toFixed(1));
+    arc.setAttribute("transform", "rotate(-90 18 18)");
+    s.appendChild(track); s.appendChild(arc);
+    var txt = h("span", {class: "ov-cat-pct"}, pct + "%");
+    return h("div", {class: "ov-cat-ringwrap"}, s, txt);
+  }
+
   CC.views.Wall = function (api) {
     var page = h("div", {class: "ov ov-onlycats"});
     var cats = h("div", {class: "ov-catgrid", role: "group", "aria-label": "Top categories"});
@@ -227,12 +249,26 @@
           if (realPage) { api.go(realPage); return; }
           BS.open(g.name); api.go("build");
         }
+        var color = (CC.catColor && CC.catColor[g.name]) || "var(--accent)";
+        var icon = CC.catIconSvg ? CC.catIconSvg(g.name, 20) : null;
+        var iconBadge = h("div", {class: "ov-cat-icon", style: "--c:" + color}, icon);
+
         if (!BS.ready()) {
-          cats.appendChild(h("button", {type: "button", class: "ov-cat", onclick: openCat}, h("b", null, g.name), h("small", null, BS.error() || "Loading…")));
+          cats.appendChild(h("button", {type: "button", class: "ov-cat", onclick: openCat},
+            h("div", {class: "ov-cat-top"}, iconBadge),
+            h("div", {class: "ov-cat-name"}, g.name),
+            h("div", {class: "ov-cat-sub"}, BS.error() || "Loading…")));
           return;
         }
         var st = BS.laneStatus(g);
-        cats.appendChild(h("button", {type: "button", class: "ov-cat ov-cat-" + st.state, onclick: openCat}, h("b", null, g.name), h("small", null, st.pct + "% built")));
+        var summary = CC.catSummary && CC.catSummary[g.name];
+        var subLine = summary ? summary.line : (st.state === "none" ? "Not started yet" : "Tap to open");
+        if (summary && summary.placeholder) subLine += " · placeholder";
+
+        cats.appendChild(h("button", {type: "button", class: "ov-cat ov-cat-" + st.state, onclick: openCat},
+          h("div", {class: "ov-cat-top"}, iconBadge, pctRing(st.pct, color)),
+          h("div", {class: "ov-cat-name"}, g.name),
+          h("div", {class: "ov-cat-sub"}, subLine)));
       });
     }
     page.appendChild(cats);

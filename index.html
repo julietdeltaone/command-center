@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261125.15
-     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.18"
+     BUILD VERSION — single source of truth: 20261125.19
+     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.19"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
      Browsers and GitHub Pages' CDN cache by the exact URL including the
@@ -57,7 +57,27 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .shell{display:flex;height:100vh;overflow:hidden}
 .main{display:flex;flex-direction:column;min-height:0}
 .topbar{flex:0 0 auto}
-#app{flex:1;min-height:0;overflow:auto}
+/* #app is a flex column now (was a plain block with overflow:auto): the crumb bar stays its
+   natural size (flex:0 0 auto below) and whatever CC.views returns gets the rest. A view that
+   doesn't opt in just renders at its natural height like before — nothing here forces anything
+   to stretch. A view that DOES opt in (.hp-canvas, see below) gets flex:1 and can therefore fill
+   "exactly what's left after the crumb" without any hardcoded pixel math, and clips instead of
+   pushing #app's own scrollbar. */
+#app{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+/* Full-screen "Knowledge" dashboard canvas — the category landing page, one click off the Wall.
+   JD's rule: from the moment you land here, the whole screen is a canvas of modules, and it
+   never scrolls as a page. Any one module with a long list scrolls internally instead
+   (.hp-mod-scroll) — only the page-level scroll is banned. */
+.hp-canvas{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:12px}
+.hp-canvas-body{flex:1 1 auto;min-height:0;display:grid;gap:12px}
+.hp-mod{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.hp-mod-scroll{overflow-y:auto}
+.hp-mod-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px;justify-content:space-between;flex:0 0 auto;margin-bottom:10px;white-space:nowrap}
+.hp-mod-title svg{width:13px;height:13px;flex:0 0 auto;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.hp-mod-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.hp-mod-ph{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:12px;line-height:1.5;border:1.5px dashed var(--line);border-radius:10px;padding:14px;gap:4px}
+.hp-mod-ph b{color:var(--text);font-size:12.5px;font-weight:700}
+.crumb{flex:0 0 auto}
 .rail{width:52px;min-height:100vh;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:10px 0 6px;position:fixed;top:0;left:0;z-index:100}
 .rail-logo{width:26px;height:26px;border-radius:7px;background:var(--accent);display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;margin-bottom:12px}
 .rail-tabs{display:flex;flex-direction:column;gap:1px;flex:1}
@@ -255,12 +275,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261125.18">
-<link rel="stylesheet" href="cc-skin.css?v=20261125.18">
-<link rel="stylesheet" href="cc-widgets.css?v=20261125.18">
-<link rel="stylesheet" href="cc-pages.css?v=20261125.18">
-<link rel="stylesheet" href="cc-sources2.css?v=20261125.18">
-<link rel="stylesheet" href="views/views.css?v=20261125.18">
+<link rel="stylesheet" href="cc-design.css?v=20261125.19">
+<link rel="stylesheet" href="cc-skin.css?v=20261125.19">
+<link rel="stylesheet" href="cc-widgets.css?v=20261125.19">
+<link rel="stylesheet" href="cc-pages.css?v=20261125.19">
+<link rel="stylesheet" href="cc-sources2.css?v=20261125.19">
+<link rel="stylesheet" href="views/views.css?v=20261125.19">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -276,7 +296,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
       <h1>Command Center</h1>
     </div>
     <div class="tb-status">
-      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.18</span>
+      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.19</span>
       <span class="live off" id="live-ind">Offline</span>
       <span class="refreshed" id="refreshed"></span>
       <span class="sample-tag" id="stag" hidden>SAMPLE</span>
@@ -297,7 +317,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261125.15"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261125.19"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -1219,35 +1239,35 @@ function loadData(){
      before any of them touch the page) but lets the browser fetch all 18 files in parallel
      instead of one at a time, which used to be a big chunk of the time before the page became
      interactive. -->
-<script defer src="cc-sheetfetch.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-fresh.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-inbox.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-motion.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-sheetfetch.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-fresh.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-inbox.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-motion.js?v=20261125.19" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script defer src="views/timeline.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="views/system.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="views/shooting.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-widgets.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-nurture.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-crm.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-active.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-sources2.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-map.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-records.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-sheets.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-build.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="views/timeline.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="views/system.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="views/shooting.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-widgets.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-nurture.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-crm.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-active.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-sources2.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-map.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-records.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-sheets.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-build.js?v=20261125.19" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script defer src="cc-body.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-health.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-pages.js?v=20261125.18" onerror="void 0"></script>
-<script defer src="cc-know.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-body.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-pages.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
 </body>
 </html>

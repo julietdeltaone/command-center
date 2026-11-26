@@ -33,10 +33,20 @@
 .ov-catgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:14px}
 @media (max-width:1400px){.ov-catgrid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,1fr)}}
 @media (max-width:760px){.ov-catgrid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(5,1fr)}}
-.ov-cat{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;padding:16px;border-radius:16px;border:1px solid var(--border,rgba(255,255,255,.12));border-left:4px solid var(--line);background:var(--card,rgba(255,255,255,.03));text-align:center}
-.ov-cat:hover{border-color:var(--accent)}
-.ov-cat b{display:block;font-size:18px;color:var(--text);font-weight:700}.ov-cat small{display:block;font-size:13px;color:var(--muted)}
-.ov-cat-live{border-left-color:var(--green)}.ov-cat-partial{border-left-color:var(--amber)}.ov-cat-none{border-left-color:var(--red)}
+/* 2026-11-25 card redesign: icon + live % ring up top, name, one real line of preview data
+   (CC.catSummary) instead of a plain "X% built" subtitle. Left-aligned, not centered — these
+   read as information-dense tiles now, not big empty buttons. */
+.ov-cat{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:10px;padding:16px 18px;border-radius:16px;border:1px solid var(--border,rgba(255,255,255,.1));background:linear-gradient(160deg,var(--panel2),var(--panel));text-align:left;position:relative;overflow:hidden;transition:border-color .15s,transform .15s}
+.ov-cat::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c,var(--line))}
+.ov-cat:hover{border-color:var(--c,var(--accent));transform:translateY(-1px)}
+.ov-cat-top{display:flex;align-items:center;justify-content:space-between}
+.ov-cat-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c);flex:0 0 auto}
+.ov-cat-icon svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ov-cat-ringwrap{position:relative;width:36px;height:36px;flex:0 0 auto;display:grid;place-items:center}
+.ov-cat-pct{position:absolute;font-size:9.5px;font-weight:700;font-family:var(--mono);color:var(--text)}
+.ov-cat-name{font-size:17px;color:var(--text);font-weight:700;letter-spacing:-.01em;margin-top:2px}
+.ov-cat-sub{font-size:12px;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ov-cat-live::before{background:var(--green)}.ov-cat-partial::before{background:var(--amber)}.ov-cat-none::before{background:var(--red)}
 .jwrap .ltab{max-width:none;width:100%}
 .jwrap .jringw svg{width:84px;height:84px}
 .jwrap .jtop .shm.big b{font-size:26px}

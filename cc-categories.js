@@ -70,6 +70,24 @@
       h("button", {type: "button", class: "hp-next", onclick: function () { api.go(pageId + "-data"); }}, "Information →"));
   }
 
+  /* ───────── full-screen canvas: one .hp-canvas-body grid of .hp-mod boxes, no page scroll ─────────
+     2026-11-25, JD's call: every category's Knowledge dashboard fills the whole screen as a fixed
+     grid of modules instead of a stack of cards that happens to fit (or doesn't). A module with a
+     real list scrolls internally if it runs long; the page itself never does. `cols`/`rows` are
+     the grid-template-columns/rows string for this category's layout (how many modules, what
+     shape) — kept per-category since each one's content calls for a different split. */
+  function canvasBody(cols, rows, mods) {
+    return h("div", {class: "hp-canvas-body", style: "grid-template-columns:" + cols + ";grid-template-rows:" + rows}, mods);
+  }
+  function mod(titleText, icon, right, body, scrollable) {
+    return h("div", {class: "hp-mod"},
+      h("div", {class: "hp-mod-title"}, h("span", null, icon ? [icon, " "] : null, titleText), right || null),
+      h("div", {class: "hp-mod-body" + (scrollable === false ? "" : " hp-mod-scroll")}, body));
+  }
+  function modPlaceholder(lead, detail) {
+    return h("div", {class: "hp-mod-ph"}, h("b", null, lead), detail ? h("span", null, detail) : null);
+  }
+
   /* ───────── stat tile builder ───────── */
   function tile(label, value, sub, cls) {
     return h("div", {class: "kt" + (cls ? " " + cls : "")},
@@ -206,22 +224,25 @@
   var BIZ_LEADS_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.Business = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Business", "business", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.1fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     /* Pull leads data for dashboard stats */
     function paint() {
-      var tilesDiv = page.querySelector(".kt-grid");
-      if (tilesDiv) tilesDiv.remove();
-
       var tiles = [];
 
       /* CRM data from cc-active.js's CC.crm/CC.nurture if available */
+      var activeN = null, revenue = null;
       if (CC.crm && CC.crm.list) {
         var led = CC.crm.list(api);
         var active = led.filter(function (p) { return !p.cancelled && !p.fulfilled; });
         var owed = led.filter(function (p) { return p.fulfilled && !/delivered/i.test(String(p.delivery || "")); });
-        var revenue = led.reduce(function (s, p) { return s + (p.total || 0); }, 0);
+        revenue = led.reduce(function (s, p) { return s + (p.total || 0); }, 0);
+        activeN = active.length;
         tiles.push(tile("Active Projects", active.length, active.length === 1 ? "project in progress" : "projects in progress"));
         tiles.push(tile("Revenue", fmtMoney(revenue), "total from ledger"));
         tiles.push(tile("Awaiting Delivery", owed.length, owed.length === 1 ? "project" : "projects"));
@@ -230,6 +251,7 @@
       }
 
       /* Leads from ad-lead-log */
+      var leadsN = null;
       if (BIZ_LEADS_CACHE.rows) {
         var now = Date.now(), DAY = 86400000;
         var recent = BIZ_LEADS_CACHE.rows.filter(function (r) {
@@ -241,6 +263,7 @@
           var iMatch = col(BIZ_LEADS_CACHE.header, "Square matched");
           return iMatch != null && r[iMatch] && /^y/i.test(String(r[iMatch]));
         });
+        leadsN = recent.length;
         tiles.push(tile("Leads (30d)", recent.length, "from ad-lead-log"));
         tiles.push(tile("Conversions", matched.length, "Square matched total", matched.length > 0 ? "good" : ""));
       } else if (BIZ_LEADS_CACHE.err) {
@@ -255,19 +278,41 @@
         tiles.push(tile("Pipeline", nur.length, nur.length === 1 ? "lead in nurture" : "leads in nurture"));
       }
 
-      page.appendChild(tileGrid(tiles));
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
+
+      /* Recent leads module */
+      var leadsBody;
+      if (BIZ_LEADS_CACHE.rows && BIZ_LEADS_CACHE.rows.length) {
+        var hdr = BIZ_LEADS_CACHE.header;
+        var iD = col(hdr, "Date"), iN = col(hdr, "Name"), iSv = col(hdr, "Service");
+        var rows = BIZ_LEADS_CACHE.rows.slice(-12).reverse();
+        leadsBody = h("div", {class: "cat-feed"}, rows.map(function (r) {
+          return h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-user"}, iN != null ? fmtCell(r[iN]) : "—"),
+            h("span", {class: "cat-feed-name"}, iSv != null ? fmtCell(r[iSv]) : ""),
+            h("span", {class: "cat-feed-time"}, iD != null ? ago(ms(r[iD])) : ""));
+        }));
+      } else if (BIZ_LEADS_CACHE.err) {
+        leadsBody = modPlaceholder("Couldn't load leads", BIZ_LEADS_CACHE.err);
+      } else {
+        leadsBody = modPlaceholder(readingText("Leads", BIZ_LEADS_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Recent Leads", null, null, leadsBody));
+      body.appendChild(mod("Competitor Pulse", null, null,
+        modPlaceholder("Business Pulse not connected yet", "Top 3 movers, follower changes, and market shifts will land here.")));
+
+      if (CC.setCatSummary) {
+        var line = leadsN != null ? leadsN + " lead" + (leadsN === 1 ? "" : "s") + " in the last 30 days" + (activeN != null ? " · " + activeN + " active project" + (activeN === 1 ? "" : "s") : "") : "Loading leads…";
+        CC.setCatSummary("Business", line, false);
+      }
     }
     paint();
 
     /* Load leads async */
     if (!BIZ_LEADS_CACHE.rows && !BIZ_LEADS_CACHE.err)
       loadSheet(BIZ_ADLEAD, "0", api, BIZ_LEADS_CACHE, paint, 2000, "Leads");
-
-    /* Competitor pulse placeholder */
-    var pulse = h("div", {class: "cat-section"},
-      h("h3", {class: "cat-sec-title"}, "🏢 Competitor Pulse"),
-      h("div", {class: "cat-placeholder"}, "Business Pulse data syncs here — top 3 movers, follower changes, and market shifts."));
-    page.appendChild(pulse);
 
     return page;
   };
@@ -299,23 +344,23 @@
   var SOC_EXPORTS_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.Social = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Social", "social", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.3fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     function paint() {
-      var old = page.querySelector(".kt-grid");
-      if (old) old.remove();
-      var old2 = page.querySelector(".cat-recent-list");
-      if (old2) old2.remove();
-
       var tiles = [];
+      var followers = null, unfRecent = null;
 
       if (SOC_EXPORTS_CACHE.rows && SOC_EXPORTS_CACHE.rows.length) {
         var hdr = SOC_EXPORTS_CACHE.header;
-        var iFollow = col(hdr, "Followers"), iFollowing = col(hdr, "Following"), iUnf = col(hdr, "Recently unfollowed"), iDate = col(hdr, "Date");
+        var iFollow = col(hdr, "Followers"), iFollowing = col(hdr, "Following"), iUnf = col(hdr, "Recently unfollowed");
         var latest = SOC_EXPORTS_CACHE.rows[SOC_EXPORTS_CACHE.rows.length - 1];
         var prev = SOC_EXPORTS_CACHE.rows.length > 1 ? SOC_EXPORTS_CACHE.rows[SOC_EXPORTS_CACHE.rows.length - 2] : null;
-        var followers = iFollow != null ? numAt(latest, iFollow) : null;
+        followers = iFollow != null ? numAt(latest, iFollow) : null;
         var following = iFollowing != null ? numAt(latest, iFollowing) : null;
         var unfollowed = iUnf != null ? numAt(latest, iUnf) : null;
         var prevFollowers = prev && iFollow != null ? numAt(prev, iFollow) : null;
@@ -330,31 +375,44 @@
       /* Unfollower alerts from Social Data sheet */
       if (SOC_UNFOLLOWERS_CACHE.rows) {
         var uhdr = SOC_UNFOLLOWERS_CACHE.header;
-        var iDate2 = col(uhdr, "date_detected"), iPlat = col(uhdr, "platform"), iUser = col(uhdr, "username");
+        var iDate2 = col(uhdr, "date_detected");
         var recent = SOC_UNFOLLOWERS_CACHE.rows.filter(function (r) {
           var t = iDate2 != null ? ms(r[iDate2]) : null;
           return t && (Date.now() - t) < 7 * 86400000;
         });
+        unfRecent = recent.length;
         tiles.push(tile("Unfollows (7d)", recent.length, recent.length === 1 ? "account" : "accounts", recent.length > 3 ? "watch" : ""));
       }
 
-      page.appendChild(tileGrid(tiles));
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
       /* Recent unfollowers list */
+      var feedBody;
       if (SOC_UNFOLLOWERS_CACHE.rows && SOC_UNFOLLOWERS_CACHE.rows.length) {
         var uhdr2 = SOC_UNFOLLOWERS_CACHE.header;
         var iDate3 = col(uhdr2, "date_detected"), iUser2 = col(uhdr2, "username"), iPlat2 = col(uhdr2, "platform"), iName = col(uhdr2, "name");
         var recents = SOC_UNFOLLOWERS_CACHE.rows.slice(-15).reverse();
-        var list = h("div", {class: "cat-recent-list"},
-          h("h3", {class: "cat-sec-title"}, "Recent Activity"),
-          h("div", {class: "cat-feed"}, recents.map(function (r) {
-            return h("div", {class: "cat-feed-item"},
-              h("span", {class: "cat-feed-user"}, iUser2 != null ? "@" + r[iUser2] : "?"),
-              h("span", {class: "cat-feed-platform"}, iPlat2 != null ? r[iPlat2] : ""),
-              iName != null && r[iName] ? h("span", {class: "cat-feed-name"}, r[iName]) : null,
-              h("span", {class: "cat-feed-time"}, iDate3 != null ? ago(ms(r[iDate3])) : ""));
-          })));
-        page.appendChild(list);
+        feedBody = h("div", {class: "cat-feed"}, recents.map(function (r) {
+          return h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-user"}, iUser2 != null ? "@" + r[iUser2] : "?"),
+            h("span", {class: "cat-feed-platform"}, iPlat2 != null ? r[iPlat2] : ""),
+            iName != null && r[iName] ? h("span", {class: "cat-feed-name"}, r[iName]) : null,
+            h("span", {class: "cat-feed-time"}, iDate3 != null ? ago(ms(r[iDate3])) : ""));
+        }));
+      } else if (SOC_UNFOLLOWERS_CACHE.err) {
+        feedBody = modPlaceholder("Couldn't load unfollower alerts", SOC_UNFOLLOWERS_CACHE.err);
+      } else {
+        feedBody = modPlaceholder(readingText("unfollower alerts", SOC_UNFOLLOWERS_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Recent Activity", null, null, feedBody));
+      body.appendChild(mod("Platform Mix", null, null,
+        modPlaceholder("Single-platform for now", "Instagram only. TikTok, Facebook and X breakdowns land here once those exports are wired in.")));
+
+      if (CC.setCatSummary) {
+        var line = followers != null ? followers.toLocaleString() + " IG followers" + (unfRecent != null ? " · " + unfRecent + " unfollow" + (unfRecent === 1 ? "" : "s") + " this week" : "") : "Loading Instagram export…";
+        CC.setCatSummary("Social", line, false);
       }
     }
     paint();
@@ -387,22 +445,30 @@
   var FIN_CACHE = {rows: null, header: null, err: null, loading: false};
   var FIN_KEEPER_CACHE = {rows: null, header: null, err: null, loading: false};
 
+  /* 2026-11-25, JD's call: this used to read as two separate things bolted together — a row of
+     money tiles, then a "Last Keeper Run" tile mixed anonymously into the same grid with nothing
+     saying what it was. One Knowledge dashboard, clearly: money tiles up top, then two labeled
+     modules below — Recent Transactions (the ledger) and Automation (the Keeper run that feeds
+     it), each its own box so it's obvious they're two FACETS of one dashboard, not two dashboards. */
   CC.views.Finance = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Finance", "finance", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.3fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     function paint() {
-      var old = page.querySelector(".kt-grid");
-      if (old) old.remove();
-
       var tiles = [];
+      var total30 = null, count30 = null;
 
       if (FIN_CACHE.rows) {
         var hdr = FIN_CACHE.header;
         var iAmt = col(hdr, "amount"), iDate = col(hdr, "date"), iMerch = col(hdr, "merchant");
         var now = Date.now(), DAY = 86400000;
         var last30 = FIN_CACHE.rows.filter(function (r) { var t = iDate != null ? ms(r[iDate]) : null; return t && (now - t) < 30 * DAY; });
-        var total30 = last30.reduce(function (s, r) { var v = iAmt != null ? numAt(r, iAmt) : 0; return s + (v || 0); }, 0);
+        total30 = last30.reduce(function (s, r) { var v = iAmt != null ? numAt(r, iAmt) : 0; return s + (v || 0); }, 0);
+        count30 = last30.length;
         var merchants30 = {};
         last30.forEach(function (r) { var m = iMerch != null ? r[iMerch] : "?"; merchants30[m] = (merchants30[m] || 0) + 1; });
         var topMerchant = Object.keys(merchants30).sort(function (a, b) { return merchants30[b] - merchants30[a]; })[0] || "—";
@@ -416,15 +482,52 @@
       } else {
         tiles.push(tile("Transactions", "…", "loading"));
       }
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      if (FIN_KEEPER_CACHE.rows) {
-        var khdr = FIN_KEEPER_CACHE.header;
-        var latest = FIN_KEEPER_CACHE.rows[FIN_KEEPER_CACHE.rows.length - 1];
-        var iTime = col(khdr, "run_time"), iNote = col(khdr, "notes");
-        tiles.push(tile("Last Keeper Run", latest && iTime != null ? ago(ms(latest[iTime])) : "—", latest && iNote != null ? fmtCell(latest[iNote]).slice(0, 40) : ""));
+      /* Recent Transactions module */
+      var txBody;
+      if (FIN_CACHE.rows && FIN_CACHE.rows.length) {
+        var thdr = FIN_CACHE.header;
+        var iD = col(thdr, "date"), iA = col(thdr, "amount"), iM = col(thdr, "merchant");
+        var rows = FIN_CACHE.rows.slice(-14).reverse();
+        txBody = h("div", {class: "cat-feed"}, rows.map(function (r) {
+          var amt = iA != null ? numAt(r, iA) : null;
+          return h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-user"}, iM != null ? fmtCell(r[iM]) : "—"),
+            h("span", {class: "cat-feed-name"}, amt != null ? fmtMoney(amt) : ""),
+            h("span", {class: "cat-feed-time"}, iD != null ? fmtDate(r[iD]) : ""));
+        }));
+      } else if (FIN_CACHE.err) {
+        txBody = modPlaceholder("Couldn't load transactions", FIN_CACHE.err);
+      } else {
+        txBody = modPlaceholder(readingText("transactions", FIN_CACHE));
       }
 
-      page.appendChild(tileGrid(tiles));
+      /* Automation module — Keeper run status, its own clearly-labeled box */
+      var autoBody;
+      if (FIN_KEEPER_CACHE.rows && FIN_KEEPER_CACHE.rows.length) {
+        var khdr = FIN_KEEPER_CACHE.header;
+        var iTime = col(khdr, "run_time"), iNote = col(khdr, "notes");
+        var latest = FIN_KEEPER_CACHE.rows[FIN_KEEPER_CACHE.rows.length - 1];
+        autoBody = h("div", {class: "cat-feed"},
+          h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-user"}, "Keeper run"),
+            h("span", {class: "cat-feed-name"}, iNote != null ? fmtCell(latest[iNote]).slice(0, 60) : ""),
+            h("span", {class: "cat-feed-time"}, iTime != null ? ago(ms(latest[iTime])) : "—")));
+      } else if (FIN_KEEPER_CACHE.err) {
+        autoBody = modPlaceholder("Couldn't load Keeper runs", FIN_KEEPER_CACHE.err);
+      } else {
+        autoBody = modPlaceholder(readingText("Keeper runs", FIN_KEEPER_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Recent Transactions", null, null, txBody));
+      body.appendChild(mod("Automation", null, null, autoBody));
+
+      if (CC.setCatSummary) {
+        var line = total30 != null ? fmtMoney(total30) + " over " + count30 + " transaction" + (count30 === 1 ? "" : "s") + " (30d)" : "Loading transactions…";
+        CC.setCatSummary("Finance", line, false);
+      }
     }
     paint();
 
@@ -461,15 +564,14 @@
   var CLK_SCHEDULE_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.Clarkson = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Clarkson", "clarkson", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.2fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     function paint() {
-      var old = page.querySelector(".kt-grid");
-      if (old) old.remove();
-      var old2 = page.querySelector(".cat-section");
-      if (old2) old2.remove();
-
       var tiles = [];
 
       /* Overview items as stat tiles */
@@ -487,10 +589,10 @@
       } else {
         tiles.push(tile("Clarkson", "…", "loading overview"));
       }
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      page.appendChild(tileGrid(tiles));
-
-      /* Upcoming events */
+      /* Upcoming events module */
+      var evBody, upcomingN = null;
       if (CLK_EVENTS_CACHE.rows) {
         var ehdr = CLK_EVENTS_CACHE.header;
         var iEvDate = col(ehdr, "date"), iEvTime = col(ehdr, "time"), iEvName = col(ehdr, "event");
@@ -498,18 +600,27 @@
         var upcoming = CLK_EVENTS_CACHE.rows.filter(function (r) {
           var t = iEvDate != null ? ms(r[iEvDate]) : null;
           return t && t >= now - 86400000;
-        }).slice(0, 8);
-        if (upcoming.length) {
-          var sec = h("div", {class: "cat-section"},
-            h("h3", {class: "cat-sec-title"}, "📅 Upcoming Events"),
-            h("div", {class: "cat-feed"}, upcoming.map(function (r) {
-              return h("div", {class: "cat-feed-item"},
-                h("span", {class: "cat-feed-user"}, iEvDate != null ? fmtDate(r[iEvDate]) : ""),
-                h("span", {class: "cat-feed-platform"}, iEvTime != null ? fmtCell(r[iEvTime]) : ""),
-                h("span", {class: "cat-feed-name"}, iEvName != null ? fmtCell(r[iEvName]) : ""));
-            })));
-          page.appendChild(sec);
-        }
+        }).slice(0, 10);
+        upcomingN = upcoming.length;
+        evBody = upcoming.length ? h("div", {class: "cat-feed"}, upcoming.map(function (r) {
+          return h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-user"}, iEvDate != null ? fmtDate(r[iEvDate]) : ""),
+            h("span", {class: "cat-feed-platform"}, iEvTime != null ? fmtCell(r[iEvTime]) : ""),
+            h("span", {class: "cat-feed-name"}, iEvName != null ? fmtCell(r[iEvName]) : ""));
+        })) : modPlaceholder("Nothing on the calendar", "Upcoming Clarkson events will show here.");
+      } else if (CLK_EVENTS_CACHE.err) {
+        evBody = modPlaceholder("Couldn't load events", CLK_EVENTS_CACHE.err);
+      } else {
+        evBody = modPlaceholder(readingText("events", CLK_EVENTS_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Upcoming Events", null, null, evBody));
+      body.appendChild(mod("Faculty Tasks", null, null,
+        modPlaceholder("Queue, Due and Waiting not surfaced here yet", "Those tabs are already in Information → — a live snapshot of open items lands here next.")));
+
+      if (CC.setCatSummary) {
+        CC.setCatSummary("Clarkson", upcomingN != null ? upcomingN + " upcoming event" + (upcomingN === 1 ? "" : "s") : "Loading overview…", false);
       }
     }
     paint();
@@ -544,42 +655,66 @@
   var TAXI_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.UberTaxi = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Uber / Taxi", "ubertaxi", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.2fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     function paint() {
-      var old = page.querySelector(".kt-grid");
-      if (old) old.remove();
-
       var tiles = [];
+      var tripsN = null, earnings = null;
+      var iDate = null, iKind = null, iAmt = null;
       if (TAXI_CACHE.rows) {
         var hdr = TAXI_CACHE.header;
-        var iAmt = col(hdr, "amount"), iDate = col(hdr, "event_time"), iKind = col(hdr, "kind");
+        iAmt = col(hdr, "amount"); iDate = col(hdr, "event_time"); iKind = col(hdr, "kind");
         var now = Date.now(), DAY = 86400000;
         var last30 = TAXI_CACHE.rows.filter(function (r) { var t = iDate != null ? ms(r[iDate]) : null; return t && (now - t) < 30 * DAY; });
-        var totalEarnings = last30.reduce(function (s, r) { var v = iAmt != null ? numAt(r, iAmt) : 0; return s + (v || 0); }, 0);
+        earnings = last30.reduce(function (s, r) { var v = iAmt != null ? numAt(r, iAmt) : 0; return s + (v || 0); }, 0);
         var trips = last30.filter(function (r) { return iKind != null && /trip|ride/i.test(String(r[iKind])); });
+        tripsN = trips.length || last30.length;
 
-        tiles.push(tile("Trips (30d)", trips.length || last30.length, "recorded rides"));
-        tiles.push(tile("Earnings (30d)", fmtMoney(totalEarnings), "from rides"));
+        tiles.push(tile("Trips (30d)", tripsN, "recorded rides"));
+        tiles.push(tile("Earnings (30d)", fmtMoney(earnings), "from rides"));
         tiles.push(tile("All Time Rows", TAXI_CACHE.rows.length.toLocaleString(), "total records"));
       } else if (TAXI_CACHE.err) {
         tiles.push(tile("Uber / Taxi", "!", TAXI_CACHE.err, "watch"));
       } else {
         tiles.push(tile("Uber / Taxi", "…", "loading"));
       }
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      page.appendChild(tileGrid(tiles));
+      var tripsBody;
+      if (TAXI_CACHE.rows && TAXI_CACHE.rows.length) {
+        var rows = TAXI_CACHE.rows.slice(-12).reverse();
+        tripsBody = h("div", {class: "cat-feed"}, rows.map(function (r) {
+          var amt = iAmt != null ? numAt(r, iAmt) : null;
+          return h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-user"}, iKind != null ? fmtCell(r[iKind]) : "—"),
+            h("span", {class: "cat-feed-name"}, amt != null ? fmtMoney(amt) : ""),
+            h("span", {class: "cat-feed-time"}, iDate != null ? ago(ms(r[iDate])) : ""));
+        }));
+      } else if (TAXI_CACHE.err) {
+        tripsBody = modPlaceholder("Couldn't load trips", TAXI_CACHE.err);
+      } else {
+        tripsBody = modPlaceholder(readingText("trips", TAXI_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Recent Trips", null, null, tripsBody));
+      body.appendChild(mod("Square Reports", null, null,
+        modPlaceholder("Not connected yet", "Square income reports — daily totals, fees, payout schedule — will appear here once linked.")));
+
+      if (CC.setCatSummary) {
+        var line = tripsN != null ? tripsN + " trip" + (tripsN === 1 ? "" : "s") + " · " + fmtMoney(earnings) + " (30d)" : "Loading trip history…";
+        CC.setCatSummary("Uber / Taxi", line, false);
+      }
     }
     paint();
 
     if (!TAXI_CACHE.rows && !TAXI_CACHE.err)
       loadSheet(TAXI_DATA, "0", api, TAXI_CACHE, paint, 2000, "Taxi Raw");
-
-    /* Square reports placeholder */
-    page.appendChild(h("div", {class: "cat-section"},
-      h("h3", {class: "cat-sec-title"}, "💳 Square Reports"),
-      h("div", {class: "cat-placeholder"}, "Square income reports will appear here when connected.")));
 
     return page;
   };
@@ -605,29 +740,26 @@
      otherwise show a polished placeholder dashboard */
 
   CC.views.Faith = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Faith", "faith", api));
 
     var tiles = [];
-    /* Try to get faith-related items from CC data */
     var items = (api.data && api.data.items || []).filter(function (i) { return i.tab === "Faith"; });
-    if (items.length) {
-      tiles.push(tile("Items Tracked", items.length, "faith-related items"));
-    }
-
+    if (items.length) tiles.push(tile("Items Tracked", items.length, "faith-related items"));
     tiles.push(tile("Sermons", "—", "connect a faith sheet to track"));
     tiles.push(tile("Bible Study", "—", "sessions this month"));
     tiles.push(tile("Prayer Journal", "—", "entries this week"));
+    page.appendChild(h("div", {class: "hp-tilesbar"}, tileGrid(tiles)));
 
-    page.appendChild(tileGrid(tiles));
+    var body = canvasBody("1fr 1fr", "1fr", [
+      mod("Sermon Tracking", null, null, modPlaceholder("No sheet connected yet",
+        "Date, topic, speaker and scripture references will list here once a Faith sheet exists — see Information → for the column plan.")),
+      mod("Prayer & Study", null, null, modPlaceholder("No sheet connected yet",
+        "Bible study sessions and prayer journal entries will show here once connected."))
+    ]);
+    page.appendChild(body);
 
-    /* Inspirational section */
-    page.appendChild(h("div", {class: "cat-section cat-faith-section"},
-      h("h3", {class: "cat-sec-title"}, "✝ Faith Dashboard"),
-      h("div", {class: "cat-placeholder cat-faith-msg"},
-        "Track sermons, Bible study sessions, prayer journal entries, and spiritual growth.",
-        h("br"), h("br"),
-        "Connect a Faith data sheet to populate this dashboard with sermon dates, topics, and notes.")));
+    if (CC.setCatSummary) CC.setCatSummary("Faith", "Waiting on a Faith data sheet", true);
 
     return page;
   };
@@ -650,25 +782,26 @@
   var ROUTINES_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.HubCoreAdmin = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Hub Core / Admin", "admin", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.4fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     function paint() {
-      var old = page.querySelector(".kt-grid");
-      if (old) old.remove();
-      var old2 = page.querySelector(".cat-routines");
-      if (old2) old2.remove();
-
       var tiles = [];
+      var total = null, healthy = null, stale = null;
+      var iR, iC, iLR, iLS;
 
       if (ROUTINES_CACHE.rows) {
         var hdr = ROUTINES_CACHE.header;
-        var iRoutine = col(hdr, "routine"), iCadence = col(hdr, "cadence_min"), iLastRun = col(hdr, "last_run"), iStatus = col(hdr, "last_status"), iOutput = col(hdr, "last_output_count");
-        var total = ROUTINES_CACHE.rows.length;
-        var healthy = ROUTINES_CACHE.rows.filter(function (r) { return iStatus != null && /ok|success|done/i.test(String(r[iStatus])); }).length;
-        var stale = ROUTINES_CACHE.rows.filter(function (r) {
-          if (iLastRun == null || iCadence == null) return false;
-          var lastT = ms(r[iLastRun]), cadence = numAt(r, iCadence);
+        iR = col(hdr, "routine"); iC = col(hdr, "cadence_min"); iLR = col(hdr, "last_run"); iLS = col(hdr, "last_status");
+        total = ROUTINES_CACHE.rows.length;
+        healthy = ROUTINES_CACHE.rows.filter(function (r) { return iLS != null && /ok|success|done/i.test(String(r[iLS])); }).length;
+        stale = ROUTINES_CACHE.rows.filter(function (r) {
+          if (iLR == null || iC == null) return false;
+          var lastT = ms(r[iLR]), cadence = numAt(r, iC);
           return lastT && cadence && (Date.now() - lastT) > cadence * 60000 * 2;
         }).length;
 
@@ -680,24 +813,32 @@
       } else {
         tiles.push(tile("Routines", "…", "loading"));
       }
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      page.appendChild(tileGrid(tiles));
-
-      /* Routines table */
+      var routinesBody;
       if (ROUTINES_CACHE.rows && ROUTINES_CACHE.rows.length) {
-        var hdr2 = ROUTINES_CACHE.header;
-        var iR = col(hdr2, "routine"), iC = col(hdr2, "cadence_min"), iLR = col(hdr2, "last_run"), iLS = col(hdr2, "last_status"), iOC = col(hdr2, "last_output_count");
-        var routineList = h("div", {class: "cat-routines"},
-          h("h3", {class: "cat-sec-title"}, "⚙ Active Routines"),
-          h("div", {class: "cat-feed"}, ROUTINES_CACHE.rows.map(function (r) {
-            var statusOk = iLS != null && /ok|success|done/i.test(String(r[iLS]));
-            return h("div", {class: "cat-feed-item" + (statusOk ? "" : " cat-feed-warn")},
-              h("span", {class: "cat-feed-user"}, iR != null ? fmtCell(r[iR]) : "?"),
-              h("span", {class: "cat-feed-platform"}, iC != null ? "every " + r[iC] + "min" : ""),
-              h("span", {class: "cat-feed-time"}, iLR != null ? ago(ms(r[iLR])) : "never"),
-              h("span", {class: "cat-feed-status " + (statusOk ? "good" : "warn")}, iLS != null ? fmtCell(r[iLS]) : "?"));
-          })));
-        page.appendChild(routineList);
+        routinesBody = h("div", {class: "cat-feed"}, ROUTINES_CACHE.rows.map(function (r) {
+          var statusOk = iLS != null && /ok|success|done/i.test(String(r[iLS]));
+          return h("div", {class: "cat-feed-item" + (statusOk ? "" : " cat-feed-warn")},
+            h("span", {class: "cat-feed-user"}, iR != null ? fmtCell(r[iR]) : "?"),
+            h("span", {class: "cat-feed-platform"}, iC != null ? "every " + r[iC] + "min" : ""),
+            h("span", {class: "cat-feed-time"}, iLR != null ? ago(ms(r[iLR])) : "never"),
+            h("span", {class: "cat-feed-status " + (statusOk ? "good" : "warn")}, iLS != null ? fmtCell(r[iLS]) : "?"));
+        }));
+      } else if (ROUTINES_CACHE.err) {
+        routinesBody = modPlaceholder("Couldn't load routines", ROUTINES_CACHE.err);
+      } else {
+        routinesBody = modPlaceholder(readingText("routines", ROUTINES_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Active Routines", null, null, routinesBody));
+      body.appendChild(mod("Task Queue", null, null,
+        modPlaceholder("Not wired up yet", "Pending and in-flight automation tasks will list here — see Information → Task Queue for the raw sheet in the meantime.")));
+
+      if (CC.setCatSummary) {
+        var line = total != null ? healthy + "/" + total + " routines healthy" + (stale ? " · " + stale + " overdue" : "") : "Loading routines…";
+        CC.setCatSummary("Hub Core / Admin", line, false);
       }
     }
     paint();
@@ -733,35 +874,52 @@
   var REC_INV_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.RecordsFiles = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Records & Files", "records-files", api));
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.1fr 1fr", "1fr", []);
+    page.appendChild(body);
 
     function paint() {
-      var old = page.querySelector(".kt-grid");
-      if (old) old.remove();
-
       var tiles = [];
+      var invCount = null;
 
-      /* Inventory count from Records Data */
       if (REC_INV_CACHE.rows) {
-        tiles.push(tile("Inventory Items", REC_INV_CACHE.rows.length.toLocaleString(), "tracked in Records Data"));
+        invCount = REC_INV_CACHE.rows.length;
+        tiles.push(tile("Inventory Items", invCount.toLocaleString(), "tracked in Records Data"));
       } else if (REC_INV_CACHE.err) {
         tiles.push(tile("Inventory", "!", REC_INV_CACHE.err, "watch"));
       } else {
         tiles.push(tile("Inventory", "…", "loading"));
       }
-
-      /* Linked registries */
       tiles.push(tile("Room Inventory", "📦", "tracked rooms & items"));
       tiles.push(tile("File Inventory", "📁", "digital file registry"));
       tiles.push(tile("Records Registry", "📋", "master records index"));
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      page.appendChild(tileGrid(tiles));
+      var invBody;
+      if (REC_INV_CACHE.rows && REC_INV_CACHE.rows.length) {
+        var hdr = REC_INV_CACHE.header;
+        var iName = col(hdr, "item") != null ? col(hdr, "item") : 0;
+        invBody = h("div", {class: "cat-feed"}, REC_INV_CACHE.rows.slice(-12).reverse().map(function (r) {
+          return h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, fmtCell(r[iName])));
+        }));
+      } else if (REC_INV_CACHE.err) {
+        invBody = modPlaceholder("Couldn't load inventory", REC_INV_CACHE.err);
+      } else {
+        invBody = modPlaceholder(readingText("inventory", REC_INV_CACHE));
+      }
 
-      page.appendChild(h("div", {class: "cat-section"},
-        h("h3", {class: "cat-sec-title"}, "🗄 Records & Files Hub"),
-        h("div", {class: "cat-placeholder"},
-          "Physical inventory, digital files, room contents, and document registry — all organized and searchable from Information →.")));
+      body.innerHTML = "";
+      body.appendChild(mod("Recent Inventory", null, null, invBody));
+      body.appendChild(mod("Registries", null, null,
+        modPlaceholder("Room, file & master registries", "Room Inventory, File Inventory, and the Records Registry are all one click away — see Information → for the full searchable tables.")));
+
+      if (CC.setCatSummary) {
+        var line = invCount != null ? invCount.toLocaleString() + " items tracked" : "Loading inventory…";
+        CC.setCatSummary("Records & Files", line, false);
+      }
     }
     paint();
 
@@ -785,7 +943,7 @@
   CC.catPages["Local / CENTCOM"] = "local-centcom";
 
   CC.views.LocalCENTCOM = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Local / CENTCOM", "local-centcom", api));
 
     var tiles = [];
@@ -793,15 +951,17 @@
     tiles.push(tile("Intel Feed", "—", "connect local data"));
     tiles.push(tile("Campus Watch", "—", "monitoring off"));
     tiles.push(tile("Weather", "—", "local conditions"));
+    page.appendChild(h("div", {class: "hp-tilesbar"}, tileGrid(tiles)));
 
-    page.appendChild(tileGrid(tiles));
+    var body = canvasBody("1fr 1fr", "1fr", [
+      mod("Intel Feed", null, null, modPlaceholder("No local data source yet",
+        "Local intelligence updates and area alerts will stream here once a source is connected — see Information → for the sheet plan.")),
+      mod("Campus Watch", null, null, modPlaceholder("Monitoring off",
+        "Campus and community monitoring status, plus weather for the area, will show here once wired up."))
+    ]);
+    page.appendChild(body);
 
-    page.appendChild(h("div", {class: "cat-section cat-centcom"},
-      h("h3", {class: "cat-sec-title"}, "📡 Local / CENTCOM Operations"),
-      h("div", {class: "cat-placeholder"},
-        "Local intelligence feed, campus monitoring, area status updates, and community alerts.",
-        h("br"), h("br"),
-        "This dashboard will be populated as local data sources come online.")));
+    if (CC.setCatSummary) CC.setCatSummary("Local / CENTCOM", "Waiting on a local data source", true);
 
     return page;
   };

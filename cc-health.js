@@ -255,29 +255,43 @@
      then the muscle map, cardio, vitals, sleep and progress widgets right below on the same
      page/scroll — no extra click to see them. One "Information →" affordance takes you down to
      the full-screen grid. ---------- */
+  /* Wraps an existing widget (cc-body.js's muscle map, cardio, sleep panels; progressWidget
+     above) in the shared .hp-mod canvas box. The widget's own markup/CSS is untouched — this
+     just bounds its height and lets it scroll internally (never the page) if its content runs
+     long for the space it's given. */
+  function modWrap(content, extraClass) {
+    return h("div", {class: "hp-mod" + (extraClass ? " " + extraClass : "")},
+      h("div", {class: "hp-mod-body hp-mod-scroll"}, content));
+  }
+
+  /* 2026-11-25, JD's full-screen pass: Health is the template for every category's Knowledge
+     dashboard — the whole screen is a canvas of modules, laid out once, and it never scrolls as
+     a page (only an individual module's own body can, if its content is genuinely long). Tiles
+     stay a slim strip across the top (their natural height); everything else fills what's left
+     in a fixed 2x2 grid: muscle map + cardio on top, progress + sleep below. */
   CC.views.Health = function (api) {
-    var page = h("div", {class: "hp-wrap"});
+    var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(hpHead("Health", "Information", function () { api.go("health-data"); }));
-    var tiles = h("div", null);
+    var tiles = h("div", {class: "hp-tilesbar"});
     page.appendChild(tiles);
-    function paint() { tiles.innerHTML = ""; tiles.appendChild(tileGrid(knowledgeTiles(api))); }
+    function paint() { tiles.innerHTML = ""; tiles.appendChild(tileGrid(knowledgeTiles(api))); reportSummary(); }
     paint();
     if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
 
-    var row = h("div", {class: "pv-wr hp-know"});
-    row.appendChild(h("div", {class: "pv-left"}, CC.body ? CC.body.panel(api) : null));
-    row.appendChild(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…"));
-    page.appendChild(row);
-    /* 2026-11-25: Sleep and Progress used to be two full-width blocks stacked one under the other —
-       JD's call to compress them horizontally into one row instead, same pv-wr grid the muscle-map
-       row above already uses (so it collapses to one column on its own under ~980px). Progress
-       takes the wider lane since it's the denser of the two (per-category sparklines); Sleep sits
-       beside it now showing the Core/REM/Deep/Awake breakdown instead of just a flat total. */
-    var slRow = h("div", {class: "pv-wr hp-know"});
-    slRow.appendChild(h("div", {class: "pv-left"}, progressWidget(api)));
-    slRow.appendChild(CC.body && CC.body.sleep ? CC.body.sleep(api) : h("div", {class: "ov-empty"}, "Loading sleep…"));
-    page.appendChild(slRow);
+    function reportSummary() {
+      if (!CC.setCatSummary) return;
+      var t = knowledgeTiles(api)[0];
+      var line = t && t.t !== "STATUS" ? t.t.charAt(0) + t.t.slice(1).toLowerCase() + ": " + t.v + " · " + t.s : "Reading workout history…";
+      CC.setCatSummary("Health", line, false);
+    }
+
+    var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr"});
+    body.appendChild(modWrap(CC.body ? CC.body.panel(api) : null));
+    body.appendChild(modWrap(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…")));
+    body.appendChild(modWrap(progressWidget(api)));
+    body.appendChild(modWrap(CC.body && CC.body.sleep ? CC.body.sleep(api) : h("div", {class: "ov-empty"}, "Loading sleep…")));
+    page.appendChild(body);
     return page;
   };
 
@@ -858,7 +872,7 @@
     ".hp-head{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:10px;min-height:0}" +
     ".hp-next{appearance:none;border:1px solid var(--line,rgba(255,255,255,.14));background:var(--inset,rgba(255,255,255,.04));color:var(--text,inherit);border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}" +
     ".hp-next:hover{border-color:var(--accent,#6bbf59);color:var(--accent,#6bbf59)}" +
-    ".kt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}" +
+    ".kt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}" +
     ".kt{border:1px solid var(--line,rgba(255,255,255,.14));border-radius:14px;padding:14px 16px;background:var(--inset,rgba(255,255,255,.03));display:flex;flex-direction:column;gap:4px}" +
     ".kt.watch{border-color:rgba(230,160,60,.45)}" +
     ".kt.good{border-color:rgba(107,191,89,.4)}" +

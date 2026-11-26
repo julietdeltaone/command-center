@@ -121,7 +121,25 @@
   }
 
   function laneIds(g) { return [].concat(g.data, g.info, g.know); }
-  function laneStatus(g) { return idsStatus(laneIds(g)); }
+
+  /* 2026-11-25, JD's call: the spreadsheet % can lie — someone ticks "Verified" on a node and
+     the Wall says 100% even while the live dashboard is still showing a placeholder. Stricter
+     rule: a category that's self-reporting (or known to default to) placeholder status can
+     never read as fully built, whatever the Build Status sheet says. Caps at PLACEHOLDER_CEIL
+     so it still shows real partial progress, just never "done." */
+  var PLACEHOLDER_CEIL = 55;
+  function isPlaceholder(name) {
+    var live = CC.catSummary && CC.catSummary[name];
+    if (live) return !!live.placeholder;
+    return !!(CC.catPlaceholderDefault && CC.catPlaceholderDefault[name]);
+  }
+  function laneStatus(g) {
+    var st = idsStatus(laneIds(g));
+    if (st.pct != null && isPlaceholder(g.name) && st.pct > PLACEHOLDER_CEIL) {
+      st = {pct: PLACEHOLDER_CEIL, state: "partial", n: st.n};
+    }
+    return st;
+  }
   function layerIds(g, key) { return g[key] || []; }
 
   function sheetLink(node) {
