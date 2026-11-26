@@ -314,3 +314,19 @@ a.rc-tn:hover{color:#7dd3fc}
 .cs-empty b{color:#fff;font-size:15px}
 
 .bd-body.b3on{grid-template-columns:1fr}.bd-tg{all:unset;box-sizing:border-box;cursor:pointer;margin-left:10px;padding:3px 11px;border-radius:99px;border:1px solid var(--line,rgba(255,255,255,.18));font-size:11px;color:var(--muted)}.bd-tg:hover{border-color:var(--accent);color:inherit}.bd-tg:focus-visible{outline:2px solid var(--accent)}
+
+/* Hub Core / Admin: routines by category */
+.adm-cats{display:flex;flex-direction:column;gap:14px}
+.adm-cat>header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:0 2px 6px;border-bottom:1px solid var(--line)}
+.adm-cat>header b{font-size:13px;letter-spacing:.02em}
+.adm-cnt{font-size:11px;color:var(--green)}.adm-cnt.warn{color:var(--amber)}
+.adm-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 2px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.adm-main{min-width:0;display:flex;flex-direction:column;gap:2px}.adm-main b{font-size:12.5px;overflow-wrap:anywhere}.adm-main span{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.adm-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;text-align:right}.adm-meta small{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.adm-pill{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.adm-pill.good{color:var(--green)}.adm-pill.warn{color:var(--amber)}.adm-pill.bad{color:var(--red)}
+.adm-bars{display:flex;flex-direction:column;gap:9px}
+.adm-bar{display:grid;grid-template-columns:110px 1fr 38px;align-items:center;gap:10px;font-size:11.5px}.adm-bar em{font-style:normal;color:var(--muted);text-align:right}
+.adm-track{height:8px;border-radius:999px;background:var(--inset);overflow:hidden}.adm-track i{display:block;height:100%;border-radius:999px;background:var(--green)}.adm-track i.warn{background:var(--amber)}.adm-track i.bad{background:var(--red)}
+@media (max-width:760px){.adm-row{flex-direction:column}.adm-meta{align-items:flex-start;text-align:left}.adm-bar{grid-template-columns:90px 1fr 36px}}
+@media (max-width:760px){.adm-body{grid-template-columns:1fr!important;grid-template-rows:none!important;height:auto!important}.adm-body>.hp-mod{grid-row:auto!important}}

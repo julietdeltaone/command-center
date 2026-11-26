@@ -778,88 +778,128 @@
      ═══════════════════════════════════════════════════════════════════ */
   CC.catPages["Hub Core / Admin"] = "admin";
 
-  var CC_DATA = "1w9xuc3IyVLkLRSyNTEVdaWlZQ54NCOVKyjW-E-xYGvY";
-  var ROUTINES_CACHE = {rows: null, header: null, err: null, loading: false};
+  /* Admin Data (personal Drive, COMMAND CENTER folder) is the source for Routines: the Routine Guide
+     tab is the display table (category > routine > what it does / how often / last run / health);
+     Routines and RunLog hold the raw registry and history. Command Center Data's own Routines and
+     RunLog tabs stay live only until Luna finishes repointing each routine. */
+  var ADMIN_DATA = "1_CstkGl_8mQStmX2r2dIZNJ29CHKFpQApFlS0kIJrxA";
+  var GUIDE_GID = "320156294";
+  var GUIDE_CACHE = {rows: null, header: null, err: null, loading: false};
+
+  function colCI(hdr, name) {
+    for (var i = 0; i < hdr.length; i++) if (String(hdr[i]).trim().toLowerCase() === name) return i;
+    return null;
+  }
+  function catLabel(c) {
+    c = String(c || "").trim();
+    if (/^hubcore/i.test(c)) return "Hub Core / Admin";
+    return c || "Other";
+  }
+  function healthClass(t) {
+    t = String(t || "");
+    if (/^healthy|^ok/i.test(t)) return "good";
+    if (/fail|error/i.test(t)) return "bad";
+    return "warn";
+  }
+  /* "2026-11-26 2:04 PM" is already Eastern in the sheet; show it as written plus a relative age */
+  function lastRunText(v) {
+    var t = ms(v);
+    return t ? fmtCell(v) + " · " + ago(t) : (fmtCell(v) || "never");
+  }
 
   CC.views.HubCoreAdmin = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Hub Core / Admin", "admin", api));
     var tilesWrap = h("div", {class: "hp-tilesbar"});
     page.appendChild(tilesWrap);
-    var body = canvasBody("1.4fr 1fr", "1fr", []);
+    var body = canvasBody("1.6fr 1fr", "1fr 1fr", []); body.classList.add("adm-body");
     page.appendChild(body);
 
     function paint() {
-      var tiles = [];
-      var total = null, healthy = null, stale = null;
-      var iR, iC, iLR, iLS;
-
-      if (ROUTINES_CACHE.rows) {
-        var hdr = ROUTINES_CACHE.header;
-        iR = col(hdr, "routine"); iC = col(hdr, "cadence_min"); iLR = col(hdr, "last_run"); iLS = col(hdr, "last_status");
-        total = ROUTINES_CACHE.rows.length;
-        healthy = ROUTINES_CACHE.rows.filter(function (r) { return iLS != null && /ok|success|done/i.test(String(r[iLS])); }).length;
-        stale = ROUTINES_CACHE.rows.filter(function (r) {
-          if (iLR == null || iC == null) return false;
-          var lastT = ms(r[iLR]), cadence = numAt(r, iC);
-          return lastT && cadence && (Date.now() - lastT) > cadence * 60000 * 2;
-        }).length;
-
-        tiles.push(tile("Routines", total, total === 1 ? "registered routine" : "registered routines"));
-        tiles.push(tile("Healthy", healthy, "last run OK", healthy === total ? "good" : ""));
-        tiles.push(tile("Overdue", stale, stale === 0 ? "all on schedule" : "need attention", stale > 0 ? "watch" : "good"));
-      } else if (ROUTINES_CACHE.err) {
-        tiles.push(tile("Routines", "!", ROUTINES_CACHE.err, "watch"));
+      var tiles = [], total = null, good = 0, bad = 0, warn = 0, items = [], lastAny = null;
+      if (GUIDE_CACHE.rows) {
+        var hdr = GUIDE_CACHE.header, iC = colCI(hdr, "category"), iR = colCI(hdr, "routine"), iW = colCI(hdr, "what it does"),
+            iF = colCI(hdr, "how often"), iL = colCI(hdr, "last run"), iH = colCI(hdr, "health");
+        GUIDE_CACHE.rows.forEach(function (r) {
+          if (iR == null || !r[iR]) return;
+          var it = {cat: catLabel(iC != null ? r[iC] : ""), name: String(r[iR]), what: iW != null ? r[iW] : "", freq: iF != null ? r[iF] : "",
+                    last: iL != null ? r[iL] : "", health: iH != null ? r[iH] : "", t: iL != null ? ms(r[iL]) : null};
+          it.cls = healthClass(it.health);
+          items.push(it);
+          if (it.cls === "good") good++; else if (it.cls === "bad") bad++; else warn++;
+          if (it.t && (!lastAny || it.t > lastAny)) lastAny = it.t;
+        });
+        total = items.length;
+        var attn = bad + warn;
+        tiles.push(tile("Routines", total, "registered in Admin Data"));
+        tiles.push(tile("Healthy", good + " of " + total, "last run OK", attn === 0 ? "good" : ""));
+        tiles.push(tile("Needs attention", attn, attn === 0 ? "all clear" : bad + " failed · " + warn + " overdue or stale", bad ? "bad" : attn ? "watch" : "good"));
+        tiles.push(tile("Latest run", lastAny ? ago(lastAny) : "—", lastAny ? new Date(lastAny).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}) : ""));
+      } else if (GUIDE_CACHE.err) {
+        tiles.push(tile("Routines", "!", GUIDE_CACHE.err, "watch"));
       } else {
         tiles.push(tile("Routines", "…", "loading"));
       }
       tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      var routinesBody;
-      if (ROUTINES_CACHE.rows && ROUTINES_CACHE.rows.length) {
-        routinesBody = h("div", {class: "cat-feed"}, ROUTINES_CACHE.rows.map(function (r) {
-          var statusOk = iLS != null && /ok|success|done/i.test(String(r[iLS]));
-          return h("div", {class: "cat-feed-item" + (statusOk ? "" : " cat-feed-warn")},
-            h("span", {class: "cat-feed-user"}, iR != null ? fmtCell(r[iR]) : "?"),
-            h("span", {class: "cat-feed-platform"}, iC != null ? "every " + r[iC] + "min" : ""),
-            h("span", {class: "cat-feed-time"}, iLR != null ? ago(ms(r[iLR])) : "never"),
-            h("span", {class: "cat-feed-status " + (statusOk ? "good" : "warn")}, iLS != null ? fmtCell(r[iLS]) : "?"));
+      var byCat = h("div", {class: "adm-cats"}), attnBody, healthBody;
+      if (items.length) {
+        var order = [], groups = {};
+        items.forEach(function (it) { if (!groups[it.cat]) { groups[it.cat] = []; order.push(it.cat); } groups[it.cat].push(it); });
+        order.forEach(function (c) {
+          var g = groups[c], gb = g.filter(function (x) { return x.cls !== "good"; }).length;
+          byCat.appendChild(h("section", {class: "adm-cat"},
+            h("header", null, h("b", null, c), h("span", {class: "adm-cnt" + (gb ? " warn" : "")}, gb ? gb + " of " + g.length + " need attention" : g.length + " healthy")),
+            g.map(function (it) {
+              return h("div", {class: "adm-row"},
+                h("div", {class: "adm-main"}, h("b", null, it.name), h("span", null, it.what)),
+                h("div", {class: "adm-meta"}, h("span", {class: "adm-pill " + it.cls}, it.health || "—"), h("small", null, it.freq + " · " + lastRunText(it.last))));
+            })));
+        });
+        var bad2 = items.filter(function (x) { return x.cls !== "good"; });
+        attnBody = bad2.length ? h("div", {class: "adm-attn"}, bad2.map(function (it) {
+          return h("div", {class: "adm-row"},
+            h("div", {class: "adm-main"}, h("b", null, it.name), h("span", null, it.cat + " · " + it.freq)),
+            h("div", {class: "adm-meta"}, h("span", {class: "adm-pill " + it.cls}, it.health), h("small", null, "last " + lastRunText(it.last))));
+        })) : modPlaceholder("All routines healthy", "Nothing overdue or failing.");
+        healthBody = h("div", {class: "adm-bars"}, order.map(function (c) {
+          var g = groups[c], ok = g.filter(function (x) { return x.cls === "good"; }).length, pct = Math.round(ok / g.length * 100);
+          return h("div", {class: "adm-bar"}, h("span", null, c), h("div", {class: "adm-track"}, h("i", {class: pct === 100 ? "good" : pct >= 75 ? "warn" : "bad", style: "width:" + pct + "%"})), h("em", null, ok + "/" + g.length));
         }));
-      } else if (ROUTINES_CACHE.err) {
-        routinesBody = modPlaceholder("Couldn't load routines", ROUTINES_CACHE.err);
+        byCat = byCat;
+      } else if (GUIDE_CACHE.err) {
+        byCat = modPlaceholder("Couldn't load routines", GUIDE_CACHE.err); attnBody = modPlaceholder("Unavailable"); healthBody = modPlaceholder("Unavailable");
       } else {
-        routinesBody = modPlaceholder(readingText("routines", ROUTINES_CACHE));
+        byCat = modPlaceholder(readingText("routines", GUIDE_CACHE)); attnBody = modPlaceholder("Reading…"); healthBody = modPlaceholder("Reading…");
       }
 
       body.innerHTML = "";
-      body.appendChild(mod("Active Routines", null, null, routinesBody));
-      body.appendChild(mod("Task Queue", null, null,
-        modPlaceholder("Not wired up yet", "Pending and in-flight automation tasks will list here — see Information → Task Queue for the raw sheet in the meantime.")));
+      var m1 = mod("Routines by category", null, null, byCat); m1.style.gridRow = "1 / span 2";
+      body.appendChild(m1);
+      body.appendChild(mod("Needs attention", null, null, attnBody));
+      body.appendChild(mod("Health by category", null, null, healthBody));
 
       if (CC.setCatSummary) {
-        var line = total != null ? healthy + "/" + total + " routines healthy" + (stale ? " · " + stale + " overdue" : "") : "Loading routines…";
-        CC.setCatSummary("Hub Core / Admin", line, false);
+        var line = total != null ? good + "/" + total + " routines healthy" + (bad + warn ? " · " + (bad + warn) + " need attention" : "") : "Loading routines…";
+        CC.setCatSummary("Hub Core / Admin", line, bad + warn > 0);
       }
     }
     paint();
 
-    if (!ROUTINES_CACHE.rows && !ROUTINES_CACHE.err)
-      loadSheet(CC_DATA, "0", api, ROUTINES_CACHE, paint, 500, "Routines");
+    if (!GUIDE_CACHE.rows && !GUIDE_CACHE.err)
+      loadSheet(ADMIN_DATA, GUIDE_GID, api, GUIDE_CACHE, paint, 300, "Routine Guide");
 
     return page;
   };
 
-  CC.views.HubCoreAdminData = infoPage(CC_DATA, [
+  CC.views.HubCoreAdminData = infoPage(ADMIN_DATA, [
+    {id: "routine-guide", label: "Routine Guide", gid: GUIDE_GID},
     {id: "routines", label: "Routines", gid: "0"},
-    {id: "task-queue", label: "Task Queue", gid: "592375441"},
-    {id: "messages", label: "Messages", gid: "852169438"},
-    {id: "actions", label: "Actions", gid: "1311440603"},
-    {id: "config", label: "Config", gid: "2064879796"},
-    {id: "usage", label: "Usage", gid: "1276291880"},
-    {id: "problems", label: "Problems", gid: "1487466811"},
-    {id: "run-log", label: "Run Log", gid: "321603598"},
-    {id: "watcher", label: "Watcher Log", gid: "692983655"}
+    {id: "run-log", label: "Run Log", gid: "783423352"}
   ], "HubCoreAdminData");
+
+  /* Command Center Data's own admin tabs (messages board, usage, problems, config) stay on that sheet */
+  var CC_DATA = "1w9xuc3IyVLkLRSyNTEVdaWlZQ54NCOVKyjW-E-xYGvY";
 
 
   /* ═══════════════════════════════════════════════════════════════════
