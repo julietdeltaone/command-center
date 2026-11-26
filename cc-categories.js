@@ -863,7 +863,7 @@
     }
     function goAll() { ADM.cat = null; ADM.rid = null; paint(); }
     function goCat(c) { ADM.cat = c; ADM.rid = null; paint(); }
-    function goRoutine(id) { ADM.rid = id; paint(); }
+    function goRoutine(id) { ADM.rid = id; paint(); loadRuns(); }
 
     function paint() {
       var R = admRoutines(), tiles = [];
@@ -964,7 +964,10 @@
     paint();
 
     if (!ROUT_CACHE.rows && !ROUT_CACHE.err) loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, paint, 300, "Routines");
-    if (!RUNLOG_CACHE.rows && !RUNLOG_CACHE.err) loadSheet(ADMIN_DATA, RUNLOG_GID, api, RUNLOG_CACHE, paint, 1500, "RunLog");
+    /* Run history is the big tab and only the detail view needs it, so it loads after the first paint
+       (idle time) instead of competing with the routines the page opens on. */
+    function loadRuns() { if (!RUNLOG_CACHE.rows && !RUNLOG_CACHE.err) loadSheet(ADMIN_DATA, RUNLOG_GID, api, RUNLOG_CACHE, paint, 1500, "RunLog"); }
+    if (window.requestIdleCallback) requestIdleCallback(loadRuns, {timeout: 1500}); else setTimeout(loadRuns, 400);
     return page;
   };
 
