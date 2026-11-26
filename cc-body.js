@@ -34,6 +34,7 @@
   var GROUPS = [["chest", "Chest"], ["back", "Back"], ["shoulders", "Shoulders"], ["biceps", "Biceps"], ["triceps", "Triceps"], ["forearms", "Forearms"], ["abs", "Abs"], ["quads", "Quads"], ["hamstrings", "Hamstrings"], ["glutes", "Glutes"], ["calves", "Calves"]];
   var SUPP = {forearms: 1, glutes: 1, calves: 1, triceps: 1, biceps: 1};
   function score(d) { return d == null ? null : d <= 2 ? 1 : d <= 4 ? 0.75 : d <= 7 ? 0.45 : 0.12; }
+  function pref3d() { try { return localStorage.getItem("ccBody3d") !== "0"; } catch (e) { return true; } }
   function dtext(d) { return d == null ? "no data" : d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days"; }
 
   /* Indirect credit. Exercise name pattern -> {group: share of full credit}. Used when the tr-* rows list exercise names. */
@@ -369,10 +370,19 @@
   CC.body = {
     model: model,
     panel: function (api) {
-      var m = model(api), sel = null, wrap = h("section", {class: "wt bd"}), body = h("div", {class: "bd-body"});
-      wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Muscle groups"), h("span", {class: "bd-sub"}, m.any ? "days since trained, indirect work counts partially" : "waiting on exercise detail")));
+      var m = model(api), sel = null, wrap = h("section", {class: "wt bd"}), body = h("div", {class: "bd-body"}), threeEl = null;
+      var can3d = !!(CC.body3d && CC.body3d.supported && CC.body3d.supported()), v3 = can3d && pref3d();
+      var tgl = can3d ? h("button", {type: "button", class: "bd-tg", onclick: function () { v3 = !v3; try { localStorage.setItem("ccBody3d", v3 ? "1" : "0"); } catch (e) { /* ignore */ } tgl.textContent = v3 ? "Flat view" : "3D view"; paint(); }}, v3 ? "Flat view" : "3D view") : null;
+      wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Muscle groups"), h("span", {class: "bd-sub"}, m.any ? "days since trained, indirect work counts partially" : "waiting on exercise detail"), tgl));
       function find(id) { return m.groups.filter(function (g) { return g.id === id; })[0]; }
       function paint() {
+        if (v3) {
+          if (!threeEl) threeEl = CC.body3d.mount({groups: m.groups, cardio: m.cardio, color: col, theme: document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark"});
+          if (threeEl) { body.innerHTML = ""; body.className = "bd-body b3on"; body.appendChild(threeEl); return; }
+          v3 = false;
+        }
+        if (threeEl) { threeEl.destroy(); threeEl = null; }
+        body.className = "bd-body";
         body.innerHTML = "";
         var figs = h("div", {class: "bd-figs"}, figure(FRONT, FRONT_BASE, DETAIL_FRONT, m, "Front", false, sel, pick), figure(BACK, BACK_BASE, DETAIL_BACK, m, "Back", false, sel, pick));
         var rows = m.groups.slice();
