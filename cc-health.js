@@ -74,39 +74,37 @@
   function col(header, name) { var i = header.indexOf(name); return i < 0 ? null : i; }
   function ms(x) { var t = x ? Date.parse(x) : NaN; return isNaN(t) ? null : t; }
   function numAt(row, i) { if (i == null) return null; var v = row[i]; if (v == null || v === "") return null; var n = Number(String(v).replace(/,/g, "")); return isNaN(n) ? null : n; }
+  /* "Reading X…" that fills in a live row count once the first page has landed, so a multi-page
+     pull doesn't just sit there looking stuck. */
+  function readingText(label, cache) {
+    var p = cache && cache.progress;
+    return "Reading " + label + (p ? " (" + p.loaded.toLocaleString() + " / " + p.total.toLocaleString() + ")" : "") + "…";
+  }
 
   /* ---------- full-history Workouts pull: one cache, used by Knowledge tiles, the Information
      Progress widget, and the Data grid. Paginates the reader (n=500 per page) until it has
      everything or hits a 4000-row ceiling (plenty for a year of sets). ---------- */
+  /* This is the worst offender for load lag: up to 4000 rows / 500 per page = up to 8 reader
+     round trips for a full year of sets. Delegates to CC.fetchSheetPaginated (cc-sheetfetch.js),
+     which fires all pages after the first one in parallel instead of one at a time, and caches
+     the result in localStorage for a few minutes so reopening Health doesn't re-read it from
+     scratch every single time. */
   var PW = {rows: null, header: null, err: null, loading: false};
   function loadAllWorkouts(api, onDone) {
-    if (PW.loading || PW.rows) { onDone(); return; }
-    var u = sheetsUrl(api);
-    if (!u) { PW.err = "Not connected: add sheets_url in Config."; onDone(); return; }
-    PW.loading = true;
-    var acc = [], header = null, fetchedRaw = 0, firstPage = true;
-    function page() {
-      fetch(u + (u.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(HEALTH_SHEET_ID) + "&tab=" + WORKOUTS_GID + "&from=" + fetchedRaw + "&n=500")
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (!j.ok) throw new Error(j.error || "error");
-          var rows = j.rows || [];
-          fetchedRaw += rows.length;
-          if (firstPage) {
-            firstPage = false;
-            var hdr = j.header || [];
-            /* Workouts has a merged title row above the real header (frozenRowCount 2), so row 1
-               reads as one long string and the real column names sit in the first data row. */
-            if (hdr.indexOf("Exercise") < 0 && rows.length && rows[0].indexOf("Exercise") >= 0) { header = rows[0]; rows = rows.slice(1); }
-            else header = hdr;
-          }
-          acc = acc.concat(rows);
-          if (rows.length && acc.length < Math.min(j.total || 0, 4000)) page();
-          else { PW.header = header; PW.rows = acc; PW.loading = false; onDone(); }
-        })
-        .catch(function () { PW.err = "Could not read the full Workouts history."; PW.loading = false; onDone(); });
-    }
-    page();
+    if (!CC.fetchSheetPaginated) { PW.err = "Sheet reader not loaded"; onDone(); return; }
+    CC.fetchSheetPaginated({
+      sheetId: HEALTH_SHEET_ID, gid: WORKOUTS_GID, cap: 4000, cache: PW, onDone: onDone,
+      sheetsUrl: sheetsUrl(api), errLabel: "Could not read the full Workouts history",
+      onProgress: function (loaded, total) { PW.progress = {loaded: loaded, total: total}; onDone(); },
+      /* Workouts has a merged title row above the real header (frozenRowCount 2), so row 1
+         reads as one long string and the real column names sit in the first data row. */
+      fixHeader: function (header, rows) {
+        if (header.indexOf("Exercise") < 0 && rows.length && rows[0].indexOf("Exercise") >= 0) {
+          return {header: rows[0], rows: rows.slice(1)};
+        }
+        return {header: header, rows: rows};
+      }
+    });
   }
   var PROG_CATS = ["Chest", "Back", "Shoulders", "Biceps", "Triceps", "Legs"];
   function weekKey(t) { var d = new Date(t); var day = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - day); return d.getTime(); }
@@ -168,7 +166,7 @@
     function paint() {
       body.innerHTML = "";
       if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts history…")); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
       var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog).slice(-8);
       if (!complete.length) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough weekly history yet.")); return; }
       PROG_CATS.forEach(function (cat) {
@@ -447,27 +445,16 @@
     detailWrap.appendChild(h("button", {type: "button", class: "hp-detail-close", onclick: function () { state.selRow = null; repaint(); }, "aria-label": "Close detail"}, "✕"));
     detailWrap.appendChild(buildDetail(state.selRow));
   }
+  /* Delegates to CC.fetchSheetPaginated (cc-sheetfetch.js, loaded before this file): pages
+     load in parallel instead of one-at-a-time, and a short-lived localStorage cache means a
+     revisit or page reload within a few minutes shows the sheet instantly. */
   function loadSheetGeneric(gid, cache, api, onDone, cap, label) {
-    if (cache.loading || cache.rows) { onDone(); return; }
-    var u = sheetsUrl(api);
-    if (!u) { cache.err = "Not connected: add sheets_url in Config."; onDone(); return; }
-    cache.loading = true;
-    var acc = [], header = null, fetchedRaw = 0, firstPage = true;
-    function page() {
-      fetch(u + (u.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(HEALTH_SHEET_ID) + "&tab=" + gid + "&from=" + fetchedRaw + "&n=500")
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (!j.ok) throw new Error(j.error || "error");
-          var rows = j.rows || [];
-          fetchedRaw += rows.length;
-          if (firstPage) { firstPage = false; header = j.header || []; }
-          acc = acc.concat(rows);
-          if (rows.length && acc.length < Math.min(j.total || 0, cap)) page();
-          else { cache.header = header; cache.rows = acc; cache.loading = false; onDone(); }
-        })
-        .catch(function () { cache.err = "Could not read the " + label + " tab from Health Data."; cache.loading = false; onDone(); });
-    }
-    page();
+    if (!CC.fetchSheetPaginated) { cache.err = "Sheet reader not loaded"; onDone(); return; }
+    CC.fetchSheetPaginated({
+      sheetId: HEALTH_SHEET_ID, gid: gid, cap: cap, cache: cache, onDone: onDone,
+      sheetsUrl: sheetsUrl(api), errLabel: "Could not read the " + label + " tab from Health Data",
+      onProgress: function (loaded, total) { cache.progress = {loaded: loaded, total: total}; onDone(); }
+    });
   }
   function trendArrowCell(v, prevVal, goodDir, txt) {
     if (v == null) return "";
@@ -557,7 +544,7 @@
     function repaint() {
       if (VX.rows) tagPrevByDate(VX.header, VX.rows);
       paintSheetTable(gridWrap, state, {
-        rows: VX.rows, err: VX.err, loadingText: "Reading Vitals…",
+        rows: VX.rows, err: VX.err, loadingText: readingText("Vitals", VX),
         cols: VX.header ? vitalsCols(VX.header) : [],
         rowStyle: function (r) { return vitalsRowStyle(VX.header, r); },
         repaint: repaint,
@@ -630,7 +617,7 @@
     var state = {sortIdx: null, sortDir: 1, selRow: null, obs: null};
     function repaint() {
       paintSheetTable(gridWrap, state, {
-        rows: SX.rows, err: SX.err, loadingText: "Reading Sleep…",
+        rows: SX.rows, err: SX.err, loadingText: readingText("Sleep", SX),
         cols: SX.header ? sleepCols(SX.header) : [],
         rowStyle: function (r) { return sleepRowStyle(SX.header, r); },
         repaint: repaint,
@@ -729,7 +716,7 @@
     var state = {sortIdx: null, sortDir: 1, selRow: null, obs: null};
     function repaint() {
       paintSheetTable(gridWrap, state, {
-        rows: AX.rows, err: AX.err, loadingText: "Reading Apple Workouts…",
+        rows: AX.rows, err: AX.err, loadingText: readingText("Apple Workouts", AX),
         cols: AX.header ? appleCols(AX.header) : [],
         rowStyle: function (r) { return appleRowStyle(AX.header, r); },
         repaint: repaint,
@@ -757,7 +744,7 @@
       if (gridObs) { gridObs.disconnect(); gridObs = null; }
       gridWrap.innerHTML = "";
       if (PW.err) { gridWrap.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { gridWrap.appendChild(h("div", {class: "ov-empty"}, "Reading Workouts…")); return; }
+      if (!PW.rows) { gridWrap.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts", PW))); return; }
       if (!PW.rows.length) { gridWrap.appendChild(h("div", {class: "ov-empty"}, "No rows yet.")); return; }
       var hdr = PW.header, iCat = col(hdr, "Category"), iRep = col(hdr, "Reps"), rows = PW.rows.slice();
       /* Visible columns stop at Reps — everything past it (Time, Distance, Heart Rate, Floors,

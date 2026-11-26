@@ -3,7 +3,7 @@
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
      BUILD VERSION — single source of truth: 20261125.15
-     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.17"
+     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.18"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
      Browsers and GitHub Pages' CDN cache by the exact URL including the
@@ -255,12 +255,12 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261125.17">
-<link rel="stylesheet" href="cc-skin.css?v=20261125.17">
-<link rel="stylesheet" href="cc-widgets.css?v=20261125.17">
-<link rel="stylesheet" href="cc-pages.css?v=20261125.17">
-<link rel="stylesheet" href="cc-sources2.css?v=20261125.17">
-<link rel="stylesheet" href="views/views.css?v=20261125.17">
+<link rel="stylesheet" href="cc-design.css?v=20261125.18">
+<link rel="stylesheet" href="cc-skin.css?v=20261125.18">
+<link rel="stylesheet" href="cc-widgets.css?v=20261125.18">
+<link rel="stylesheet" href="cc-pages.css?v=20261125.18">
+<link rel="stylesheet" href="cc-sources2.css?v=20261125.18">
+<link rel="stylesheet" href="views/views.css?v=20261125.18">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -276,7 +276,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
       <h1>Command Center</h1>
     </div>
     <div class="tb-status">
-      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.17</span>
+      <span class="build-tag" id="bver" title="Build loaded in this browser right now — bump it if you need to confirm a change actually went live">v20261125.18</span>
       <span class="live off" id="live-ind">Offline</span>
       <span class="refreshed" id="refreshed"></span>
       <span class="sample-tag" id="stag" hidden>SAMPLE</span>
@@ -1214,35 +1214,40 @@ function loadData(){
 })();
 </script>
 
-<!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing -->
-<script src="cc-fresh.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-inbox.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-motion.js?v=20261125.17" onerror="void 0"></script>
+<!-- External view scripts (Luna, etc.) — onerror prevents breaking if missing.
+     All deferred: defer keeps them running in this exact order (right after the DOM is parsed,
+     before any of them touch the page) but lets the browser fetch all 18 files in parallel
+     instead of one at a time, which used to be a big chunk of the time before the page became
+     interactive. -->
+<script defer src="cc-sheetfetch.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-fresh.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-inbox.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-motion.js?v=20261125.18" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script src="views/timeline.js?v=20261125.17" onerror="void 0"></script>
-<script src="views/system.js?v=20261125.17" onerror="void 0"></script>
-<script src="views/shooting.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-widgets.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-nurture.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-crm.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-active.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-sources2.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-map.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-records.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-sheets.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-build.js?v=20261125.17" onerror="void 0"></script>
+<script defer src="views/timeline.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="views/system.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="views/shooting.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-widgets.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-nurture.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-crm.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-active.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-sources2.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-map.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-records.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-sheets.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-build.js?v=20261125.18" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script src="cc-body.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-health.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-categories.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-pages.js?v=20261125.17" onerror="void 0"></script>
-<script src="cc-know.js?v=20261125.17" onerror="void 0"></script>
+<script defer src="cc-body.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-pages.js?v=20261125.18" onerror="void 0"></script>
+<script defer src="cc-know.js?v=20261125.18" onerror="void 0"></script>
 </body>
 </html>

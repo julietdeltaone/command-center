@@ -57,6 +57,12 @@
     if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
     return Math.floor(diff / 86400000) + "d ago";
   }
+  /* "Reading X…" that fills in a live row count once the first page has landed, so a multi-page
+     pull doesn't just sit there looking stuck. */
+  function readingText(label, cache) {
+    var p = cache && cache.progress;
+    return "Reading " + label + (p ? " (" + p.loaded.toLocaleString() + " / " + p.total.toLocaleString() + ")" : "") + "…";
+  }
 
   /* ───────── dashboard head with "Information →" button ───────── */
   function catHead(title, pageId, api) {
@@ -75,28 +81,18 @@
     return h("div", {class: "kt-grid"}, tiles);
   }
 
-  /* ───────── generic sheet loader (any sheet, any tab) ───────── */
+  /* ───────── generic sheet loader (any sheet, any tab) ─────────
+     Delegates to CC.fetchSheetPaginated (cc-sheetfetch.js, loaded before this file): pages
+     load in parallel instead of one-at-a-time, and a short-lived localStorage cache means a
+     revisit or page reload within a few minutes shows the sheet instantly instead of
+     re-reading it from scratch every time. */
   function loadSheet(sheetId, gid, api, cache, onDone, cap, label) {
-    if (cache.loading || cache.rows) { onDone(); return; }
-    var u = sheetsUrl(api);
-    if (!u) { cache.err = "Not connected"; onDone(); return; }
-    cache.loading = true;
-    var acc = [], header = null, fetchedRaw = 0, firstPage = true;
-    function page() {
-      fetch(u + (u.indexOf("?") > -1 ? "&" : "?") + "fn=tab&id=" + encodeURIComponent(sheetId) + "&tab=" + gid + "&from=" + fetchedRaw + "&n=500")
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (!j.ok) throw new Error(j.error || "error");
-          var rows = j.rows || [];
-          fetchedRaw += rows.length;
-          if (firstPage) { firstPage = false; header = j.header || []; }
-          acc = acc.concat(rows);
-          if (rows.length && acc.length < Math.min(j.total || 0, cap || 2000)) page();
-          else { cache.header = header; cache.rows = acc; cache.loading = false; onDone(); }
-        })
-        .catch(function (e) { cache.err = "Could not load " + (label || "sheet") + ": " + e.message; cache.loading = false; onDone(); });
-    }
-    page();
+    if (!CC.fetchSheetPaginated) { cache.err = "Sheet reader not loaded"; onDone(); return; }
+    CC.fetchSheetPaginated({
+      sheetId: sheetId, gid: gid, cap: cap || 2000, cache: cache, onDone: onDone,
+      sheetsUrl: sheetsUrl(api), errLabel: "Could not load " + (label || "sheet"),
+      onProgress: function (loaded, total) { cache.progress = {loaded: loaded, total: total}; onDone(); }
+    });
   }
 
   /* ───────── generic grid table (reusable paintSheetTable equivalent) ───────── */
@@ -175,7 +171,7 @@
         var state = tabDef._state || (tabDef._state = {sortIdx: null, sortDir: -1, selRow: null, obs: null});
         function repaint() {
           var colDefs = tabDef.cols ? tabDef.cols(cache.header || []) : autoColumns(cache.header || []);
-          paintGrid(gridWrap, state, {rows: cache.rows, err: cache.err, cols: colDefs, repaint: repaint, loadingText: "Reading " + tabDef.label + "…"});
+          paintGrid(gridWrap, state, {rows: cache.rows, err: cache.err, cols: colDefs, repaint: repaint, loadingText: readingText(tabDef.label, cache)});
         }
         repaint();
         if (!cache.rows && !cache.err) loadSheet(tabDef.sheetId || sheetId, tabDef.gid, api, cache, repaint, tabDef.cap || 2000, tabDef.label);
