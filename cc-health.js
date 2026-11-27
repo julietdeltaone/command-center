@@ -1115,7 +1115,10 @@
   /* ---------- styles ---------- */
   var ST = document.createElement("style");
   ST.textContent =
-    ".hp-wrap{padding:0 2px 4px}" +
+    /* 2026-11-27, JD's call: .hp-head had zero top margin/padding, so the "Information ->" button
+       sat flush against the very top edge of every category page — read as the button being cut
+       off. padding-top on the wrap gives it breathing room on every page that uses catHead(). */
+    ".hp-wrap{padding:10px 2px 4px}" +
     ".hp-head{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:10px;min-height:0}" +
     ".hp-next{appearance:none;border:1px solid var(--line,rgba(255,255,255,.14));background:var(--inset,rgba(255,255,255,.04));color:var(--text,inherit);border-radius:10px;padding:8px 14px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}" +
     ".hp-next:hover{border-color:var(--accent,#6bbf59);color:var(--accent,#6bbf59)}" +

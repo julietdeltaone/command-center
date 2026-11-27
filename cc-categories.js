@@ -1495,6 +1495,55 @@
     return Object.keys(byId).map(function (k) { return byId[k]; });
   }
 
+  /* 2026-11-27, JD's call for CENTCOM: flatten a raw ISO datetime into a standardized, human
+     format ("Oct 11, 2026", or "Oct 11, 2026 · 5:00 PM" when a real time is present). Every `when`
+     value seen in Feed so far is midnight (no real time was ever parsed out), so this normally
+     prints date-only — the format is ready for whenever Apollo's enrichment starts giving a time. */
+  function fmtWhen(v) {
+    var t = ms(v);
+    if (!t) return fmtCell(v);
+    var d = new Date(t);
+    var dateStr = d.toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"});
+    if (d.getHours() === 0 && d.getMinutes() === 0) return dateStr;
+    var h12 = d.getHours() % 12; if (h12 === 0) h12 = 12;
+    var mm = d.getMinutes();
+    return dateStr + " · " + h12 + (mm ? ":" + (mm < 10 ? "0" : "") + mm : "") + " " + (d.getHours() < 12 ? "AM" : "PM");
+  }
+
+  /* Headline-ify a long enriched caption for the glance dashboard: cut at the first colon/
+     semicolon (the usual "Hook: detail" or "Fact; fact" shape in Apollo's Feed titles) when that
+     keeps a reasonable amount of text, else cut to a word boundary around 46 chars. Full title
+     still shows as-is on the Information page — this is dashboard-only shorthand. */
+  function shortTitle(title) {
+    if (!title) return "";
+    var cut = title.search(/[:;]/);
+    if (cut > 3 && cut <= 44) return title.slice(0, cut).trim();
+    if (title.length <= 46) return title;
+    var slice = title.slice(0, 46);
+    var sp = slice.lastIndexOf(" ");
+    return (sp > 20 ? slice.slice(0, sp) : slice).trim() + "…";
+  }
+
+  /* Feed's `sources` column is Apollo's internal provenance note ("Events row 24
+     (saintsathletics.com)"), not a byline — pull just the handle/name out of the parens so it
+     reads like "who's posting this" instead of an internal row reference. */
+  function sourceLabel(sources) {
+    if (!sources) return "";
+    var m = /\(([^)]+)\)/.exec(sources);
+    var raw = (m ? m[1] : sources).replace(/^@/, "").trim();
+    return /^[\w.]+$/.test(raw) ? "@" + raw : raw;
+  }
+
+  /* EMS/fire/police dispatch classifier for Scanner Watch — Scanner has no structured "agency"
+     column, just free text ("Potsdam Rescue responded to...", "Fire alarm reported at..."), so
+     this is a light keyword read, not a data field. Used only to color-code and label the feed. */
+  function dispatchKind(text) {
+    if (/\bpolice\b/i.test(text)) return {label: "POLICE", cls: "dk-police"};
+    if (/\bfire\b/i.test(text)) return {label: "FIRE", cls: "dk-fire"};
+    if (/\b(rescue|ems|ambulance)\b/i.test(text)) return {label: "EMS", cls: "dk-ems"};
+    return {label: "DISPATCH", cls: "dk-other"};
+  }
+
   CC.views.LocalCENTCOM = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Local / CENTCOM", "local-centcom", api));
@@ -1502,6 +1551,17 @@
     page.appendChild(tilesWrap);
     var body = canvasBody("1.3fr 1fr", "1fr", []);
     page.appendChild(body);
+
+    /* 2026-11-27, JD's call: this page has 3 independent sheet loads (Sources/Feed/Scanner), each
+       of which calls back once per page of rows it fetches — on a 3000-row Feed pull that's several
+       repaint() calls in quick succession, each nuking and rebuilding the whole tiles+body DOM.
+       That's the "flashes of reloading" he noticed. Coalescing bursts into one rAF-scheduled paint
+       keeps the same live-as-it-loads behavior but renders once per frame instead of once per page. */
+    var _raf = null;
+    function schedulePaint() {
+      if (_raf) return;
+      _raf = requestAnimationFrame(function () { _raf = null; paint(); });
+    }
 
     function paint() {
       var tiles = [];
@@ -1535,47 +1595,70 @@
 
       tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      /* Local Feed module — the enriched packets, newest first */
+      /* Local Feed module — situational awareness, not an events calendar. JD's call, 2026-11-27:
+         this is read for a general "this is happening, roughly who/when/where" sense, not to plan
+         around, so (a) it only shows what's actually current — a 3-day-past-to-30-day-future window
+         around `when`, which also quietly fixes two bugs at once: stale items from months ago drop
+         out on their own, and the handful of recap posts whose `when` got mis-parsed a year out fall
+         outside the window too, so they can't crowd the top; (b) titles are headlined down from
+         Apollo's full caption, not shown verbatim; (c) who/when/where comes through as an accent
+         color, a date pill and an inline place/source line — never a literal "Where:"/"When:" label. */
       var feedBody;
       if (CENTCOM_FEED_CACHE.rows) {
         var fHdr = CENTCOM_FEED_CACHE.header;
-        var iTitle = col(fHdr, "title"), iPlace = col(fHdr, "place"), iWhen = col(fHdr, "when"), iLink = col(fHdr, "link"), iKind = col(fHdr, "kind");
-        /* Sort by updated_at (when Apollo's job wrote the packet), not by `when` (the extracted
-           event date) — found 2026-11-27: some recap/retrospective posts get an event date a
-           year out (e.g. a "views from our Nov 18 win" recap parsed to Nov 18, 2027 instead of
-           the game that already happened), which would otherwise push stale mis-dated junk to
-           the top of "what's new." updated_at has no such issue and is what "newest first"
-           should mean here anyway. Flagged to JD for Apollo to fix the `when` parsing itself. */
-        var sorted = feed.slice().sort(function (a, b) { return (b._t || 0) - (a._t || 0); }).slice(0, 20);
-        feedBody = sorted.length ? h("div", {class: "cat-feed"}, sorted.map(function (r) {
+        var iTitle = col(fHdr, "title"), iPlace = col(fHdr, "place"), iWhen = col(fHdr, "when"),
+            iLink = col(fHdr, "link"), iSources = col(fHdr, "sources"), iGrade = col(fHdr, "grade");
+        var fnow = Date.now(), FDAY = 86400000;
+        var windowed = iWhen == null ? [] : feed.filter(function (r) {
+          var t = ms(r[iWhen]);
+          return t != null && t > fnow - 3 * FDAY && t < fnow + 30 * FDAY;
+        });
+        var sorted = windowed.slice().sort(function (a, b) {
+          return Math.abs(ms(a[iWhen]) - fnow) - Math.abs(ms(b[iWhen]) - fnow);
+        }).slice(0, 20);
+        feedBody = sorted.length ? h("div", {class: "cat-feed cc-centcom-feed"}, sorted.map(function (r) {
           var link = iLink != null ? r[iLink] : "";
-          var title = h("span", {class: "cat-feed-name"}, iTitle != null ? fmtCell(r[iTitle]) : "—");
-          return h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-platform"}, iKind != null ? fmtCell(r[iKind]) : ""),
-            link ? h("a", {href: link, target: "_blank", rel: "noopener", style: "color:inherit;text-decoration:none;flex:1"}, title) : title,
-            iPlace != null && r[iPlace] ? h("span", {class: "cat-feed-name", style: "flex:none;color:var(--muted)"}, fmtCell(r[iPlace])) : null,
-            h("span", {class: "cat-feed-time"}, iWhen != null && r[iWhen] ? fmtDate(r[iWhen]) : (r._t ? ago(r._t) : "")));
-        })) : h("div", {class: "ov-empty"}, "No packets yet.");
+          var place = iPlace != null ? fmtCell(r[iPlace]) : "";
+          var src = iSources != null ? sourceLabel(r[iSources]) : "";
+          var confirmed = iGrade != null && r[iGrade] === "Confirmed";
+          var t = ms(r[iWhen]);
+          var dnow = new Date(fnow), dt = t ? new Date(t) : null;
+          var isToday = dt && dt.getFullYear() === dnow.getFullYear() && dt.getMonth() === dnow.getMonth() && dt.getDate() === dnow.getDate();
+          var headline = h("span", {class: "cc-feed-title"}, iTitle != null ? shortTitle(fmtCell(r[iTitle])) : "—");
+          return h("div", {class: "cat-feed-item cc-feed-item" + (confirmed ? " cc-grade-confirmed" : "")},
+            h("div", {class: "cc-feed-main"},
+              link ? h("a", {href: link, target: "_blank", rel: "noopener", class: "cc-feed-link"}, headline) : headline,
+              h("div", {class: "cc-feed-byline"},
+                place ? h("span", {class: "cc-feed-place"}, place) : null,
+                place && src ? h("span", {class: "cc-feed-dot"}, "·") : null,
+                src ? h("span", {class: "cc-feed-src"}, src) : null)),
+            h("span", {class: "cc-date-pill" + (isToday ? " cc-date-today" : "")}, iWhen != null ? fmtWhen(r[iWhen]) : ""));
+        })) : h("div", {class: "ov-empty"}, "Nothing current — nearby window is quiet.");
       } else if (CENTCOM_FEED_CACHE.err) {
         feedBody = modPlaceholder("Couldn't load the local feed", CENTCOM_FEED_CACHE.err);
       } else {
         feedBody = modPlaceholder(readingText("local feed", CENTCOM_FEED_CACHE));
       }
 
-      /* Scanner Watch module — EMS/fire dispatch, most recent first */
+      /* Scanner Watch module — EMS/fire dispatch, most recent first. Color-coded by a light
+         keyword read of the dispatch text (fire/EMS/police) since Scanner has no structured
+         "agency" column — see dispatchKind(). */
       var scanBody;
       if (CENTCOM_SCANNER_CACHE.rows && CENTCOM_SCANNER_CACHE.rows.length) {
         var scHdr = CENTCOM_SCANNER_CACHE.header;
-        var iTxt = col(scHdr, "text"), iSrc = col(scHdr, "source"), iCap2 = col(scHdr, "captured_at"), iLink2 = col(scHdr, "link");
+        var iTxt = col(scHdr, "text"), iCap2 = col(scHdr, "captured_at"), iLink2 = col(scHdr, "link");
         var recent = CENTCOM_SCANNER_CACHE.rows.slice().sort(function (a, b) {
           var ta = iCap2 != null ? ms(a[iCap2]) : null, tb = iCap2 != null ? ms(b[iCap2]) : null;
           return (tb || 0) - (ta || 0);
         }).slice(0, 12);
         scanBody = h("div", {class: "cat-feed"}, recent.map(function (r) {
           var link2 = iLink2 != null ? r[iLink2] : "";
-          var txt = h("span", {class: "cat-feed-name"}, iTxt != null ? fmtCell(r[iTxt]).slice(0, 90) : "");
-          return h("div", {class: "cat-feed-item"},
-            link2 ? h("a", {href: link2, target: "_blank", rel: "noopener", style: "color:inherit;text-decoration:none;flex:1"}, txt) : txt,
+          var txt = iTxt != null ? fmtCell(r[iTxt]) : "";
+          var dk = dispatchKind(txt);
+          var body2 = h("span", {class: "cat-feed-name"}, txt.slice(0, 90));
+          return h("div", {class: "cat-feed-item cc-dk-item"},
+            h("span", {class: "cc-dk-badge " + dk.cls}, dk.label),
+            link2 ? h("a", {href: link2, target: "_blank", rel: "noopener", style: "color:inherit;text-decoration:none;flex:1"}, body2) : body2,
             h("span", {class: "cat-feed-time"}, iCap2 != null ? ago(ms(r[iCap2])) : ""));
         }));
       } else if (CENTCOM_SCANNER_CACHE.err) {
@@ -1600,17 +1683,51 @@
     paint();
 
     if (!CENTCOM_SOURCES_CACHE.rows && !CENTCOM_SOURCES_CACHE.err)
-      loadSheet(CENTCOM_SHEET, CENTCOM_SOURCES_GID, api, CENTCOM_SOURCES_CACHE, paint, 500, "CENTCOM Sources");
+      loadSheet(CENTCOM_SHEET, CENTCOM_SOURCES_GID, api, CENTCOM_SOURCES_CACHE, schedulePaint, 500, "CENTCOM Sources");
     if (!CENTCOM_FEED_CACHE.rows && !CENTCOM_FEED_CACHE.err)
-      loadSheet(CENTCOM_SHEET, CENTCOM_FEED_GID, api, CENTCOM_FEED_CACHE, paint, 3000, "CENTCOM Feed");
+      loadSheet(CENTCOM_SHEET, CENTCOM_FEED_GID, api, CENTCOM_FEED_CACHE, schedulePaint, 3000, "CENTCOM Feed");
     if (!CENTCOM_SCANNER_CACHE.rows && !CENTCOM_SCANNER_CACHE.err)
-      loadSheet(CENTCOM_SHEET, CENTCOM_SCANNER_GID, api, CENTCOM_SCANNER_CACHE, paint, 500, "CENTCOM Scanner");
+      loadSheet(CENTCOM_SHEET, CENTCOM_SCANNER_GID, api, CENTCOM_SCANNER_CACHE, schedulePaint, 500, "CENTCOM Scanner");
 
     return page;
   };
 
+  /* Feed tab on the Information page: this is the archive/browse view, so unlike the dashboard it
+     shows every row (no date window) and keeps the full title — but still drops the columns that
+     were pure clutter (the raw id, and `kind`, which is "event" on every single row) and flattens
+     the rest. 2026-11-27, JD's call: standardized date, a clean place string, a source that's also
+     the link out when one exists, and a confidence badge off `grade` for a bit of color coding. */
+  function centcomFeedCols(header) {
+    var iTitle = col(header, "title"), iWhen = col(header, "when"), iPlace = col(header, "place"),
+        iLink = col(header, "link"), iSources = col(header, "sources"), iGrade = col(header, "grade");
+    return [
+      {label: "Title", sortVal: function (r) { return iTitle != null ? r[iTitle] : ""; }, render: function (r) { return fmtCell(iTitle != null ? r[iTitle] : ""); }},
+      {label: "When", sortVal: function (r) { return iWhen != null ? ms(r[iWhen]) : null; }, render: function (r) { return iWhen != null ? fmtWhen(r[iWhen]) : "—"; }},
+      {label: "Place", sortVal: function (r) { return iPlace != null ? r[iPlace] : ""; }, render: function (r) { return (iPlace != null && r[iPlace]) ? fmtCell(r[iPlace]) : "—"; }},
+      {
+        label: "Source",
+        sortVal: function (r) { return iSources != null ? sourceLabel(r[iSources]) : ""; },
+        render: function (r) {
+          var label = iSources != null ? sourceLabel(r[iSources]) : "";
+          var link = iLink != null ? r[iLink] : "";
+          if (!label) return "—";
+          return link ? h("a", {href: link, target: "_blank", rel: "noopener", class: "cc-src-link"}, label) : h("span", null, label);
+        }
+      },
+      {
+        label: "Confidence",
+        sortVal: function (r) { return iGrade != null ? r[iGrade] : ""; },
+        render: function (r) {
+          var g = iGrade != null ? fmtCell(r[iGrade]) : "";
+          if (!g) return "—";
+          return h("span", {class: "cc-grade-badge" + (g === "Confirmed" ? " cc-grade-confirmed-badge" : "")}, g);
+        }
+      }
+    ];
+  }
+
   CC.views.LocalCENTCOMData = infoPage(CENTCOM_SHEET, [
-    {id: "feed", label: "Feed (packets)", gid: CENTCOM_FEED_GID, cap: 3000},
+    {id: "feed", label: "Feed (packets)", gid: CENTCOM_FEED_GID, cap: 3000, cols: centcomFeedCols},
     {id: "events", label: "Events", gid: CENTCOM_EVENTS_GID, cap: 3000},
     {id: "scanner", label: "Scanner", gid: CENTCOM_SCANNER_GID, cap: 1000},
     {id: "sources", label: "Sources", gid: CENTCOM_SOURCES_GID, cap: 500},
@@ -1657,6 +1774,36 @@
     /* Recent list heading alignment */
     ".cat-recent-list{margin-top:20px}" +
     ".cat-recent-list .cat-sec-title{margin-bottom:8px}" +
+
+    /* CENTCOM Local Feed — 2026-11-27, JD's call: color + layout carry who/when/where instead of
+       literal labels. A confirmed (multi-source) packet gets a green left accent; everything else
+       keeps the plain card edge. The date pill is neutral by default and turns accent-green only
+       for "happening today," so the one color signal that moves is the one that matters most. */
+    ".cc-feed-item{align-items:flex-start;gap:12px}" +
+    ".cc-feed-item.cc-grade-confirmed{border-left:3px solid var(--accent,#6bbf59)}" +
+    ".cc-feed-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}" +
+    ".cc-feed-title{font-size:13px;font-weight:600;color:var(--text,#eee)}" +
+    "a.cc-feed-link{color:inherit;text-decoration:none}" +
+    "a.cc-feed-link:hover .cc-feed-title{color:var(--accent,#6bbf59)}" +
+    ".cc-feed-byline{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}" +
+    ".cc-feed-dot{opacity:.6}" +
+    ".cc-date-pill{flex:none;font-size:11px;font-weight:700;letter-spacing:.02em;white-space:nowrap;padding:4px 9px;border-radius:999px;background:var(--inset,rgba(255,255,255,.05));border:1px solid var(--line,rgba(255,255,255,.1));color:var(--muted)}" +
+    ".cc-date-pill.cc-date-today{background:rgba(107,191,89,.14);border-color:rgba(107,191,89,.4);color:var(--accent,#6bbf59)}" +
+
+    /* Scanner Watch dispatch-type badges — a light keyword read of the text (see dispatchKind()),
+       not a real data column, so these stay small and muted rather than loud alert colors. */
+    ".cc-dk-item{gap:10px}" +
+    ".cc-dk-badge{flex:none;font-size:10px;font-weight:800;letter-spacing:.06em;padding:3px 7px;border-radius:6px;white-space:nowrap}" +
+    ".cc-dk-badge.dk-fire{color:#e2654a;background:rgba(226,101,74,.12);border:1px solid rgba(226,101,74,.35)}" +
+    ".cc-dk-badge.dk-ems{color:#5aa9e6;background:rgba(90,169,230,.12);border:1px solid rgba(90,169,230,.35)}" +
+    ".cc-dk-badge.dk-police{color:#9b7fe0;background:rgba(155,127,224,.12);border:1px solid rgba(155,127,224,.35)}" +
+    ".cc-dk-badge.dk-other{color:var(--muted);background:var(--inset,rgba(255,255,255,.05));border:1px solid var(--line,rgba(255,255,255,.1))}" +
+
+    /* CENTCOM Information page — Feed tab source link + confidence badge */
+    "a.cc-src-link{color:var(--accent,#6bbf59);text-decoration:none}" +
+    "a.cc-src-link:hover{text-decoration:underline}" +
+    ".cc-grade-badge{font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:999px;color:var(--muted);background:var(--inset,rgba(255,255,255,.05));border:1px solid var(--line,rgba(255,255,255,.1))}" +
+    ".cc-grade-badge.cc-grade-confirmed-badge{color:var(--accent,#6bbf59);background:rgba(107,191,89,.12);border-color:rgba(107,191,89,.35)}" +
     "";
   document.head.appendChild(ST);
 
