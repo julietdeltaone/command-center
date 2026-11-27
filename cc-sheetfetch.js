@@ -109,7 +109,11 @@
      once immediately with cached data if we have it, and again once a fresh fetch lands. */
   CC.fetchSheetPaginated = function (opts) {
     var cache = opts.cache;
-    if (cache.loading) return;
+    /* Multiple widgets can share one cache (e.g. Health's hero/heatmap/trend widgets all
+       read the same Workouts cache). If a fetch is already in flight, queue this caller's
+       onDone instead of dropping it — otherwise only the first caller ever repaints when
+       the data lands and the rest stay stuck showing their loading state forever. */
+    if (cache.loading) { (cache._waiters = cache._waiters || []).push(opts.onDone); return; }
     if (cache.rows) { opts.onDone(); return; }
 
     var key = cacheKey(opts.sheetId, opts.gid, opts.cap);
@@ -136,11 +140,13 @@
       cache.progress = null;
       writeCache(key, res.header, res.rows);
       opts.onDone();
+      if (cache._waiters) { var w = cache._waiters; cache._waiters = null; w.forEach(function (fn) { fn(); }); }
     }).catch(function (e) {
       // keep whatever we had (even stale cache) rather than wiping the grid on a failed refresh
       if (!cache.rows) cache.err = (opts.errLabel || "Could not load sheet") + ": " + e.message;
       cache.loading = false;
       opts.onDone();
+      if (cache._waiters) { var w2 = cache._waiters; cache._waiters = null; w2.forEach(function (fn) { fn(); }); }
     });
   };
 
@@ -167,14 +173,14 @@
     "Finance": "M12 2v20 M17 6.5H9.8a3.3 3.3 0 0 0 0 6.6h4.4a3.3 3.3 0 0 1 0 6.6H6",
     "Clarkson": "M12 3 2 8l10 5 10-5z M6 10.5V16c0 1.9 2.7 3.5 6 3.5s6-1.6 6-3.5v-5.5 M22 8v6",
     "Uber / Taxi": "M5 16h14 M5 16a1.6 1.6 0 1 0 0 3.2A1.6 1.6 0 0 0 5 16z M19 16a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z M5 16l1.3-5.4A2 2 0 0 1 8.2 9h7.6a2 2 0 0 1 1.9 1.6L19 16 M4 13h16",
-    "Faith": "M12 2v11 M8.5 6h7 M6 21v-6a6 6 0 0 1 12 0v6 M4 21h16",
+    "Personal": "M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z M4.5 21a7.5 7.5 0 0 1 15 0",
     "Hub Core / Admin": "M12 2l7.5 3.5v5.3c0 4.7-3.2 8.2-7.5 10.2-4.3-2-7.5-5.5-7.5-10.2V5.5z M9 12l2.2 2.2L15.5 10",
     "Records & Files": "M3 5h18v4H3z M4 9v10h16V9 M9.5 13h5",
     "Local / CENTCOM": "M12 21s7-7.6 7-12.4A7 7 0 0 0 5 8.6C5 13.4 12 21 12 21z M12 11.3a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z"
   };
   CC.catColor = {
     "Health": "#6bbf59", "Business": "#5b9bd5", "Social": "#d583c9", "Finance": "#e0b23e",
-    "Clarkson": "#8d6fd1", "Uber / Taxi": "#4fbfb0", "Faith": "#d98c5f",
+    "Clarkson": "#8d6fd1", "Uber / Taxi": "#4fbfb0", "Personal": "#d98c5f",
     "Hub Core / Admin": "#8a93a6", "Records & Files": "#5fb0d9", "Local / CENTCOM": "#c96a6a"
   };
   CC.catIconSvg = function (name, size) {
@@ -198,5 +204,5 @@
   /* Known-placeholder categories as of 2026-11-25, used as a fallback by the stricter Build %
      rule (cc-build.js) before the category's own dashboard has run once this session and
      reported a live CC.catSummary. Once a dashboard runs, its own live signal takes over. */
-  CC.catPlaceholderDefault = {"Faith": true, "Local / CENTCOM": true};
+  CC.catPlaceholderDefault = {"Local / CENTCOM": true};
 })();

@@ -26,7 +26,7 @@
     {name: "Business", data: ["biz-data"], info: ["biz-info"], know: ["biz-know"]},
     {name: "Uber / Taxi", data: ["taxi-data"], info: ["taxi-info"], know: ["taxi-know"]},
     {name: "Clarkson", data: ["clk-data"], info: ["clk-info"], know: ["clk-know"]},
-    {name: "Faith", data: ["faith-data"], info: [], know: ["faith-know"]},
+    {name: "Personal", data: ["pers-data"], info: ["pers-info"], know: ["pers-know"]},
     {name: "Finance", data: ["fin-data"], info: ["fin-info"], know: ["fin-know"]},
     {name: "Health", data: ["health-data"], info: ["health-info"], know: ["health-know"]},
     {name: "Social", data: ["social-data"], info: ["social-info"], know: ["social-know"]},

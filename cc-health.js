@@ -48,6 +48,16 @@
   }
   function dtext(d) { return d == null ? "no data" : d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days"; }
   function hrs(min) { if (min == null) return "—"; var h2 = Math.floor(min / 60), m2 = Math.round(min % 60); return h2 + "h " + m2 + "m"; }
+  function sv(tag, props) { var e = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.keys(props || {}).forEach(function (k) { e.setAttribute(k, props[k]); }); return e; }
+  function agoShort(t) {
+    if (t == null) return "—";
+    var mins = Math.floor((Date.now() - t) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    var hh = Math.floor(mins / 60);
+    if (hh < 24) return hh + "h ago";
+    return Math.floor(hh / 24) + "d ago";
+  }
 
   /* Overview routing registry: category name -> hidden tab id. cc-pages.js's Wall checks this
      before falling back to Build. */
@@ -106,6 +116,22 @@
       }
     });
   }
+  /* ---------- FitNotes backup watch: the routine that syncs Workouts, every 6h (Admin Data /
+     Routines). Read just for the Last Workout hero's "last swept" line — JD's ask, 2026-11-27. ---------- */
+  var ADMIN_DATA_H = "1_CstkGl_8mQStmX2r2dIZNJ29CHKFpQApFlS0kIJrxA", ROUT_GID_H = "0";
+  var FN_ROUTINE = {rows: null, header: null, err: null, loading: false};
+  function loadFitnotesRoutine(api, onDone) {
+    if (!CC.fetchSheetPaginated) { FN_ROUTINE.err = "Sheet reader not loaded"; onDone(); return; }
+    CC.fetchSheetPaginated({sheetId: ADMIN_DATA_H, gid: ROUT_GID_H, cap: 200, cache: FN_ROUTINE, onDone: onDone, sheetsUrl: sheetsUrl(api), errLabel: "Could not read Routines"});
+  }
+  function fitnotesRoutineRow() {
+    if (!FN_ROUTINE.rows) return null;
+    var hdr = FN_ROUTINE.header, iId = col(hdr, "routine_id"), iLast = col(hdr, "last_run"), iStatus = col(hdr, "last_status"), iCad = col(hdr, "cadence_min");
+    var row = FN_ROUTINE.rows.filter(function (r) { return iId != null && r[iId] === "fitnotes-backup-watch"; })[0];
+    if (!row) return null;
+    return {last: iLast != null ? ms(row[iLast]) : null, status: iStatus != null ? row[iStatus] : null, cadence: iCad != null ? Number(row[iCad]) : null};
+  }
+
   var PROG_CATS = ["Chest", "Back", "Shoulders", "Biceps", "Triceps", "Legs"];
   function weekKey(t) { var d = new Date(t); var day = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - day); return d.getTime(); }
   function fmtWeek(t) { return new Date(t).toLocaleDateString("en-US", {month: "short", day: "numeric"}); }
@@ -188,6 +214,119 @@
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
     return wrap;
   }
+  // progressWidget is superseded on the Health dashboard by volumeTrendWidget below (2026-11-27,
+  // JD's call — trajectories and projections over per-muscle sparklines); left defined, unused,
+  // in case the per-muscle breakdown is wanted back on the Information layer later.
+
+  /* ---------- Hero: Last Workout. The date of the most recent logged set, off the same Workouts
+     pull everything else here already loads, plus when the routine that syncs it last swept (JD's
+     ask, 2026-11-27 — plumbing now, polish later). ---------- */
+  function heroLastWorkout(api) {
+    var wrap = h("section", {class: "wt"}), body = h("div", null);
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Last Workout")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
+      var iDate = col(PW.header, "Date"), lastT = null;
+      PW.rows.forEach(function (r) { var t = iDate != null ? ms(r[iDate]) : null; if (t != null && (lastT == null || t > lastT)) lastT = t; });
+      var days = lastT != null ? Math.floor((Date.now() - lastT) / 86400000) : null;
+      body.appendChild(h("div", {class: "cd-big"}, days == null ? "No data" : days <= 0 ? "Today" : days === 1 ? "Yesterday" : days + " days ago"));
+      if (lastT != null) body.appendChild(h("div", {class: "rh-sub"}, new Date(lastT).toLocaleDateString("en-US", {weekday: "long", month: "short", day: "numeric"})));
+      var rr = fitnotesRoutineRow();
+      var cadTxt = rr && rr.cadence ? (rr.cadence < 60 ? "every " + rr.cadence + " min" : rr.cadence === 60 ? "hourly" : "every " + Math.round(rr.cadence / 60) + "h") : "";
+      var syncLine = !rr ? (FN_ROUTINE.err ? "Routine sync: " + FN_ROUTINE.err : "Reading the FitNotes backup watch routine…")
+        : "FitNotes backup watch " + (rr.status === "ok" ? "✓" : "⚠ " + (rr.status || "")) + (rr.last ? " · last swept " + agoShort(rr.last) : "") + (cadTxt ? " · " + cadTxt : "");
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:8px"}, syncLine));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    if (!FN_ROUTINE.rows && !FN_ROUTINE.err) loadFitnotesRoutine(api, paint);
+    return wrap;
+  }
+
+  /* ---------- Training heatmap: calendar-style, last 16 weeks, darker = more sets that day.
+     One of JD's favorite kinds of view, straight off the same Workouts pull, grouped by day. ---------- */
+  function workoutHeatmap(api) {
+    var wrap = h("section", {class: "wt"}), body = h("div", null);
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Training heatmap"), h("span", {class: "bd-sub"}, "sets logged per day, last 16 weeks")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
+      var iDate = col(PW.header, "Date"), byDay = {};
+      PW.rows.forEach(function (r) {
+        var t = iDate != null ? ms(r[iDate]) : null; if (t == null) return;
+        var d = new Date(t); d.setHours(0, 0, 0, 0);
+        var k = d.getTime(); byDay[k] = (byDay[k] || 0) + 1;
+      });
+      var WEEKS = 16, today = new Date(); today.setHours(0, 0, 0, 0);
+      var startDow = (today.getDay() + 6) % 7;
+      var gridStart = today.getTime() - ((WEEKS * 7 - 1 - startDow) * 86400000);
+      var mx = Math.max.apply(null, Object.keys(byDay).map(function (k) { return byDay[k]; }).concat([1]));
+      var cols = [];
+      for (var w = 0; w < WEEKS; w++) {
+        var colEl = h("div", {style: "display:flex;flex-direction:column;gap:3px"});
+        for (var d2 = 0; d2 < 7; d2++) {
+          var dayT = gridStart + (w * 7 + d2) * 86400000;
+          var v = byDay[dayT] || 0, future = dayT > today.getTime();
+          var op = future ? 0 : (v ? 0.15 + (v / mx) * 0.85 : 0.08);
+          colEl.appendChild(h("div", {
+            title: future ? "" : new Date(dayT).toLocaleDateString("en-US", {month: "short", day: "numeric"}) + ": " + v + (v === 1 ? " set" : " sets"),
+            style: "width:12px;height:12px;border-radius:2px;background:var(--accent);opacity:" + op
+          }));
+        }
+        cols.push(colEl);
+      }
+      body.appendChild(h("div", {style: "display:flex;gap:3px;overflow-x:auto"}, cols));
+      var inWin = Object.keys(byDay).filter(function (k) { return Number(k) >= gridStart; });
+      var totalSets = inWin.reduce(function (a, k) { return a + byDay[k]; }, 0);
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:8px"}, inWin.length + " training days, " + totalSets.toLocaleString("en-US") + " sets logged in the last " + WEEKS + " weeks"));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return wrap;
+  }
+
+  /* ---------- Volume trend + projection: weekly total volume (lb·reps, tracked lifting groups),
+     last 12 complete weeks, with a short linear-regression projection forward 3 weeks. Supersedes
+     the per-muscle sparkline Progress widget above — JD's call, 2026-11-27: a real trajectory line
+     over bars, since trajectories and projections are what he actually wants more of here. ---------- */
+  function volumeTrendWidget(api) {
+    var wrap = h("section", {class: "wt"}), body = h("div", null);
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Volume trend"), h("span", {class: "bd-sub"}, "weekly total, last 12 weeks + 3-week projection")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
+      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog).slice(-12);
+      if (complete.length < 3) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough weekly history yet.")); return; }
+      var totals = complete.map(function (w) { return PROG_CATS.reduce(function (s, cat) { return s + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0); });
+      var n = totals.length, sx = 0, sy = 0, sxy = 0, sxx = 0;
+      totals.forEach(function (y, i) { sx += i; sy += y; sxy += i * y; sxx += i * i; });
+      var denom = (n * sxx - sx * sx), slope = denom ? (n * sxy - sx * sy) / denom : 0, intercept = (sy - slope * sx) / n;
+      var PROJ = 3, projTotals = [];
+      for (var p = 0; p < PROJ; p++) projTotals.push(Math.max(0, intercept + slope * (n + p)));
+      var allVals = totals.concat(projTotals), mx = Math.max.apply(null, allVals.concat([1]));
+      var W = 600, H2 = 140, stepX = W / (allVals.length - 1);
+      function pt(i, v) { return [i * stepX, H2 - (v / mx) * (H2 - 16) - 8]; }
+      var solidPts = totals.map(function (v, i) { return pt(i, v); });
+      var dashPts = [pt(n - 1, totals[n - 1])].concat(projTotals.map(function (v, i) { return pt(n + i, v); }));
+      var svg = sv("svg", {viewBox: "0 0 " + W + " " + H2, width: "100%", height: H2, role: "img", "aria-label": "Weekly training volume with projection"});
+      svg.appendChild(sv("polyline", {points: solidPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": "2.5"}));
+      svg.appendChild(sv("polyline", {points: dashPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--muted)", "stroke-width": "2", "stroke-dasharray": "5,5"}));
+      solidPts.forEach(function (p) { svg.appendChild(sv("circle", {cx: p[0], cy: p[1], r: "3", fill: "var(--accent)"})); });
+      body.appendChild(svg);
+      var dir = slope > totals[0] * 0.02 ? "trending up" : slope < -totals[0] * 0.02 ? "trending down" : "steady";
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:4px"}, dir + " · projected " + Math.round(projTotals[projTotals.length - 1]).toLocaleString("en-US") + " lb·reps in " + PROJ + " weeks"));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return wrap;
+  }
 
   /* ---------- Knowledge layer: a fixed board, not a reactive "only if notable" list. JD's call
      (2026-11-25): six slots, always present when their source has data, so the opener has a
@@ -196,7 +335,9 @@
      the color is the ANSWER. Show-don't-tell throughout: short all-caps titles, one big value,
      a terse sub-caption, never a sentence, never "worth knowing"/"things to know."
        1. TEMPO        — sessions this week vs your recent average
-       2. [MUSCLE]      — the muscle group with the longest gap right now
+       2. ACTIVE DAYS  — training days in the last 14, off the Workouts pull (replaces the old
+                         muscle-group-gap tile, which depended on the Items tr-* feed retired
+                         2026-11-27 along with the muscle map itself)
        3. CARDIO       — days since your last cardio session
        4. [VITAL]       — your biggest vitals move vs your recent average
        5. SLEEP        — last night vs your 7-night average
@@ -212,9 +353,11 @@
       var td = tempoData(prog);
       if (td) tiles.push({t: "TEMPO", v: td.lastCount + "/wk", s: "vs " + td.avg.toFixed(1) + " avg", k: td.ratio < 0.7 ? "watch" : td.ratio >= 1.05 ? "good" : "n"});
     }
-    if (mm && mm.any) {
-      var stale = mm.groups.filter(function (g) { return g.eff != null; }).sort(function (a, b) { return a.eff - b.eff; })[0];
-      if (stale) tiles.push({t: stale.name.toUpperCase(), v: dtext(stale.days != null ? stale.days : stale.indDays), s: "since trained", k: stale.eff <= 0.45 ? "watch" : stale.eff >= 0.85 ? "good" : "n"});
+    if (PW.rows) {
+      var iDateAD = col(PW.header, "Date"), daysSeen = {}, now14 = Date.now();
+      PW.rows.forEach(function (r) { var t = iDateAD != null ? ms(r[iDateAD]) : null; if (t != null && now14 - t < 14 * 86400000) { var d = new Date(t); d.setHours(0, 0, 0, 0); daysSeen[d.getTime()] = 1; } });
+      var activeDays = Object.keys(daysSeen).length;
+      tiles.push({t: "ACTIVE DAYS", v: activeDays, s: "last 14 days", k: activeDays >= 6 ? "good" : activeDays <= 2 ? "watch" : "n"});
     }
     var cd = mm ? mm.cardio : null;
     if (cd && cd.days != null) tiles.push({t: "CARDIO", v: dtext(cd.days), s: "since last session", k: cd.days >= 4 ? "watch" : cd.days <= 1 ? "good" : "n"});
@@ -264,11 +407,10 @@
       h("div", {class: "hp-mod-body hp-mod-scroll"}, content));
   }
 
-  /* 2026-11-25, JD's full-screen pass: Health is the template for every category's Knowledge
-     dashboard — the whole screen is a canvas of modules, laid out once, and it never scrolls as
-     a page (only an individual module's own body can, if its content is genuinely long). Tiles
-     stay a slim strip across the top (their natural height); everything else fills what's left
-     in a fixed 2x2 grid: muscle map + cardio on top, progress + sleep below. */
+  /* 2026-11-27, JD's call: muscle body map retired (no good work ever landed on it, and its data
+     feed — Items tr-* rows — is being retired on Luna's side anyway). Three rows now: Last
+     Workout hero + Cardio on top, the training heatmap spanning full width in the middle, Volume
+     trend + projection and Sleep on the bottom — trajectories and projections over the map. */
   CC.views.Health = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(hpHead("Health", "Information", function () { api.go("health-data"); }));
@@ -278,6 +420,7 @@
     paint();
     if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    if (!FN_ROUTINE.rows && !FN_ROUTINE.err) loadFitnotesRoutine(api, paint);
 
     function reportSummary() {
       if (!CC.setCatSummary) return;
@@ -286,10 +429,13 @@
       CC.setCatSummary("Health", line, false);
     }
 
-    var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1.6fr 1fr;grid-template-rows:1fr 1fr"});
-    body.appendChild(modWrap(CC.body ? CC.body.panel(api) : null));
+    var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr"});
+    var heat = modWrap(workoutHeatmap(api));
+    heat.style.gridColumn = "1 / span 2";
+    body.appendChild(modWrap(heroLastWorkout(api)));
     body.appendChild(modWrap(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…")));
-    body.appendChild(modWrap(progressWidget(api)));
+    body.appendChild(heat);
+    body.appendChild(modWrap(volumeTrendWidget(api)));
     body.appendChild(modWrap(CC.body && CC.body.sleep ? CC.body.sleep(api) : h("div", {class: "ov-empty"}, "Loading sleep…")));
     page.appendChild(body);
     return page;

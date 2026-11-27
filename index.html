@@ -334,7 +334,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261126.15"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261127.1"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -1326,7 +1326,7 @@ function loadData(){
      before any of them touch the page) but lets the browser fetch all 18 files in parallel
      instead of one at a time, which used to be a big chunk of the time before the page became
      interactive. -->
-<script defer src="cc-sheetfetch.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-sheetfetch.js?v=20261127.1" onerror="void 0"></script>
 <script defer src="cc-fresh.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-inbox.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-motion.js?v=20261125.19" onerror="void 0"></script>
@@ -1347,15 +1347,15 @@ function loadData(){
 <script defer src="cc-map.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-records.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-sheets.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-build.js?v=20261126.9" onerror="void 0"></script>
+<script defer src="cc-build.js?v=20261127.1" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
 <script defer src="cc-body-fig.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
-<script defer src="cc-health.js?v=20261126.9" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261126.15" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261127.1" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261127.1" onerror="void 0"></script>
 <script defer src="cc-pages.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
 </body>

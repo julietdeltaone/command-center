@@ -633,45 +633,203 @@
 
 
   /* ═══════════════════════════════════════════════════════════════════
-     6. FAITH
-     ═══════════════════════════════════════════════════════════════════ */
-  CC.catPages.Faith = "faith";
+     6. PERSONAL (2026-11-27, JD's call: takes Faith's spot in the top 10.
+     Faith still has no real sheet, so it nests inside Personal as a sub-section
+     instead of keeping its own top-level tile — same folder-click pattern Admin
+     uses for Routines/Task Queue, just one level.
+     Source: Personal Data sheet (Orion rebuild, Luna's 11/27 1:33 AM handoff) —
+     personal-side data Orion used to scatter across Items: messages, notes,
+     photos, music, alarms, reminders, device status, network, location,
+     upcoming events. Counts and status only on this dashboard — message text,
+     photo locations and addresses stay in the sheet, never rendered here; this
+     repo is public. ═══════════════════════════════════════════════════════ */
+  CC.catPages.Personal = "personal";
 
-  /* Faith doesn't have a dedicated sheet yet — pull calendar-style data if available,
-     otherwise show a polished placeholder dashboard */
+  var PERS_SHEET = "1-eIlVRMm5-U5PvNhKPKGgltYvLHaqmQpcuo6pGHyJK8";
+  var PERS_GID = {
+    msgCounts: "0", notes: "2002112786", photos: "1805529459", music: "227571293",
+    alarms: "98513294", reminders: "625820211", device: "2013735349",
+    location: "689801000", network: "1229749398", events: "1828407225",
+    messages: "1241492085", msgSummaries: "228050038"
+  };
+  var PC = {};
+  Object.keys(PERS_GID).forEach(function (k) { PC[k] = {rows: null, header: null, err: null, loading: false}; });
+  var PERS = {section: null}; // null = Personal landing, "faith" = nested Faith placeholder
 
-  CC.views.Faith = function (api) {
+  function dayKey2(t) { var d = new Date(t); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  /* Small self-contained bar row — no new CSS, just inline heights, matches the
+     div-bar technique cc-body.js already uses for cardio/sleep. */
+  function miniBars(vals, titles) {
+    var mx = Math.max.apply(null, vals.concat([1]));
+    return h("div", {style: "display:flex;align-items:flex-end;gap:3px;height:48px"}, vals.map(function (v, i) {
+      return h("div", {title: titles ? titles[i] : String(v), style: "flex:1;min-width:2px;background:var(--accent);opacity:" + (v ? 0.9 : 0.15) + ";height:" + (v ? 10 + (v / mx) * 90 : 4) + "%;border-radius:2px 2px 0 0"});
+    }));
+  }
+
+  CC.views.Personal = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas"});
-    page.appendChild(catHead("Faith", "faith", api));
+    var headWrap = h("div", {class: "hp-head"});
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    var body = canvasBody("1fr 1fr", "1fr 1fr", []);
+    page.appendChild(headWrap); page.appendChild(tilesWrap); page.appendChild(body);
 
-    var tiles = [];
-    var items = (api.data && api.data.items || []).filter(function (i) { return i.tab === "Faith"; });
-    if (items.length) tiles.push(tile("Items Tracked", items.length, "faith-related items"));
-    tiles.push(tile("Sermons", "—", "connect a faith sheet to track"));
-    tiles.push(tile("Bible Study", "—", "sessions this month"));
-    tiles.push(tile("Prayer Journal", "—", "entries this week"));
-    page.appendChild(h("div", {class: "hp-tilesbar"}, tileGrid(tiles)));
+    function paintFaith() {
+      headWrap.innerHTML = "";
+      headWrap.appendChild(h("button", {type: "button", class: "hp-next", onclick: function () { PERS.section = null; paint(); }}, "← Personal"));
+      tilesWrap.innerHTML = "";
+      tilesWrap.appendChild(tileGrid([
+        tile("Sermons", "—", "connect a faith sheet to track"),
+        tile("Bible Study", "—", "sessions this month"),
+        tile("Prayer Journal", "—", "entries this week")
+      ]));
+      body.innerHTML = "";
+      body.className = "hp-canvas-body"; body.style.gridTemplateColumns = "1fr 1fr"; body.style.gridTemplateRows = "1fr";
+      body.appendChild(mod("Sermon Tracking", null, null, modPlaceholder("No sheet connected yet",
+        "Date, topic, speaker and scripture references will list here once a Faith sheet exists.")));
+      body.appendChild(mod("Prayer & Study", null, null, modPlaceholder("No sheet connected yet",
+        "Bible study sessions and prayer journal entries will show here once connected.")));
+    }
 
-    var body = canvasBody("1fr 1fr", "1fr", [
-      mod("Sermon Tracking", null, null, modPlaceholder("No sheet connected yet",
-        "Date, topic, speaker and scripture references will list here once a Faith sheet exists — see Information → for the column plan.")),
-      mod("Prayer & Study", null, null, modPlaceholder("No sheet connected yet",
-        "Bible study sessions and prayer journal entries will show here once connected."))
-    ]);
-    page.appendChild(body);
+    function paint() {
+      if (PERS.section === "faith") { paintFaith(); return; }
+      headWrap.innerHTML = "";
+      headWrap.appendChild(h("button", {type: "button", class: "hp-next", onclick: function () { api.go("personal-data"); }}, "Information →"));
 
-    if (CC.setCatSummary) CC.setCatSummary("Faith", "Waiting on a Faith data sheet", true);
+      var tiles = [];
+      /* MESSAGES — today's count vs yesterday */
+      if (PC.messages.rows) {
+        var mh = PC.messages.header, iT = col(mh, "time");
+        var byDay = {};
+        PC.messages.rows.forEach(function (r) { var t = iT != null ? ms(r[iT]) : null; if (t == null) return; var k = dayKey2(t); byDay[k] = (byDay[k] || 0) + 1; });
+        var today = dayKey2(Date.now()), yest = dayKey2(Date.now() - 86400000);
+        var tCount = byDay[today] || 0, yCount = byDay[yest] || 0;
+        tiles.push(tile("Messages Today", tCount, yCount ? (tCount >= yCount ? "+" : "") + (tCount - yCount) + " vs yesterday" : "logged", null));
+      } else if (PC.messages.err) tiles.push(tile("Messages", "!", PC.messages.err, "watch"));
+      else tiles.push(tile("Messages", "…", "loading"));
+
+      /* PHOTOS — total distinct, new this week */
+      if (PC.photos.rows) {
+        var ph = PC.photos.header, iFs = col(ph, "first_seen");
+        var wk = PC.photos.rows.filter(function (r) { var t = iFs != null ? ms(r[iFs]) : null; return t && (Date.now() - t) < 7 * 86400000; }).length;
+        tiles.push(tile("Photos", PC.photos.rows.length.toLocaleString(), wk + " new this week", null));
+      } else tiles.push(tile("Photos", PC.photos.err ? "!" : "…", PC.photos.err || "loading"));
+
+      /* BATTERY — latest reading */
+      if (PC.device.rows && PC.device.rows.length) {
+        var dh = PC.device.header, iBat = col(dh, "battery_level"), iChg = col(dh, "charging_status"), iSlot = col(dh, "slot_time");
+        var latestD = PC.device.rows[PC.device.rows.length - 1];
+        var bat = iBat != null ? numAt(latestD, iBat) : null, chg = iChg != null ? String(latestD[iChg] || "").toLowerCase() === "yes" : false;
+        tiles.push(tile("Battery", bat != null ? bat + "%" : "—", chg ? "charging" : (iSlot != null ? ago(ms(latestD[iSlot])) : ""), bat != null && bat < 20 && !chg ? "watch" : bat != null && (bat >= 50 || chg) ? "good" : null));
+      } else tiles.push(tile("Battery", PC.device.err ? "!" : "…", PC.device.err || "loading"));
+
+      /* UPCOMING — distinct events on file */
+      if (PC.events.rows) tiles.push(tile("Upcoming", PC.events.rows.length, PC.events.rows.length === 1 ? "event on file" : "events on file", null));
+      else tiles.push(tile("Upcoming", PC.events.err ? "!" : "…", PC.events.err || "loading"));
+
+      /* REMINDERS — latest day's open count */
+      if (PC.reminders.rows && PC.reminders.rows.length) {
+        var rh = PC.reminders.header, iOpen = col(rh, "open_reminders");
+        var latestR = PC.reminders.rows[PC.reminders.rows.length - 1];
+        tiles.push(tile("Open Reminders", iOpen != null ? latestR[iOpen] : "—", "as of latest sync", null));
+      } else tiles.push(tile("Open Reminders", PC.reminders.err ? "!" : "…", PC.reminders.err || "loading"));
+
+      /* LAST SYNC — freshness of the Orion device read */
+      if (PC.device.rows && PC.device.rows.length) {
+        var dh2 = PC.device.header, iSlot2 = col(dh2, "slot_time");
+        var t2 = iSlot2 != null ? ms(PC.device.rows[PC.device.rows.length - 1][iSlot2]) : null;
+        tiles.push(tile("Last Synced", t2 ? ago(t2) : "—", "Orion device read", t2 && (Date.now() - t2) > 12 * 3600000 ? "watch" : "good"));
+      } else tiles.push(tile("Last Synced", "…", "loading"));
+
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
+
+      /* Messages module: daily volume, last 14 days — the trajectory JD likes */
+      var msgBody;
+      if (PC.messages.rows) {
+        var mh2 = PC.messages.header, iT2 = col(mh2, "time"), byDay2 = {};
+        PC.messages.rows.forEach(function (r) { var t = iT2 != null ? ms(r[iT2]) : null; if (t == null) return; var k = dayKey2(t); byDay2[k] = (byDay2[k] || 0) + 1; });
+        var days = [], vals = [], titles = [];
+        for (var i = 13; i >= 0; i--) { var dt = Date.now() - i * 86400000; var k2 = dayKey2(dt); days.push(k2); vals.push(byDay2[k2] || 0); titles.push(new Date(dt).toLocaleDateString("en-US", {month: "short", day: "numeric"}) + ": " + (byDay2[k2] || 0)); }
+        msgBody = h("div", null, miniBars(vals, titles), h("div", {class: "rh-sub", style: "margin-top:6px"}, "last 14 days, " + vals.reduce(function (a, b) { return a + b; }, 0) + " total"));
+      } else if (PC.messages.err) msgBody = modPlaceholder("Couldn't load messages", PC.messages.err);
+      else msgBody = modPlaceholder(readingText("messages", PC.messages));
+
+      /* Device & Network module: status line, no raw address/location */
+      var devBody;
+      if (PC.device.rows && PC.device.rows.length) {
+        var ddh = PC.device.header, latest2 = PC.device.rows[PC.device.rows.length - 1];
+        var iB = col(ddh, "battery_level"), iC = col(ddh, "charging_status"), iL = col(ddh, "device_locked_state"), iBr = col(ddh, "screen_brightness");
+        var netLatest = PC.network.rows && PC.network.rows.length ? PC.network.rows[PC.network.rows.length - 1] : null;
+        var nh = PC.network.header, iWifi = netLatest ? col(nh, "wifi_connected") : null;
+        var locLatest = PC.location.rows && PC.location.rows.length ? PC.location.rows[PC.location.rows.length - 1] : null;
+        var lh = PC.location.header, iPlace = locLatest ? col(lh, "place") : null;
+        devBody = h("div", {class: "cat-feed"},
+          h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, "Battery"), h("span", {class: "cat-feed-name"}, (iB != null ? latest2[iB] + "%" : "—") + (iC != null && String(latest2[iC]).toLowerCase() === "yes" ? " · charging" : "")), h("span", {class: "cat-feed-time"}, iL != null ? (String(latest2[iL]).toLowerCase() === "yes" ? "locked" : "unlocked") : "")),
+          h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, "Wi-Fi"), h("span", {class: "cat-feed-name"}, iWifi != null ? (String(netLatest[iWifi]).toLowerCase() === "yes" ? "connected" : "disconnected") : "—"), h("span", {class: "cat-feed-time"}, "")),
+          h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, "Where"), h("span", {class: "cat-feed-name"}, iPlace != null ? fmtCell(locLatest[iPlace]) : "—"), h("span", {class: "cat-feed-time"}, "")),
+          h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, "Brightness"), h("span", {class: "cat-feed-name"}, iBr != null && latest2[iBr] !== "" ? latest2[iBr] : "—"), h("span", {class: "cat-feed-time"}, "")));
+      } else if (PC.device.err) devBody = modPlaceholder("Couldn't load device status", PC.device.err);
+      else devBody = modPlaceholder(readingText("device status", PC.device));
+
+      /* Upcoming module: next few events by start time */
+      var upBody;
+      if (PC.events.rows && PC.events.rows.length) {
+        var eh = PC.events.header, iTitle = col(eh, "event_title"), iStart = col(eh, "start_time");
+        var evRows = PC.events.rows.slice(-8).reverse();
+        upBody = h("div", {class: "cat-feed"}, evRows.map(function (r) {
+          return h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, iTitle != null ? fmtCell(r[iTitle]).slice(0, 48) : "—"), h("span", {class: "cat-feed-time"}, iStart != null ? fmtCell(r[iStart]) : ""));
+        }));
+      } else if (PC.events.err) upBody = modPlaceholder("Couldn't load events", PC.events.err);
+      else upBody = modPlaceholder(readingText("events", PC.events));
+
+      /* Faith folder — nested sub-section, one click in */
+      var faithBody = h("div", {class: "hp-mod-ph", style: "cursor:pointer", onclick: function () { PERS.section = "faith"; paint(); }},
+        h("b", null, "Faith"), h("span", null, "Sermon and study tracking — placeholder, no sheet connected yet. Click to open →"));
+
+      body.innerHTML = "";
+      body.className = "hp-canvas-body"; body.style.gridTemplateColumns = "1fr 1fr"; body.style.gridTemplateRows = "1fr 1fr";
+      body.appendChild(mod("Messages", null, null, msgBody));
+      body.appendChild(mod("Device & Network", null, null, devBody));
+      body.appendChild(mod("Upcoming", null, null, upBody));
+      body.appendChild(mod("Faith", null, null, faithBody));
+
+      if (CC.setCatSummary) {
+        var sumT = PC.messages.rows ? (byDay[today] || 0) : null;
+        CC.setCatSummary("Personal", sumT != null ? sumT + " messages today" : "Reading Orion device data…", false);
+      }
+    }
+    paint();
+
+    Object.keys(PERS_GID).forEach(function (k) {
+      if (!PC[k].rows && !PC[k].err) loadSheet(PERS_SHEET, PERS_GID[k], api, PC[k], paint, 1500, k);
+    });
 
     return page;
   };
 
-  CC.views.FaithData = function (api) {
-    var page = h("div", {class: "hp-data-full"});
-    page.appendChild(h("div", {class: "hp-data-fhead"},
-      h("h2", null, "Faith — Information"),
-      h("div", {class: "cat-placeholder"}, "No faith data sheet connected yet. Create one with columns for Date, Type, Topic, Speaker, Notes, and Scripture references.")));
-    return page;
-  };
+  /* This repo is public — two tabs carry real private content the generic auto-column grid
+     would otherwise render straight onto the page: Messages (text + sender) and Photos
+     (street-address location). Custom column sets keep the drill-down to what's safe to show
+     (time/thread/direction; photo time/camera/screenshot) and drop the rest, same spirit as
+     every other "counts and names only" rule in this repo. */
+  function colsSkip(skip) {
+    return function (header) {
+      return autoColumns(header).filter(function (c, i) { return skip.indexOf(String(header[i]).toLowerCase()) < 0; });
+    };
+  }
+  CC.views.PersonalData = infoPage(PERS_SHEET, [
+    {id: "messages", label: "Messages", gid: PERS_GID.messages, cols: colsSkip(["sender", "text"])},
+    {id: "msgCounts", label: "Message Counts", gid: PERS_GID.msgCounts},
+    {id: "msgSummaries", label: "Message Summaries", gid: PERS_GID.msgSummaries},
+    {id: "notes", label: "Notes", gid: PERS_GID.notes},
+    {id: "photos", label: "Photos", gid: PERS_GID.photos, cols: colsSkip(["location"])},
+    {id: "music", label: "Music", gid: PERS_GID.music},
+    {id: "alarms", label: "Alarms", gid: PERS_GID.alarms},
+    {id: "reminders", label: "Reminders", gid: PERS_GID.reminders},
+    {id: "device", label: "Device Status", gid: PERS_GID.device},
+    {id: "network", label: "Network", gid: PERS_GID.network},
+    {id: "location", label: "Location & Context", gid: PERS_GID.location},
+    {id: "events", label: "Upcoming Events", gid: PERS_GID.events}
+  ], "PersonalData");
 
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -690,7 +848,7 @@
   var GUIDE_GID = "320156294", ROUT_GID = "0", RUNLOG_GID = "783423352";
   var ROUT_CACHE = {rows: null, header: null, err: null, loading: false};
   var RUNLOG_CACHE = {rows: null, header: null, err: null, loading: false};
-  var CATS = ["Business", "Social", "Finance", "Clarkson", "Uber / Taxi", "Hub Core / Admin", "Records & Files", "Faith", "Local / CENTCOM", "Health"];
+  var CATS = ["Business", "Social", "Finance", "Clarkson", "Uber / Taxi", "Hub Core / Admin", "Records & Files", "Personal", "Local / CENTCOM", "Health"];
   /* ADM.section: null = the Admin landing (folder picker), "routines" or "queue" once JD taps in. */
   var ADM = {cat: null, rid: null, section: null, open: {}};
 
