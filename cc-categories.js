@@ -1540,10 +1540,13 @@
       if (CENTCOM_FEED_CACHE.rows) {
         var fHdr = CENTCOM_FEED_CACHE.header;
         var iTitle = col(fHdr, "title"), iPlace = col(fHdr, "place"), iWhen = col(fHdr, "when"), iLink = col(fHdr, "link"), iKind = col(fHdr, "kind");
-        var sorted = feed.slice().sort(function (a, b) {
-          var ta = (iWhen != null ? ms(a[iWhen]) : null) || a._t || 0, tb = (iWhen != null ? ms(b[iWhen]) : null) || b._t || 0;
-          return tb - ta;
-        }).slice(0, 20);
+        /* Sort by updated_at (when Apollo's job wrote the packet), not by `when` (the extracted
+           event date) — found 2026-11-27: some recap/retrospective posts get an event date a
+           year out (e.g. a "views from our Nov 18 win" recap parsed to Nov 18, 2027 instead of
+           the game that already happened), which would otherwise push stale mis-dated junk to
+           the top of "what's new." updated_at has no such issue and is what "newest first"
+           should mean here anyway. Flagged to JD for Apollo to fix the `when` parsing itself. */
+        var sorted = feed.slice().sort(function (a, b) { return (b._t || 0) - (a._t || 0); }).slice(0, 20);
         feedBody = sorted.length ? h("div", {class: "cat-feed"}, sorted.map(function (r) {
           var link = iLink != null ? r[iLink] : "";
           var title = h("span", {class: "cat-feed-name"}, iTitle != null ? fmtCell(r[iTitle]) : "—");
@@ -1564,7 +1567,10 @@
       if (CENTCOM_SCANNER_CACHE.rows && CENTCOM_SCANNER_CACHE.rows.length) {
         var scHdr = CENTCOM_SCANNER_CACHE.header;
         var iTxt = col(scHdr, "text"), iSrc = col(scHdr, "source"), iCap2 = col(scHdr, "captured_at"), iLink2 = col(scHdr, "link");
-        var recent = CENTCOM_SCANNER_CACHE.rows.slice(-12).reverse();
+        var recent = CENTCOM_SCANNER_CACHE.rows.slice().sort(function (a, b) {
+          var ta = iCap2 != null ? ms(a[iCap2]) : null, tb = iCap2 != null ? ms(b[iCap2]) : null;
+          return (tb || 0) - (ta || 0);
+        }).slice(0, 12);
         scanBody = h("div", {class: "cat-feed"}, recent.map(function (r) {
           var link2 = iLink2 != null ? r[iLink2] : "";
           var txt = h("span", {class: "cat-feed-name"}, iTxt != null ? fmtCell(r[iTxt]).slice(0, 90) : "");
