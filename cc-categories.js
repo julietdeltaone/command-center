@@ -657,6 +657,15 @@
   var PERS = {section: null}; // null = Personal landing, "faith" = nested Faith placeholder
 
   function dayKey2(t) { var d = new Date(t); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  /* Orion's sheets carry trailing fully-blank rows (confirmed live: Photos had 101 of 151
+     rows blank, Upcoming Events 49 of 51) — an artifact of how the sync writes/pads ranges,
+     not real entries. Every count and "latest row" lookup below runs through this first,
+     or a tile reads an inflated total and "latest" picks up an empty row instead of the
+     real last entry. */
+  function realRows(rows) {
+    if (!rows) return [];
+    return rows.filter(function (r) { return r.some(function (c) { return c !== "" && c != null; }); });
+  }
   /* Small self-contained bar row — no new CSS, just inline heights, matches the
      div-bar technique cc-body.js already uses for cardio/sleep. */
   function miniBars(vals, titles) {
@@ -696,11 +705,15 @@
       headWrap.appendChild(h("button", {type: "button", class: "hp-next", onclick: function () { api.go("personal-data"); }}, "Information →"));
 
       var tiles = [];
+      var msgRows = realRows(PC.messages.rows), photoRows = realRows(PC.photos.rows),
+          deviceRows = realRows(PC.device.rows), eventRows = realRows(PC.events.rows),
+          reminderRows = realRows(PC.reminders.rows);
+
       /* MESSAGES — today's count vs yesterday */
       if (PC.messages.rows) {
         var mh = PC.messages.header, iT = col(mh, "time");
         var byDay = {};
-        PC.messages.rows.forEach(function (r) { var t = iT != null ? ms(r[iT]) : null; if (t == null) return; var k = dayKey2(t); byDay[k] = (byDay[k] || 0) + 1; });
+        msgRows.forEach(function (r) { var t = iT != null ? ms(r[iT]) : null; if (t == null) return; var k = dayKey2(t); byDay[k] = (byDay[k] || 0) + 1; });
         var today = dayKey2(Date.now()), yest = dayKey2(Date.now() - 86400000);
         var tCount = byDay[today] || 0, yCount = byDay[yest] || 0;
         tiles.push(tile("Messages Today", tCount, yCount ? (tCount >= yCount ? "+" : "") + (tCount - yCount) + " vs yesterday" : "logged", null));
@@ -710,33 +723,33 @@
       /* PHOTOS — total distinct, new this week */
       if (PC.photos.rows) {
         var ph = PC.photos.header, iFs = col(ph, "first_seen");
-        var wk = PC.photos.rows.filter(function (r) { var t = iFs != null ? ms(r[iFs]) : null; return t && (Date.now() - t) < 7 * 86400000; }).length;
-        tiles.push(tile("Photos", PC.photos.rows.length.toLocaleString(), wk + " new this week", null));
+        var wk = photoRows.filter(function (r) { var t = iFs != null ? ms(r[iFs]) : null; return t && (Date.now() - t) < 7 * 86400000; }).length;
+        tiles.push(tile("Photos", photoRows.length.toLocaleString(), wk + " new this week", null));
       } else tiles.push(tile("Photos", PC.photos.err ? "!" : "…", PC.photos.err || "loading"));
 
       /* BATTERY — latest reading */
-      if (PC.device.rows && PC.device.rows.length) {
+      if (deviceRows.length) {
         var dh = PC.device.header, iBat = col(dh, "battery_level"), iChg = col(dh, "charging_status"), iSlot = col(dh, "slot_time");
-        var latestD = PC.device.rows[PC.device.rows.length - 1];
+        var latestD = deviceRows[deviceRows.length - 1];
         var bat = iBat != null ? numAt(latestD, iBat) : null, chg = iChg != null ? String(latestD[iChg] || "").toLowerCase() === "yes" : false;
         tiles.push(tile("Battery", bat != null ? bat + "%" : "—", chg ? "charging" : (iSlot != null ? ago(ms(latestD[iSlot])) : ""), bat != null && bat < 20 && !chg ? "watch" : bat != null && (bat >= 50 || chg) ? "good" : null));
       } else tiles.push(tile("Battery", PC.device.err ? "!" : "…", PC.device.err || "loading"));
 
       /* UPCOMING — distinct events on file */
-      if (PC.events.rows) tiles.push(tile("Upcoming", PC.events.rows.length, PC.events.rows.length === 1 ? "event on file" : "events on file", null));
+      if (PC.events.rows) tiles.push(tile("Upcoming", eventRows.length, eventRows.length === 1 ? "event on file" : "events on file", null));
       else tiles.push(tile("Upcoming", PC.events.err ? "!" : "…", PC.events.err || "loading"));
 
       /* REMINDERS — latest day's open count */
-      if (PC.reminders.rows && PC.reminders.rows.length) {
+      if (reminderRows.length) {
         var rh = PC.reminders.header, iOpen = col(rh, "open_reminders");
-        var latestR = PC.reminders.rows[PC.reminders.rows.length - 1];
+        var latestR = reminderRows[reminderRows.length - 1];
         tiles.push(tile("Open Reminders", iOpen != null ? latestR[iOpen] : "—", "as of latest sync", null));
       } else tiles.push(tile("Open Reminders", PC.reminders.err ? "!" : "…", PC.reminders.err || "loading"));
 
       /* LAST SYNC — freshness of the Orion device read */
-      if (PC.device.rows && PC.device.rows.length) {
+      if (deviceRows.length) {
         var dh2 = PC.device.header, iSlot2 = col(dh2, "slot_time");
-        var t2 = iSlot2 != null ? ms(PC.device.rows[PC.device.rows.length - 1][iSlot2]) : null;
+        var t2 = iSlot2 != null ? ms(deviceRows[deviceRows.length - 1][iSlot2]) : null;
         tiles.push(tile("Last Synced", t2 ? ago(t2) : "—", "Orion device read", t2 && (Date.now() - t2) > 12 * 3600000 ? "watch" : "good"));
       } else tiles.push(tile("Last Synced", "…", "loading"));
 
@@ -746,7 +759,7 @@
       var msgBody;
       if (PC.messages.rows) {
         var mh2 = PC.messages.header, iT2 = col(mh2, "time"), byDay2 = {};
-        PC.messages.rows.forEach(function (r) { var t = iT2 != null ? ms(r[iT2]) : null; if (t == null) return; var k = dayKey2(t); byDay2[k] = (byDay2[k] || 0) + 1; });
+        msgRows.forEach(function (r) { var t = iT2 != null ? ms(r[iT2]) : null; if (t == null) return; var k = dayKey2(t); byDay2[k] = (byDay2[k] || 0) + 1; });
         var days = [], vals = [], titles = [];
         for (var i = 13; i >= 0; i--) { var dt = Date.now() - i * 86400000; var k2 = dayKey2(dt); days.push(k2); vals.push(byDay2[k2] || 0); titles.push(new Date(dt).toLocaleDateString("en-US", {month: "short", day: "numeric"}) + ": " + (byDay2[k2] || 0)); }
         msgBody = h("div", null, miniBars(vals, titles), h("div", {class: "rh-sub", style: "margin-top:6px"}, "last 14 days, " + vals.reduce(function (a, b) { return a + b; }, 0) + " total"));
@@ -755,12 +768,13 @@
 
       /* Device & Network module: status line, no raw address/location */
       var devBody;
-      if (PC.device.rows && PC.device.rows.length) {
-        var ddh = PC.device.header, latest2 = PC.device.rows[PC.device.rows.length - 1];
+      if (deviceRows.length) {
+        var ddh = PC.device.header, latest2 = deviceRows[deviceRows.length - 1];
         var iB = col(ddh, "battery_level"), iC = col(ddh, "charging_status"), iL = col(ddh, "device_locked_state"), iBr = col(ddh, "screen_brightness");
-        var netLatest = PC.network.rows && PC.network.rows.length ? PC.network.rows[PC.network.rows.length - 1] : null;
+        var netRows = realRows(PC.network.rows), locRows = realRows(PC.location.rows);
+        var netLatest = netRows.length ? netRows[netRows.length - 1] : null;
         var nh = PC.network.header, iWifi = netLatest ? col(nh, "wifi_connected") : null;
-        var locLatest = PC.location.rows && PC.location.rows.length ? PC.location.rows[PC.location.rows.length - 1] : null;
+        var locLatest = locRows.length ? locRows[locRows.length - 1] : null;
         var lh = PC.location.header, iPlace = locLatest ? col(lh, "place") : null;
         devBody = h("div", {class: "cat-feed"},
           h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, "Battery"), h("span", {class: "cat-feed-name"}, (iB != null ? latest2[iB] + "%" : "—") + (iC != null && String(latest2[iC]).toLowerCase() === "yes" ? " · charging" : "")), h("span", {class: "cat-feed-time"}, iL != null ? (String(latest2[iL]).toLowerCase() === "yes" ? "locked" : "unlocked") : "")),
@@ -772,9 +786,9 @@
 
       /* Upcoming module: next few events by start time */
       var upBody;
-      if (PC.events.rows && PC.events.rows.length) {
+      if (eventRows.length) {
         var eh = PC.events.header, iTitle = col(eh, "event_title"), iStart = col(eh, "start_time");
-        var evRows = PC.events.rows.slice(-8).reverse();
+        var evRows = eventRows.slice(-8).reverse();
         upBody = h("div", {class: "cat-feed"}, evRows.map(function (r) {
           return h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, iTitle != null ? fmtCell(r[iTitle]).slice(0, 48) : "—"), h("span", {class: "cat-feed-time"}, iStart != null ? fmtCell(r[iStart]) : ""));
         }));
@@ -806,11 +820,13 @@
     return page;
   };
 
-  /* This repo is public — two tabs carry real private content the generic auto-column grid
-     would otherwise render straight onto the page: Messages (text + sender) and Photos
-     (street-address location). Custom column sets keep the drill-down to what's safe to show
-     (time/thread/direction; photo time/camera/screenshot) and drop the rest, same spirit as
-     every other "counts and names only" rule in this repo. */
+  /* This repo is public — several tabs carry real private content the generic auto-column
+     grid would otherwise render straight onto the page: Messages (text + sender), Photos
+     (street-address location), and Location & Context (parked_car_location is a street
+     address, confirmed against the live sheet; parked_car_notes is dropped too since it's
+     unreviewed free text alongside that address). Custom column sets keep the drill-down
+     to what's safe to show and drop the rest, same spirit as every other "counts and names
+     only" rule in this repo. */
   function colsSkip(skip) {
     return function (header) {
       return autoColumns(header).filter(function (c, i) { return skip.indexOf(String(header[i]).toLowerCase()) < 0; });
@@ -827,7 +843,7 @@
     {id: "reminders", label: "Reminders", gid: PERS_GID.reminders},
     {id: "device", label: "Device Status", gid: PERS_GID.device},
     {id: "network", label: "Network", gid: PERS_GID.network},
-    {id: "location", label: "Location & Context", gid: PERS_GID.location},
+    {id: "location", label: "Location & Context", gid: PERS_GID.location, cols: colsSkip(["parked_car_location", "parked_car_notes"])},
     {id: "events", label: "Upcoming Events", gid: PERS_GID.events}
   ], "PersonalData");
 
