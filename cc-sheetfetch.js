@@ -217,15 +217,15 @@
   };
   /* Known-placeholder categories as of 2026-11-25, used as a fallback by the stricter Build %
      rule (cc-build.js) before the category's own dashboard has run once this session and
-     reported a live CC.catSummary. Once a dashboard runs, its own live signal takes over. */
-  CC.catPlaceholderDefault = {"Local / CENTCOM": true};
+     reported a live CC.catSummary. Once a dashboard runs, its own live signal takes over.
+     2026-11-27: Local / CENTCOM is wired to a real sheet now (see cc-categories.js), so it's
+     out of this fallback list. */
+  CC.catPlaceholderDefault = {};
 
   /* 2026-11-27, JD's call: Shift+click on a Wall tile reveals an external-link button to "an
      external source" — each category's own connected Google Sheet is that source. One spreadsheet
      ID per category, named directly here (not read off each category's own module-scoped var)
-     so this map has no load-order dependency on cc-categories.js/cc-health.js. A category with no
-     connected sheet yet (Local / CENTCOM) is left out on purpose — its tile just won't offer the
-     button until a source exists. */
+     so this map has no load-order dependency on cc-categories.js/cc-health.js. */
   CC.catSheetUrl = {
     "Social": "https://docs.google.com/spreadsheets/d/1Azc5F5FcXWJjFyqhdz50B8j4szYrwJmv3u5t3bQZKbg/edit",
     "Finance": "https://docs.google.com/spreadsheets/d/1-PXlHgh0rrJhhAJZZqaiE9cwDn6LUqxyT_j-5KzxMW0/edit",
@@ -234,6 +234,7 @@
     "Personal": "https://docs.google.com/spreadsheets/d/1-eIlVRMm5-U5PvNhKPKGgltYvLHaqmQpcuo6pGHyJK8/edit",
     "Hub Core / Admin": "https://docs.google.com/spreadsheets/d/1_CstkGl_8mQStmX2r2dIZNJ29CHKFpQApFlS0kIJrxA/edit",
     "Records & Files": "https://docs.google.com/spreadsheets/d/1lmiEWnBCjW97riQDtskghHQbQQS9FSfFHugvPjMfLYk/edit",
-    "Health": "https://docs.google.com/spreadsheets/d/1f1EsQ-qwlJ4U_e7Qv77mUuQfaFov4Ye4rquoGlX6k9w/edit"
+    "Health": "https://docs.google.com/spreadsheets/d/1f1EsQ-qwlJ4U_e7Qv77mUuQfaFov4Ye4rquoGlX6k9w/edit",
+    "Local / CENTCOM": "https://docs.google.com/spreadsheets/d/1cVQtcyfT5-1xRa1N4i5tsAgGBXzPoEKme-ijl73LFhc/edit"
   };
 })();

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261127.5
+     BUILD VERSION — single source of truth: 20261127.6
      Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.19"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
@@ -341,7 +341,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261127.5"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261127.6"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -1403,7 +1403,7 @@ function loadData(){
      before any of them touch the page) but lets the browser fetch all 18 files in parallel
      instead of one at a time, which used to be a big chunk of the time before the page became
      interactive. -->
-<script defer src="cc-sheetfetch.js?v=20261127.5" onerror="void 0"></script>
+<script defer src="cc-sheetfetch.js?v=20261127.6" onerror="void 0"></script>
 <script defer src="cc-fresh.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-inbox.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-motion.js?v=20261125.19" onerror="void 0"></script>
@@ -1432,7 +1432,7 @@ function loadData(){
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
 <script defer src="cc-health.js?v=20261127.4" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261127.3" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261127.6" onerror="void 0"></script>
 <script defer src="cc-pages.js?v=20261127.3" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
 </body>

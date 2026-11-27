@@ -1452,44 +1452,166 @@
 
   /* ═══════════════════════════════════════════════════════════════════
      9. LOCAL / CENTCOM
-     ═══════════════════════════════════════════════════════════════════ */
+     2026-11-27: JD moved the real CENTCOM sheet (Apollo's dragnet pipeline) into the Command
+     Center Drive folder, so this stopped being a placeholder. CENTCOM is its own spreadsheet with
+     seven tabs: Posts (raw scrape, ~15.4k rows), Events (parsed out of Posts), Sources (the ~228
+     accounts it watches), Checks (per-source verification log), Scanner (EMS/fire dispatch pulled
+     from a Facebook scanner group), Chatter (general group chatter, barely started), and Feed — the
+     enriched "packets" tab Apollo's job writes for display (see centcom.md: raw -> enrich -> Feed).
+     Dashboard here reads Sources (coverage), Feed (the main list) and Scanner (safety watch) live;
+     Posts/Events/Checks/Chatter are browse-only on the Information page, since they're either huge
+     (Posts) or not meant to be read at a glance.
+     Known data-quality issue (found 2026-11-27, flagged to JD for Apollo): Feed has duplicate rows
+     under the same packet id (~33% of rows, up to 3x) — whatever writes Feed isn't checking if an
+     id already exists before appending. DEDUPE_FEED below works around it client-side (keeps the
+     most recently updated_at row per id) so the dashboard reads clean either way, but the sheet
+     itself still needs a fix on Apollo's end. */
   CC.catPages["Local / CENTCOM"] = "local-centcom";
+
+  var CENTCOM_SHEET = "1cVQtcyfT5-1xRa1N4i5tsAgGBXzPoEKme-ijl73LFhc";
+  var CENTCOM_FEED_GID = "2064150175";
+  var CENTCOM_SCANNER_GID = "110003510";
+  var CENTCOM_SOURCES_GID = "643627581";
+  var CENTCOM_EVENTS_GID = "1272955197";
+  var CENTCOM_POSTS_GID = "0";
+  var CENTCOM_CHECKS_GID = "1055934024";
+  var CENTCOM_CHATTER_GID = "1858170486";
+  var CENTCOM_FEED_CACHE = {rows: null, header: null, err: null, loading: false};
+  var CENTCOM_SCANNER_CACHE = {rows: null, header: null, err: null, loading: false};
+  var CENTCOM_SOURCES_CACHE = {rows: null, header: null, err: null, loading: false};
+
+  /* Collapse Feed's duplicate-id rows to one per id, keeping the most recently updated_at copy. */
+  function dedupeFeed(rows, header) {
+    var iId = col(header, "id"), iUpd = col(header, "updated_at");
+    if (iId == null) return rows;
+    var byId = {};
+    rows.forEach(function (r) {
+      var id = r[iId];
+      if (!id) return;
+      var t = iUpd != null ? ms(r[iUpd]) : null;
+      var cur = byId[id];
+      if (!cur || (t != null && (cur._t == null || t > cur._t))) { r._t = t; byId[id] = r; }
+    });
+    return Object.keys(byId).map(function (k) { return byId[k]; });
+  }
 
   CC.views.LocalCENTCOM = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Local / CENTCOM", "local-centcom", api));
-
-    var tiles = [];
-    tiles.push(tile("Area Status", "🟢", "nominal"));
-    tiles.push(tile("Intel Feed", "—", "connect local data"));
-    tiles.push(tile("Campus Watch", "—", "monitoring off"));
-    tiles.push(tile("Weather", "—", "local conditions"));
-    page.appendChild(h("div", {class: "hp-tilesbar"}, tileGrid(tiles)));
-
-    var body = canvasBody("1fr 1fr", "1fr", [
-      mod("Intel Feed", null, null, modPlaceholder("No local data source yet",
-        "Local intelligence updates and area alerts will stream here once a source is connected — see Information → for the sheet plan.")),
-      mod("Campus Watch", null, null, modPlaceholder("Monitoring off",
-        "Campus and community monitoring status, plus weather for the area, will show here once wired up."))
-    ]);
+    var tilesWrap = h("div", {class: "hp-tilesbar"});
+    page.appendChild(tilesWrap);
+    var body = canvasBody("1.3fr 1fr", "1fr", []);
     page.appendChild(body);
 
-    if (CC.setCatSummary) CC.setCatSummary("Local / CENTCOM", "Waiting on a local data source", true, [
-      {value: "—", label: "Intel feed (not connected)"},
-      {value: "—", label: "Campus watch (not connected)"},
-      {value: "—", label: "Local weather (not connected)"}
-    ]);
+    function paint() {
+      var tiles = [];
+      var feedCount = null, newWeek = null, scanner7 = null, sourcesN = null;
+
+      if (CENTCOM_SOURCES_CACHE.rows) sourcesN = CENTCOM_SOURCES_CACHE.rows.length;
+      tiles.push(tile("Sources Tracked", sourcesN != null ? sourcesN : "…", "accounts watched"));
+
+      var feed = [];
+      if (CENTCOM_FEED_CACHE.rows) {
+        feed = dedupeFeed(CENTCOM_FEED_CACHE.rows, CENTCOM_FEED_CACHE.header);
+        feedCount = feed.length;
+        var now = Date.now(), WEEK = 7 * 86400000;
+        newWeek = feed.filter(function (r) { return r._t != null && (now - r._t) < WEEK; }).length;
+        tiles.push(tile("Feed Packets", feedCount.toLocaleString(), "deduped from " + CENTCOM_FEED_CACHE.rows.length.toLocaleString() + " rows"));
+        tiles.push(tile("New This Week", newWeek, newWeek === 1 ? "packet" : "packets"));
+      } else if (CENTCOM_FEED_CACHE.err) {
+        tiles.push(tile("Feed", "!", CENTCOM_FEED_CACHE.err, "watch"));
+      } else {
+        tiles.push(tile("Feed Packets", "…", "loading"));
+      }
+
+      if (CENTCOM_SCANNER_CACHE.rows) {
+        var sHdr = CENTCOM_SCANNER_CACHE.header, iCap = col(sHdr, "captured_at");
+        var now2 = Date.now();
+        scanner7 = CENTCOM_SCANNER_CACHE.rows.filter(function (r) { var t = iCap != null ? ms(r[iCap]) : null; return t && (now2 - t) < 7 * 86400000; }).length;
+        tiles.push(tile("Scanner (7d)", scanner7, scanner7 === 1 ? "dispatch" : "dispatches", scanner7 > 5 ? "watch" : ""));
+      } else {
+        tiles.push(tile("Scanner (7d)", "…", "loading"));
+      }
+
+      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
+
+      /* Local Feed module — the enriched packets, newest first */
+      var feedBody;
+      if (CENTCOM_FEED_CACHE.rows) {
+        var fHdr = CENTCOM_FEED_CACHE.header;
+        var iTitle = col(fHdr, "title"), iPlace = col(fHdr, "place"), iWhen = col(fHdr, "when"), iLink = col(fHdr, "link"), iKind = col(fHdr, "kind");
+        var sorted = feed.slice().sort(function (a, b) {
+          var ta = (iWhen != null ? ms(a[iWhen]) : null) || a._t || 0, tb = (iWhen != null ? ms(b[iWhen]) : null) || b._t || 0;
+          return tb - ta;
+        }).slice(0, 20);
+        feedBody = sorted.length ? h("div", {class: "cat-feed"}, sorted.map(function (r) {
+          var link = iLink != null ? r[iLink] : "";
+          var title = h("span", {class: "cat-feed-name"}, iTitle != null ? fmtCell(r[iTitle]) : "—");
+          return h("div", {class: "cat-feed-item"},
+            h("span", {class: "cat-feed-platform"}, iKind != null ? fmtCell(r[iKind]) : ""),
+            link ? h("a", {href: link, target: "_blank", rel: "noopener", style: "color:inherit;text-decoration:none;flex:1"}, title) : title,
+            iPlace != null && r[iPlace] ? h("span", {class: "cat-feed-name", style: "flex:none;color:var(--muted)"}, fmtCell(r[iPlace])) : null,
+            h("span", {class: "cat-feed-time"}, iWhen != null && r[iWhen] ? fmtDate(r[iWhen]) : (r._t ? ago(r._t) : "")));
+        })) : h("div", {class: "ov-empty"}, "No packets yet.");
+      } else if (CENTCOM_FEED_CACHE.err) {
+        feedBody = modPlaceholder("Couldn't load the local feed", CENTCOM_FEED_CACHE.err);
+      } else {
+        feedBody = modPlaceholder(readingText("local feed", CENTCOM_FEED_CACHE));
+      }
+
+      /* Scanner Watch module — EMS/fire dispatch, most recent first */
+      var scanBody;
+      if (CENTCOM_SCANNER_CACHE.rows && CENTCOM_SCANNER_CACHE.rows.length) {
+        var scHdr = CENTCOM_SCANNER_CACHE.header;
+        var iTxt = col(scHdr, "text"), iSrc = col(scHdr, "source"), iCap2 = col(scHdr, "captured_at"), iLink2 = col(scHdr, "link");
+        var recent = CENTCOM_SCANNER_CACHE.rows.slice(-12).reverse();
+        scanBody = h("div", {class: "cat-feed"}, recent.map(function (r) {
+          var link2 = iLink2 != null ? r[iLink2] : "";
+          var txt = h("span", {class: "cat-feed-name"}, iTxt != null ? fmtCell(r[iTxt]).slice(0, 90) : "");
+          return h("div", {class: "cat-feed-item"},
+            link2 ? h("a", {href: link2, target: "_blank", rel: "noopener", style: "color:inherit;text-decoration:none;flex:1"}, txt) : txt,
+            h("span", {class: "cat-feed-time"}, iCap2 != null ? ago(ms(r[iCap2])) : ""));
+        }));
+      } else if (CENTCOM_SCANNER_CACHE.err) {
+        scanBody = modPlaceholder("Couldn't load the scanner feed", CENTCOM_SCANNER_CACHE.err);
+      } else {
+        scanBody = modPlaceholder(readingText("scanner feed", CENTCOM_SCANNER_CACHE));
+      }
+
+      body.innerHTML = "";
+      body.appendChild(mod("Local Feed", null, null, feedBody));
+      body.appendChild(mod("Scanner Watch", null, null, scanBody));
+
+      if (CC.setCatSummary) {
+        var line = feedCount != null ? feedCount.toLocaleString() + " local packets" + (newWeek ? " · " + newWeek + " new this week" : "") : "Loading CENTCOM feed…";
+        CC.setCatSummary("Local / CENTCOM", line, false, [
+          {value: feedCount != null ? feedCount.toLocaleString() : "—", label: "Feed packets"},
+          {value: scanner7 != null ? String(scanner7) : "—", label: "Scanner (7d)"},
+          {value: sourcesN != null ? String(sourcesN) : "—", label: "Sources watched"}
+        ]);
+      }
+    }
+    paint();
+
+    if (!CENTCOM_SOURCES_CACHE.rows && !CENTCOM_SOURCES_CACHE.err)
+      loadSheet(CENTCOM_SHEET, CENTCOM_SOURCES_GID, api, CENTCOM_SOURCES_CACHE, paint, 500, "CENTCOM Sources");
+    if (!CENTCOM_FEED_CACHE.rows && !CENTCOM_FEED_CACHE.err)
+      loadSheet(CENTCOM_SHEET, CENTCOM_FEED_GID, api, CENTCOM_FEED_CACHE, paint, 3000, "CENTCOM Feed");
+    if (!CENTCOM_SCANNER_CACHE.rows && !CENTCOM_SCANNER_CACHE.err)
+      loadSheet(CENTCOM_SHEET, CENTCOM_SCANNER_GID, api, CENTCOM_SCANNER_CACHE, paint, 500, "CENTCOM Scanner");
 
     return page;
   };
 
-  CC.views.LocalCENTCOMData = function (api) {
-    var page = h("div", {class: "hp-data-full"});
-    page.appendChild(h("div", {class: "hp-data-fhead"},
-      h("h2", null, "Local / CENTCOM — Information"),
-      h("div", {class: "cat-placeholder"}, "Local data sheets will appear here when connected.")));
-    return page;
-  };
+  CC.views.LocalCENTCOMData = infoPage(CENTCOM_SHEET, [
+    {id: "feed", label: "Feed (packets)", gid: CENTCOM_FEED_GID, cap: 3000},
+    {id: "events", label: "Events", gid: CENTCOM_EVENTS_GID, cap: 3000},
+    {id: "scanner", label: "Scanner", gid: CENTCOM_SCANNER_GID, cap: 1000},
+    {id: "sources", label: "Sources", gid: CENTCOM_SOURCES_GID, cap: 500},
+    {id: "checks", label: "Checks", gid: CENTCOM_CHECKS_GID, cap: 2000},
+    {id: "posts", label: "Posts (raw)", gid: CENTCOM_POSTS_GID, cap: 2000},
+    {id: "chatter", label: "Chatter", gid: CENTCOM_CHATTER_GID, cap: 500}
+  ], "LocalCENTCOMData");
 
 
   /* ═══════════════════════════════════════════════════════════════════
