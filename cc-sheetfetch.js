@@ -75,14 +75,23 @@
     return getPage(0).then(function (first) {
       var header = first.header || [];
       var firstRows = first.rows || [];
+      /* 2026-11-27 bug fix: the "was that a short/last page?" check below used to test
+         firstRows.length (post-fixHeader) against pageSize. fixHeader splices one row out of
+         firstRows for sheets with a merged title row above the real header (Workouts: 500 -> 499),
+         which made a full first page of 500 look like a short 499-row page and stop pagination
+         right there — this is exactly why Health's charts were silently stuck on ~12 weeks of
+         Workouts (499 rows) instead of the full ~2,044-row/47-week history: first.total (2044) was
+         being read correctly, but the short-page heuristic fired first and never got that far.
+         rawLen is the server's own unmodified page length — fixHeader must never affect it. */
+      var rawLen = (first.rows || []).length;
       if (opts.fixHeader) {
         var fixed = opts.fixHeader(header, firstRows);
         header = fixed.header; firstRows = fixed.rows;
       }
-      var total = Math.min(first.total || firstRows.length, cap);
+      var total = Math.min(first.total || rawLen, cap);
       var loaded = firstRows.length;
       if (opts.onProgress) opts.onProgress(loaded, total);
-      if (loaded >= total || firstRows.length < pageSize) {
+      if (loaded >= total || rawLen < pageSize) {
         return {header: header, rows: firstRows};
       }
       /* Build the remaining offsets and fire them together. */
