@@ -214,123 +214,21 @@
 
   /* ═══════════════════════════════════════════════════════════════════
      1. BUSINESS
-     ═══════════════════════════════════════════════════════════════════ */
+     2026-11-26: the live Business page and its CRM data are owned by cc-active.js (glance page,
+     reads CC.crm which reads the real Projects and Ledger sheet) and cc-crm.js directly — not here.
+     This file used to define its own CC.views.Business (leads tiles from the ad-lead-log sheet, plus
+     "Active Projects / Revenue" tiles from the old Items-mirrored Ledger) and a CC.views.BusinessData
+     drill-down page (Leads / Uploaded Payments / Square Payments / a never-finished direct Ledger
+     read). Both were dead weight once cc-active.js's v4 "glance only" redesign shipped on Nov 24:
+     that page never links to an Information/BusinessData page, so this one had become unreachable in
+     the live UI, and its "Ledger" tab was a hardcoded "Access Denied" placeholder that never actually
+     tried the real sheet (it works fine now — see cc-crm.js). Removed rather than left stale. The ad
+     lead log sheet itself (Ad-Lead-Log 2026-10, in Connected Sheets) is still real and still fed by
+     the Form inquiry ingest / Square payment poll / Google Ads conversion upload routines — it's ad
+     attribution data, not a second CRM — it's just no longer browsable from inside the hub. JD can
+     still open it directly from Connected Sheets if he wants to look at it.
+     CC.catPages.Business stays set: the Wall tile, icon, color and Build % all key off it. */
   CC.catPages.Business = "business";
-
-  var BIZ_ADLEAD = "1VCdXnsboZgX3dhreAO-D28PbxFnoXWLL6CAoTpUighY";
-  // Projects and Ledger: permission denied, Luna assignment
-  var BIZ_LEDGER = "1q55Fji0zxyxLejxQSXFHguvu3C3hi2Jie4HDzYZ39LM";
-
-  var BIZ_LEADS_CACHE = {rows: null, header: null, err: null, loading: false};
-
-  CC.views.Business = function (api) {
-    var page = h("div", {class: "hp-wrap hp-canvas"});
-    page.appendChild(catHead("Business", "business", api));
-    var tilesWrap = h("div", {class: "hp-tilesbar"});
-    page.appendChild(tilesWrap);
-    var body = canvasBody("1.1fr 1fr", "1fr", []);
-    page.appendChild(body);
-
-    /* Pull leads data for dashboard stats */
-    function paint() {
-      var tiles = [];
-
-      /* CRM data from cc-active.js's CC.crm/CC.nurture if available */
-      var activeN = null, revenue = null;
-      if (CC.crm && CC.crm.list) {
-        var led = CC.crm.list(api);
-        var active = led.filter(function (p) { return !p.cancelled && !p.fulfilled; });
-        var owed = led.filter(function (p) { return p.fulfilled && !/delivered/i.test(String(p.delivery || "")); });
-        revenue = led.reduce(function (s, p) { return s + (p.total || 0); }, 0);
-        activeN = active.length;
-        tiles.push(tile("Active Projects", active.length, active.length === 1 ? "project in progress" : "projects in progress"));
-        tiles.push(tile("Revenue", fmtMoney(revenue), "total from ledger"));
-        tiles.push(tile("Awaiting Delivery", owed.length, owed.length === 1 ? "project" : "projects"));
-      } else {
-        tiles.push(tile("Active Projects", "—", "CRM not loaded"));
-      }
-
-      /* Leads from ad-lead-log */
-      var leadsN = null;
-      if (BIZ_LEADS_CACHE.rows) {
-        var now = Date.now(), DAY = 86400000;
-        var recent = BIZ_LEADS_CACHE.rows.filter(function (r) {
-          var iDate = col(BIZ_LEADS_CACHE.header, "Date");
-          var t = iDate != null ? ms(r[iDate]) : null;
-          return t && (now - t) < 30 * DAY;
-        });
-        var matched = BIZ_LEADS_CACHE.rows.filter(function (r) {
-          var iMatch = col(BIZ_LEADS_CACHE.header, "Square matched");
-          return iMatch != null && r[iMatch] && /^y/i.test(String(r[iMatch]));
-        });
-        leadsN = recent.length;
-        tiles.push(tile("Leads (30d)", recent.length, "from ad-lead-log"));
-        tiles.push(tile("Conversions", matched.length, "Square matched total", matched.length > 0 ? "good" : ""));
-      } else if (BIZ_LEADS_CACHE.err) {
-        tiles.push(tile("Leads", "!", BIZ_LEADS_CACHE.err, "watch"));
-      } else {
-        tiles.push(tile("Leads", "…", "loading"));
-      }
-
-      /* Nurture / pipeline stats */
-      if (CC.nurture && CC.nurture.list) {
-        var nur = CC.nurture.list(api);
-        tiles.push(tile("Pipeline", nur.length, nur.length === 1 ? "lead in nurture" : "leads in nurture"));
-      }
-
-      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
-
-      /* Recent leads module */
-      var leadsBody;
-      if (BIZ_LEADS_CACHE.rows && BIZ_LEADS_CACHE.rows.length) {
-        var hdr = BIZ_LEADS_CACHE.header;
-        var iD = col(hdr, "Date"), iN = col(hdr, "Name"), iSv = col(hdr, "Service");
-        var rows = BIZ_LEADS_CACHE.rows.slice(-12).reverse();
-        leadsBody = h("div", {class: "cat-feed"}, rows.map(function (r) {
-          return h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-user"}, iN != null ? fmtCell(r[iN]) : "—"),
-            h("span", {class: "cat-feed-name"}, iSv != null ? fmtCell(r[iSv]) : ""),
-            h("span", {class: "cat-feed-time"}, iD != null ? ago(ms(r[iD])) : ""));
-        }));
-      } else if (BIZ_LEADS_CACHE.err) {
-        leadsBody = modPlaceholder("Couldn't load leads", BIZ_LEADS_CACHE.err);
-      } else {
-        leadsBody = modPlaceholder(readingText("Leads", BIZ_LEADS_CACHE));
-      }
-
-      body.innerHTML = "";
-      body.appendChild(mod("Recent Leads", null, null, leadsBody));
-      body.appendChild(mod("Competitor Pulse", null, null,
-        modPlaceholder("Business Pulse not connected yet", "Top 3 movers, follower changes, and market shifts will land here.")));
-
-      if (CC.setCatSummary) {
-        var line = leadsN != null ? leadsN + " lead" + (leadsN === 1 ? "" : "s") + " in the last 30 days" + (activeN != null ? " · " + activeN + " active project" + (activeN === 1 ? "" : "s") : "") : "Loading leads…";
-        CC.setCatSummary("Business", line, false);
-      }
-    }
-    paint();
-
-    /* Load leads async */
-    if (!BIZ_LEADS_CACHE.rows && !BIZ_LEADS_CACHE.err)
-      loadSheet(BIZ_ADLEAD, "0", api, BIZ_LEADS_CACHE, paint, 2000, "Leads");
-
-    return page;
-  };
-
-  CC.views.BusinessData = infoPage(BIZ_ADLEAD, [
-    {id: "leads", label: "Leads", gid: "0", cols: function (hdr) {
-      return ["Date", "Name", "Email", "Phone", "Service", "Square matched"].map(function (name) {
-        var i = col(hdr, name);
-        return {label: name, sortVal: name === "Date" ? function (r) { return i != null ? ms(r[i]) : null; } : function (r) { return i != null ? r[i] : ""; },
-          render: name === "Date" ? function (r) { return i != null ? fmtDate(r[i]) : ""; } : function (r) { return i != null ? fmtCell(r[i]) : ""; }};
-      });
-    }},
-    {id: "payments", label: "Uploaded Payments", gid: "1981486483"},
-    {id: "square", label: "Square Payments", gid: "1946813739"},
-    {id: "ledger", label: "Projects & Ledger", sheetId: BIZ_LEDGER, gid: "0",
-      cols: function () { return [{label: "⚠ Access Denied", sortVal: null, render: function () { return "Luna needs to grant sheet access"; }}]; },
-      _cache: {rows: [], header: [], err: null, loading: false}}
-  ], "BusinessData");
 
 
   /* ═══════════════════════════════════════════════════════════════════
