@@ -855,6 +855,13 @@
     var m = {yes: ["✓", "Feeds the hub"], partial: ["~", "Partly feeds the hub"], no: ["✕", "Not in the hub"]}[o.feeds];
     return h("span", {class: "rt-hub " + (o.feeds || "unk"), title: m ? m[1] : "Not reviewed yet"}, m ? m[0] : "–");
   }
+  /* Destination cell: which data sheet (if any) the routine's output lands in, coloured by whether
+     it feeds the hub. Lets JD scan, per routine, where it goes and what still isn't wired in. */
+  function destCell(o) {
+    if (o.feeds === "no") return h("span", {class: "c-dest rt-dest no", title: o.whyNot || "Not in the hub"}, "not in hub");
+    var txt = o.feedsTo || (o.feeds === "yes" || o.feeds === "partial" ? "hub (sheet not named)" : "not reviewed");
+    return h("span", {class: "c-dest rt-dest " + (o.feeds || "unk"), title: txt}, h("i"), h("span", {class: "rt-dest-t"}, txt));
+  }
   function runsIndex() {
     var idx = {};
     if (!RUNLOG_CACHE.rows) return idx;
@@ -923,7 +930,14 @@
       rows.forEach(function (o) { (groups[o.cat] = groups[o.cat] || []).push(o); });
       var order = CATS.concat(Object.keys(groups).filter(function (c) { return CATS.indexOf(c) < 0; })).filter(function (c) { return groups[c]; });
       if (!ADM.seeded) { order.forEach(function (c) { ADM.open[c] = groups[c].some(function (x) { return x.h.cls !== "good"; }); }); ADM.seeded = true; }
-      var head = h("div", {class: "rt-row rt-head", role: "row"}, h("span", null, "Routine"), h("span", {class: "c-runs"}, "Recent runs"), h("span", {class: "c-every"}, "Every"), h("span", null, "Last run"), h("span", null, "Health"), h("span", {class: "c-hub"}, "Hub"));
+      var head = h("div", {class: "rt-row rt-head", role: "row"},
+        h("span", {class: "c-name"}, "Routine"),
+        h("span", {class: "c-desc"}, "What it does"),
+        h("span", {class: "c-every"}, "Every"),
+        h("span", {class: "c-last"}, "Last run"),
+        h("span", {class: "c-runs"}, "Runs"),
+        h("span", {class: "c-health"}, "Health"),
+        h("span", {class: "c-dest"}, "Feeds →"));
       panel.appendChild(head);
       var scroll = h("div", {class: "rt-scroll"});
       if (!order.length) scroll.appendChild(h("div", {class: "hp-mod-ph"}, h("b", null, "No routines match"), h("button", {type: "button", class: "adm-retry", onclick: function () { ADM.q = ""; ADM.f = "all"; paint(); }}, "Clear filters")));
@@ -939,11 +953,12 @@
           var runs = runsFor(o).slice(0, 12).reverse();
           scroll.appendChild(h("button", {type: "button", class: "rt-row rt-item" + (ADM.rid === o.id ? " sel" : ""), role: "row", onclick: function () { ADM.rid = o.id; paintSheet(); paintPanel(R); }},
             h("span", {class: "c-name"}, o.name),
-            h("span", {class: "c-runs"}, h("span", {class: "rt-strip"}, runs.map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good"}); }))),
+            h("span", {class: "c-desc", title: o.desc || ""}, o.desc || "—"),
             h("span", {class: "c-every"}, o.freq || cadText(o.cad)),
             h("span", {class: "c-last"}, shortTime(o.t)),
-            h("span", {class: "rt-health " + o.h.cls}, h("i"), o.h.cls === "good" ? "Healthy" : o.h.cls === "bad" ? "Failed" : /^Never/.test(o.h.text) ? "Never run" : "Overdue"),
-            h("span", {class: "c-hub"}, hubGlyph(o))));
+            h("span", {class: "c-runs"}, h("span", {class: "rt-strip"}, runs.map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good"}); }))),
+            h("span", {class: "c-health rt-health " + o.h.cls}, h("i"), o.h.cls === "good" ? "Healthy" : o.h.cls === "bad" ? "Failed" : /^Never/.test(o.h.text) ? "Never run" : "Overdue"),
+            destCell(o)));
         });
       });
       panel.appendChild(scroll);

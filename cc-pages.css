@@ -368,11 +368,20 @@ button.adm-click:hover,button.adm-click:focus-visible{background:var(--inset)}
 .rt-seg button:last-child{border-right:0}.rt-seg button.on{background:var(--inset);color:var(--text);font-weight:500}
 .rt-panel{display:flex;flex-direction:column;min-height:320px;max-height:calc(100vh - 150px);border-radius:16px;border:1px solid var(--line);background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);overflow:hidden;box-shadow:var(--glass-sh)}
 .rt-scroll{overflow:auto;flex:1;min-height:0}
-.rt-row{display:grid;grid-template-columns:minmax(0,2.2fr) 112px 130px 120px 104px 44px;align-items:center;gap:8px;padding:0 16px;min-height:40px;box-sizing:border-box;width:100%;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);font-size:14px}
+.rt-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.85fr) 100px 104px 92px 100px minmax(0,1.5fr);align-items:center;gap:10px;padding:0 16px;min-height:40px;box-sizing:border-box;width:100%;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);font-size:14px}
 .rt-head{min-height:32px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
-button.rt-item{all:unset;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,2.2fr) 112px 130px 120px 104px 44px;align-items:center;gap:8px;padding:0 16px;min-height:40px;width:100%;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);font-size:14px;cursor:pointer}
+button.rt-item{all:unset;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.85fr) 100px 104px 92px 100px minmax(0,1.5fr);align-items:center;gap:10px;padding:0 16px;min-height:40px;width:100%;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);font-size:14px;cursor:pointer}
 button.rt-item:hover,button.rt-item.sel{background:color-mix(in srgb,var(--text) 6%,transparent)}
-.c-name{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.c-every,.c-last{color:var(--muted);white-space:nowrap}
+.c-name{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.c-every,.c-last{color:var(--muted);white-space:nowrap;font-size:13px}
+.c-desc{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.rt-head .c-desc,.rt-head .c-dest{color:var(--muted)}
+.c-dest.rt-dest{display:inline-flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--muted)}
+.rt-dest .rt-dest-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.rt-dest i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--green)}
+.rt-dest.yes,.rt-dest.partial{color:var(--text)}
+.rt-dest.partial i{background:var(--amber)}
+.rt-dest.no{color:var(--muted);font-style:normal}
+.rt-dest.unk i{background:var(--muted)}
 .rt-grp{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 16px;cursor:pointer;background:color-mix(in srgb,var(--text) 4%,transparent);border-bottom:1px solid var(--line);font-size:14px}
 .rt-grp b{font-weight:600}.rt-cnt{font-size:12px;color:var(--muted)}.rt-gmeta{margin-left:auto;font-size:12px;color:var(--muted)}
 .rt-chev{display:inline-block;width:12px;transition:transform .15s ease;color:var(--muted)}.rt-chev.open{transform:rotate(90deg)}
@@ -383,8 +392,8 @@ button.rt-item:hover,button.rt-item.sel{background:color-mix(in srgb,var(--text)
 .rt-health.lg{font-size:14px;font-weight:600}.rt-health em{font-style:normal;font-weight:400;color:var(--muted)}
 .rt-hub{font-size:14px;text-align:center;display:inline-block;width:100%}.rt-hub.yes{color:var(--green)}.rt-hub.partial{color:var(--amber)}.rt-hub.no{color:var(--red)}.rt-hub.unk{color:var(--muted)}
 .rt-skel{padding:16px;display:flex;flex-direction:column;gap:8px}.rt-skrow{height:32px;border-radius:8px;background:linear-gradient(100deg,var(--inset) 30%,color-mix(in srgb,var(--inset) 60%,var(--text) 8%) 50%,var(--inset) 70%);background-size:220% 100%;animation:adm-shim 1.3s linear infinite}
-.rt-scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .15s ease;z-index:40}.rt-scrim.open{opacity:1;pointer-events:auto}
-.rt-sheet{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);z-index:41;display:flex;flex-direction:column;border-left:1px solid var(--line);background:color-mix(in srgb,var(--bg,#0b0d14) 94%,var(--inset));transform:translateX(102%);transition:transform .18s ease;visibility:hidden}
+.rt-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .15s ease;z-index:200}.rt-scrim.open{opacity:1;pointer-events:auto}
+.rt-sheet{position:fixed;top:0;right:0;bottom:0;width:min(440px,100vw);z-index:201;display:flex;flex-direction:column;border-left:1px solid var(--line);background:color-mix(in srgb,var(--bg,#0b0d14) 94%,var(--inset));transform:translateX(102%);transition:transform .18s ease;visibility:hidden}
 @supports (backdrop-filter:blur(1px)){.rt-sheet{background:color-mix(in srgb,var(--bg,#0b0d14) 70%,transparent);backdrop-filter:blur(18px) saturate(1.15)}}
 .rt-sheet.open{transform:none;visibility:visible}
 .rt-sheet header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px;border-bottom:1px solid var(--line)}.rt-sheet header small{font-size:12px;color:var(--muted)}.rt-sheet h3{margin:4px 0 0;font-size:20px;line-height:1.2;font-weight:600}
@@ -392,8 +401,23 @@ button.rt-item:hover,button.rt-item.sel{background:color-mix(in srgb,var(--text)
 .rt-sbody{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:16px}.rt-sbody h4{margin:8px 0 0;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
 .rt-sbody .adm-desc{font-size:14px;line-height:1.55}.rt-none{font-size:14px;color:var(--muted)}
 .rt-open{font-size:14px;color:var(--text);text-decoration:underline;text-underline-offset:3px}
+/* Columns shed from the least critical outward as the panel narrows: description first, then the
+   runs strip, then frequency. Routine, last run, health and destination survive longest. */
+@media (max-width:1220px){
+  .rt-row,button.rt-item{grid-template-columns:minmax(0,1.5fr) 100px 104px 92px 100px minmax(0,1.6fr)}
+  .c-desc{display:none}
+}
+@media (max-width:980px){
+  .rt-row,button.rt-item{grid-template-columns:minmax(0,1.5fr) 100px 104px 100px minmax(0,1.5fr)}
+  .c-desc,.c-runs{display:none}
+}
 @media (max-width:760px){
-  .rt-row,button.rt-item{grid-template-columns:minmax(0,1fr) 88px 84px;padding:0 12px;gap:4px}.c-runs,.c-every,.c-hub{display:none}.c-last{white-space:normal;font-size:12px;line-height:1.3}.rt-health{gap:6px;font-size:13px}button.rt-item{padding-top:4px;padding-bottom:4px}
+  /* Phone: three columns (routine, last run, health) with the destination as a full-width subtitle
+     under each row, so JD still sees where every routine lands without a horizontal squeeze. */
+  .rt-row,button.rt-item{grid-template-columns:minmax(0,1fr) 84px 92px;padding:6px 12px;gap:4px 8px}
+  .c-desc,.c-runs,.c-every{display:none}.rt-head .c-dest{display:none}
+  .c-last{white-space:normal;font-size:12px;line-height:1.3}.rt-health{gap:6px;font-size:13px}
+  .c-dest.rt-dest{grid-column:1 / -1;font-size:12px;margin-top:2px}.c-dest .rt-dest-t{white-space:normal;line-height:1.3}
   .rt-search{flex:1;width:auto}.rt-seg{width:100%}.rt-seg button{flex:1;text-align:center;padding:0 4px}
   .rt-panel{max-height:none;min-height:0}
 }
