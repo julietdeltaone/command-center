@@ -310,7 +310,11 @@
 
       if (CC.setCatSummary) {
         var line = followers != null ? followers.toLocaleString() + " IG followers" + (unfRecent != null ? " · " + unfRecent + " unfollow" + (unfRecent === 1 ? "" : "s") + " this week" : "") : "Loading Instagram export…";
-        CC.setCatSummary("Social", line, false);
+        CC.setCatSummary("Social", line, false, [
+          {value: followers != null ? followers.toLocaleString() : "—", label: "IG followers"},
+          {value: typeof following !== "undefined" && following != null ? following.toLocaleString() : "—", label: "Following"},
+          {value: unfRecent != null ? String(unfRecent) : "—", label: "Unfollows (7d)"}
+        ]);
       }
     }
     paint();
@@ -424,7 +428,11 @@
 
       if (CC.setCatSummary) {
         var line = total30 != null ? fmtMoney(total30) + " over " + count30 + " transaction" + (count30 === 1 ? "" : "s") + " (30d)" : "Loading transactions…";
-        CC.setCatSummary("Finance", line, false);
+        CC.setCatSummary("Finance", line, false, [
+          {value: count30 != null ? String(count30) : "—", label: "Transactions (30d)"},
+          {value: total30 != null ? fmtMoney(total30) : "—", label: "Total (30d)"},
+          {value: FIN_CACHE.rows ? FIN_CACHE.rows.length.toLocaleString() : "—", label: "All time"}
+        ]);
       }
     }
     paint();
@@ -473,6 +481,7 @@
       var tiles = [];
 
       /* Overview items as stat tiles */
+      var ovStats = [];
       if (CLK_OVERVIEW_CACHE.rows) {
         var ohdr = CLK_OVERVIEW_CACHE.header;
         var iItem = col(ohdr, "item"), iVal = col(ohdr, "value"), iSrc = col(ohdr, "source");
@@ -480,10 +489,9 @@
           var it = iItem != null ? fmtCell(r[iItem]).trim() : "", vl = iVal != null ? fmtCell(r[iVal]).trim() : "";
           return it || vl;
         }).slice(0, 6).forEach(function (r) {
-          tiles.push(tile(
-            iItem != null ? fmtCell(r[iItem]) : "—",
-            iVal != null ? fmtCell(r[iVal]) : "—",
-            iSrc != null ? fmtCell(r[iSrc]) : ""));
+          var itm = iItem != null ? fmtCell(r[iItem]) : "—", val = iVal != null ? fmtCell(r[iVal]) : "—";
+          tiles.push(tile(itm, val, iSrc != null ? fmtCell(r[iSrc]) : ""));
+          ovStats.push({value: val, label: itm});
         });
       } else if (CLK_OVERVIEW_CACHE.err) {
         tiles.push(tile("Clarkson", "!", CLK_OVERVIEW_CACHE.err, "watch"));
@@ -521,7 +529,9 @@
         modPlaceholder("Queue, Due and Waiting not surfaced here yet", "Those tabs are already in Information → — a live snapshot of open items lands here next.")));
 
       if (CC.setCatSummary) {
-        CC.setCatSummary("Clarkson", upcomingN != null ? upcomingN + " upcoming event" + (upcomingN === 1 ? "" : "s") : "Loading overview…", false);
+        var stats = ovStats.slice(0, 2);
+        stats.push({value: upcomingN != null ? String(upcomingN) : "—", label: "Upcoming events"});
+        CC.setCatSummary("Clarkson", upcomingN != null ? upcomingN + " upcoming event" + (upcomingN === 1 ? "" : "s") : "Loading overview…", false, stats);
       }
     }
     paint();
@@ -609,7 +619,11 @@
 
       if (CC.setCatSummary) {
         var line = tripsN != null ? tripsN + " trip" + (tripsN === 1 ? "" : "s") + " · " + fmtMoney(earnings) + " (30d)" : "Loading trip history…";
-        CC.setCatSummary("Uber / Taxi", line, false);
+        CC.setCatSummary("Uber / Taxi", line, false, [
+          {value: tripsN != null ? String(tripsN) : "—", label: "Trips (30d)"},
+          {value: earnings != null ? fmtMoney(earnings) : "—", label: "Earnings (30d)"},
+          {value: TAXI_CACHE.rows ? TAXI_CACHE.rows.length.toLocaleString() : "—", label: "All-time rows"}
+        ]);
       }
     }
     paint();
@@ -808,7 +822,14 @@
 
       if (CC.setCatSummary) {
         var sumT = PC.messages.rows ? (byDay[today] || 0) : null;
-        CC.setCatSummary("Personal", sumT != null ? sumT + " messages today" : "Reading Orion device data…", false);
+        /* Battery/upcoming only — never location or address fields here (the Wall tile is a
+           glance surface, and parked_car_location etc. stay inside the Personal dashboard itself). */
+        var battPct = deviceRows.length ? (function () { var ddh2 = PC.device.header, iB2 = col(ddh2, "battery_level"), v = deviceRows[deviceRows.length - 1][iB2]; return iB2 != null && v !== "" ? v + "%" : "—"; })() : "—";
+        CC.setCatSummary("Personal", sumT != null ? sumT + " messages today" : "Reading Orion device data…", false, [
+          {value: sumT != null ? String(sumT) : "—", label: "Messages today"},
+          {value: battPct, label: "Phone battery"},
+          {value: eventRows.length ? String(eventRows.length) : "—", label: "Upcoming events"}
+        ]);
       }
     }
     paint();
@@ -1216,7 +1237,12 @@
       paintBar(R); paintPanel(R); paintSheet();
       if (CC.setCatSummary && R.length) {
         var gd = R.filter(function (x) { return x.h.cls === "good"; }).length, na = R.length - gd;
-        CC.setCatSummary("Hub Core / Admin", gd + "/" + R.length + " routines healthy" + (na ? " · " + na + " need attention" : ""), na > 0);
+        var failed = R.filter(function (x) { return x.h.cls === "bad"; }).length;
+        CC.setCatSummary("Hub Core / Admin", gd + "/" + R.length + " routines healthy" + (na ? " · " + na + " need attention" : ""), na > 0, [
+          {value: gd + "/" + R.length, label: "Routines healthy"},
+          {value: String(failed), label: "Failed"},
+          {value: String(na), label: "Need attention"}
+        ]);
       }
     }
 
@@ -1401,7 +1427,11 @@
 
       if (CC.setCatSummary) {
         var line = invCount != null ? invCount.toLocaleString() + " items tracked" : "Loading inventory…";
-        CC.setCatSummary("Records & Files", line, false);
+        CC.setCatSummary("Records & Files", line, false, [
+          {value: invCount != null ? invCount.toLocaleString() : "—", label: "Inventory items"},
+          {value: "—", label: "Room inventory (soon)"},
+          {value: "—", label: "File registry (soon)"}
+        ]);
       }
     }
     paint();
@@ -1444,7 +1474,11 @@
     ]);
     page.appendChild(body);
 
-    if (CC.setCatSummary) CC.setCatSummary("Local / CENTCOM", "Waiting on a local data source", true);
+    if (CC.setCatSummary) CC.setCatSummary("Local / CENTCOM", "Waiting on a local data source", true, [
+      {value: "—", label: "Intel feed (not connected)"},
+      {value: "—", label: "Campus watch (not connected)"},
+      {value: "—", label: "Local weather (not connected)"}
+    ]);
 
     return page;
   };

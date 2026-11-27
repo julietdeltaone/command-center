@@ -49,6 +49,24 @@
   function dtext(d) { return d == null ? "no data" : d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days"; }
   function hrs(min) { if (min == null) return "—"; var h2 = Math.floor(min / 60), m2 = Math.round(min % 60); return h2 + "h " + m2 + "m"; }
   function sv(tag, props) { var e = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.keys(props || {}).forEach(function (k) { e.setAttribute(k, props[k]); }); return e; }
+  /* Small inline legend row — a line-style swatch (or a row of intensity swatches) plus a label,
+     so a chart's encoding is spelled out in plain words right under it rather than assumed.
+     entries: [{line:"solid"|"dashed", label:"Actual"}] for a line chart, or
+     {swatches:[op,op,...], loLabel:"Less", hiLabel:"More"} for a sequential heatmap scale. */
+  function chartLegend(entries) {
+    return h("div", {class: "rh-sub", style: "display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px"},
+      entries.map(function (e) {
+        if (e.swatches) {
+          return h("span", {style: "display:inline-flex;align-items:center;gap:4px"},
+            e.loLabel, h("span", {style: "display:inline-flex;gap:2px;margin:0 2px"},
+              e.swatches.map(function (op) { return h("span", {style: "width:10px;height:10px;border-radius:2px;background:var(--accent);opacity:" + op + ";display:inline-block"}); })),
+            e.hiLabel);
+        }
+        return h("span", {style: "display:inline-flex;align-items:center;gap:5px"},
+          h("span", {style: "width:14px;height:0;border-top:2px " + (e.line === "dashed" ? "dashed var(--muted)" : "solid var(--accent)") + ";display:inline-block"}),
+          e.label);
+      }));
+  }
   function agoShort(t) {
     if (t == null) return "—";
     var mins = Math.floor((Date.now() - t) / 60000);
@@ -283,7 +301,10 @@
       body.appendChild(h("div", {style: "display:flex;gap:3px;overflow-x:auto"}, cols));
       var inWin = Object.keys(byDay).filter(function (k) { return Number(k) >= gridStart; });
       var totalSets = inWin.reduce(function (a, k) { return a + byDay[k]; }, 0);
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:8px"}, inWin.length + " training days, " + totalSets.toLocaleString("en-US") + " sets logged in the last " + WEEKS + " weeks"));
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:8px"},
+        "Each column is one week, oldest on the left, today on the right; each square is one day. " +
+        inWin.length + " training days, " + totalSets.toLocaleString("en-US") + " sets logged in the last " + WEEKS + " weeks."));
+      body.appendChild(chartLegend([{swatches: [0.08, 0.35, 0.6, 0.85, 1], loLabel: "No sets", hiLabel: "Most sets in a day"}]));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
@@ -311,7 +332,7 @@
       var PROJ = 3, projTotals = [];
       for (var p = 0; p < PROJ; p++) projTotals.push(Math.max(0, intercept + slope * (n + p)));
       var allVals = totals.concat(projTotals), mx = Math.max.apply(null, allVals.concat([1]));
-      var W = 600, H2 = 140, stepX = W / (allVals.length - 1);
+      var W = 600, H2 = 108, stepX = W / (allVals.length - 1);
       function pt(i, v) { return [i * stepX, H2 - (v / mx) * (H2 - 16) - 8]; }
       var solidPts = totals.map(function (v, i) { return pt(i, v); });
       var dashPts = [pt(n - 1, totals[n - 1])].concat(projTotals.map(function (v, i) { return pt(n + i, v); }));
@@ -320,8 +341,9 @@
       svg.appendChild(sv("polyline", {points: dashPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--muted)", "stroke-width": "2", "stroke-dasharray": "5,5"}));
       solidPts.forEach(function (p) { svg.appendChild(sv("circle", {cx: p[0], cy: p[1], r: "3", fill: "var(--accent)"})); });
       body.appendChild(svg);
+      body.appendChild(chartLegend([{line: "solid", label: "Actual"}, {line: "dashed", label: "Projected"}]));
       var dir = slope > totals[0] * 0.02 ? "trending up" : slope < -totals[0] * 0.02 ? "trending down" : "steady";
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:4px"}, dir + " · projected " + Math.round(projTotals[projTotals.length - 1]).toLocaleString("en-US") + " lb·reps in " + PROJ + " weeks"));
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:2px"}, "Total weight × reps lifted each week, across all tracked lifts — " + dir + ", projected to reach " + Math.round(projTotals[projTotals.length - 1]).toLocaleString("en-US") + " in " + PROJ + " more weeks."));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
@@ -424,9 +446,11 @@
 
     function reportSummary() {
       if (!CC.setCatSummary) return;
-      var t = knowledgeTiles(api)[0];
+      var kt = knowledgeTiles(api);
+      var t = kt[0];
       var line = t && t.t !== "STATUS" ? t.t.charAt(0) + t.t.slice(1).toLowerCase() + ": " + t.v + " · " + t.s : "Reading workout history…";
-      CC.setCatSummary("Health", line, false);
+      var stats = kt.slice(0, 3).map(function (x) { return {value: String(x.v), label: x.t.charAt(0) + x.t.slice(1).toLowerCase()}; });
+      CC.setCatSummary("Health", line, false, stats);
     }
 
     var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr"});

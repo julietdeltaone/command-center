@@ -94,7 +94,11 @@
         )
       );
       wrap.innerHTML = ""; wrap.appendChild(panel);
-      if (CC.setCatSummary) CC.setCatSummary("Business", c.you + " on you · " + c.client + " waiting on client · " + c.sched + " scheduled", false);
+      if (CC.setCatSummary) CC.setCatSummary("Business", c.you + " on you · " + c.client + " waiting on client", false, [
+        {value: String(c.sched), label: "Scheduled"},
+        {value: c.toCollect ? usd(c.toCollect) : "$0", label: "To collect"},
+        {value: c.nextD == null ? "—" : c.nextD === 0 ? "Today" : c.nextD + "d", label: "Next shoot"}
+      ]);
     }
     paint();
     CC.crm.load(api, paint);

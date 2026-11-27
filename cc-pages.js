@@ -265,10 +265,45 @@
         var subLine = summary ? summary.line : (st.state === "none" ? "Not started yet" : "Tap to open");
         if (summary && summary.placeholder) subLine += " · placeholder";
 
-        cats.appendChild(h("button", {type: "button", class: "ov-cat ov-cat-" + st.state, onclick: openCat},
+        /* Stat rows pin to the tile's bottom (.ov-cat-stats, margin-top:auto) so the card reads as
+           a real glance at the category instead of a name + one sentence floating over blank space.
+           A category whose dashboard hasn't reported stats yet still gets one placeholder row. */
+        var rows = summary && summary.stats && summary.stats.length ? summary.stats : null;
+        var statsEl = h("div", {class: "ov-cat-stats"},
+          rows ? rows.map(function (s) { return h("div", {class: "ov-cat-stat" + (s.value === "—" ? " placeholder" : "")}, h("b", null, String(s.value)), h("span", null, s.label)); })
+               : h("div", {class: "ov-cat-stat placeholder"}, h("b", null, "—"), h("span", null, st.state === "none" ? "No data wired up yet" : "More detail coming")));
+
+        var tile = h("button", {type: "button", class: "ov-cat ov-cat-" + st.state, onclick: openCat},
           h("div", {class: "ov-cat-top"}, iconBadge, pctRing(st.pct, color)),
           h("div", {class: "ov-cat-name"}, g.name),
-          h("div", {class: "ov-cat-sub"}, subLine)));
+          h("div", {class: "ov-cat-sub"}, subLine),
+          statsEl);
+
+        /* 2026-11-27, JD's call: holding Shift reveals a small external-link affordance (hidden by
+           CSS the rest of the time); a plain click opens the category's connected sheet in a new
+           tab, shift+click pins it to the rail instead (index.html's existing Quick Links system).
+           A <span role=button>, not a nested <button> — .ov-cat is already a button, and a button
+           inside a button is invalid HTML browsers silently mis-parse. Business's sheet link is
+           config-driven (ledger_sheet_url), everything else is a static connected-sheet URL. */
+        var extUrl = g.name === "Business" ? api.cfgVal("ledger_sheet_url") : (CC.catSheetUrl && CC.catSheetUrl[g.name]);
+        if (extUrl) {
+          var pinned = CC.isQuickLinked && CC.isQuickLinked(extUrl);
+          var ext = h("span", {class: "tile-extlink" + (pinned ? " is-pinned" : ""), role: "button", tabindex: "0",
+            title: pinned ? g.name + " — pinned to rail (shift+click to unpin)" : "Open " + g.name + "'s sheet (shift+click to pin to rail)",
+            onclick: function (e) {
+              e.stopPropagation();
+              if (e.shiftKey) { if (CC.pinQuickLink) CC.pinQuickLink({label: g.name, url: extUrl}); return; }
+              window.open(extUrl, "_blank", "noopener");
+            },
+            onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } }
+          }, (function () { var s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24");
+            var p1 = document.createElementNS("http://www.w3.org/2000/svg", "path"); p1.setAttribute("d", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6");
+            var p2 = document.createElementNS("http://www.w3.org/2000/svg", "path"); p2.setAttribute("d", "M15 3h6v6 M10 14 21 3");
+            s.appendChild(p1); s.appendChild(p2); return s; })());
+          tile.appendChild(ext);
+        }
+
+        cats.appendChild(tile);
       });
     }
     page.appendChild(cats);

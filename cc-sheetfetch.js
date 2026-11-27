@@ -159,12 +159,17 @@
      - CC.catIcon[name]  → a 24x24 stroke-icon path set, drawn by catIconSvg()
      - CC.catColor[name] → one accent hex per category, used on the Wall tile
        and inside that category's own dashboard for consistency
-     - CC.catSummary[name] = {line, placeholder, updatedAt} — each category's
-       dashboard calls CC.setCatSummary() once it knows its own numbers, so
-       the Wall card can show one real line of preview data instead of just
+     - CC.catSummary[name] = {line, placeholder, updatedAt, stats} — each
+       category's dashboard calls CC.setCatSummary() once it knows its own
+       numbers, so the Wall card can show real preview data instead of just
        a name and a percentage. `placeholder` means "this category is still
        a placeholder, not real data" — cc-build.js reads that to keep the
        Build % honest even if the Build Status sheet hasn't caught up.
+       `stats` (2026-11-27, JD's call — "fill up these cards more with more
+       information, or at least placeholders") is an optional array of up to
+       3 {label, value} rows the Wall card renders under the summary line,
+       so a tile reads as a real glance at the category instead of one
+       sentence over mostly blank space.
      ═══════════════════════════════════════════════════════════════════ */
   CC.catIcon = {
     "Health": "M12.1 20.3c-.2 0-.4-.1-.6-.2C8.6 18.2 3 14.3 3 9.3 3 6.4 5.3 4 8.2 4c1.6 0 3.1.8 4 2 .9-1.2 2.4-2 4-2 2.9 0 5.2 2.4 5.2 5.3 0 5-5.6 8.9-8.5 10.8-.2.1-.4.2-.6.2z",
@@ -198,11 +203,28 @@
   };
 
   CC.catSummary = CC.catSummary || {};
-  CC.setCatSummary = function (name, line, placeholder) {
-    CC.catSummary[name] = {line: line, placeholder: !!placeholder, updatedAt: Date.now()};
+  CC.setCatSummary = function (name, line, placeholder, stats) {
+    CC.catSummary[name] = {line: line, placeholder: !!placeholder, updatedAt: Date.now(), stats: Array.isArray(stats) ? stats.slice(0, 3) : null};
   };
   /* Known-placeholder categories as of 2026-11-25, used as a fallback by the stricter Build %
      rule (cc-build.js) before the category's own dashboard has run once this session and
      reported a live CC.catSummary. Once a dashboard runs, its own live signal takes over. */
   CC.catPlaceholderDefault = {"Local / CENTCOM": true};
+
+  /* 2026-11-27, JD's call: Shift+click on a Wall tile reveals an external-link button to "an
+     external source" — each category's own connected Google Sheet is that source. One spreadsheet
+     ID per category, named directly here (not read off each category's own module-scoped var)
+     so this map has no load-order dependency on cc-categories.js/cc-health.js. A category with no
+     connected sheet yet (Local / CENTCOM) is left out on purpose — its tile just won't offer the
+     button until a source exists. */
+  CC.catSheetUrl = {
+    "Social": "https://docs.google.com/spreadsheets/d/1Azc5F5FcXWJjFyqhdz50B8j4szYrwJmv3u5t3bQZKbg/edit",
+    "Finance": "https://docs.google.com/spreadsheets/d/1-PXlHgh0rrJhhAJZZqaiE9cwDn6LUqxyT_j-5KzxMW0/edit",
+    "Clarkson": "https://docs.google.com/spreadsheets/d/1PMQP_FGlHp1GBLDd70P01-seK8tWN7rtIRZbnSXXOAg/edit",
+    "Uber / Taxi": "https://docs.google.com/spreadsheets/d/18IAvYJbZ2D8TKcmIEhLbtjOZNsVbPLbhn9cWCnU7Osg/edit",
+    "Personal": "https://docs.google.com/spreadsheets/d/1-eIlVRMm5-U5PvNhKPKGgltYvLHaqmQpcuo6pGHyJK8/edit",
+    "Hub Core / Admin": "https://docs.google.com/spreadsheets/d/1_CstkGl_8mQStmX2r2dIZNJ29CHKFpQApFlS0kIJrxA/edit",
+    "Records & Files": "https://docs.google.com/spreadsheets/d/1lmiEWnBCjW97riQDtskghHQbQQS9FSfFHugvPjMfLYk/edit",
+    "Health": "https://docs.google.com/spreadsheets/d/1f1EsQ-qwlJ4U_e7Qv77mUuQfaFov4Ye4rquoGlX6k9w/edit"
+  };
 })();

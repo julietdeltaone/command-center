@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261125.19
+     BUILD VERSION — single source of truth: 20261127.3
      Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.19"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
@@ -77,8 +77,15 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   .hp-canvas{overflow:auto}
   .hp-canvas-body{grid-template-columns:1fr!important;grid-template-rows:none!important;grid-auto-rows:minmax(220px,auto)}
 }
-.hp-mod{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.hp-mod{background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
 .hp-mod-scroll{overflow-y:auto}
+/* A card whose content needs .hp-mod-scroll to fit is, by design, never supposed to look cut
+   off — but a thin native scrollbar (invisible until you actually scroll, on most setups) gives
+   no hint there's more below. markOverflowingMods() (below, main script) tags any such card with
+   .is-overflowing; this fade + chevron is the visible "there's more, scroll for it" cue that was
+   otherwise missing, which is what read as truncation rather than an intentional internal scroll. */
+.hp-mod.is-overflowing::after{content:"";position:absolute;left:1px;right:1px;bottom:1px;height:22px;border-radius:0 0 13px 13px;background:linear-gradient(to bottom, transparent, var(--glass-bg) 75%);pointer-events:none}
+.hp-mod.is-overflowing::before{content:"";position:absolute;right:14px;bottom:6px;width:7px;height:7px;border-right:1.5px solid var(--accent);border-bottom:1.5px solid var(--accent);transform:rotate(45deg);opacity:.8;z-index:1;pointer-events:none}
 .hp-mod-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:6px;justify-content:space-between;flex:0 0 auto;margin-bottom:10px;white-space:nowrap}
 .hp-mod-title svg{width:13px;height:13px;flex:0 0 auto;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
 .hp-mod-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
@@ -295,7 +302,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <link rel="stylesheet" href="cc-design.css?v=20261125.19">
 <link rel="stylesheet" href="cc-skin.css?v=20261126.15">
 <link rel="stylesheet" href="cc-widgets.css?v=20261125.19">
-<link rel="stylesheet" href="cc-pages.css?v=20261126.15">
+<link rel="stylesheet" href="cc-pages.css?v=20261127.3">
 <link rel="stylesheet" href="cc-sources2.css?v=20261125.19">
 <link rel="stylesheet" href="views/views.css?v=20261125.19">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
@@ -334,7 +341,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261127.2"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261127.3"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -372,6 +379,14 @@ var lastLoadTime=null;
 
 /* ══════════ DOM ══════════ */
 function h(t,p){var e=document.createElement(t);if(p)for(var k in p){var v=p[k];if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k.indexOf("on")===0)e.addEventListener(k.slice(2),v);else e.setAttribute(k,v)}for(var i=2;i<arguments.length;i++){var c=arguments[i];if(c==null||c===false)continue;if(Array.isArray(c))c.forEach(function(x){if(x)e.appendChild(typeof x==="string"?document.createTextNode(x):x)});else e.appendChild(typeof c==="string"?document.createTextNode(c):c)}return e}
+/* 2026-11-27, JD's call: "by pressing Shift, all the button[s] Shift should reveal a button that
+   goes to an external source." A body-level class (toggled on window blur too, since keyup never
+   fires if Shift was released while the tab was unfocused — e.g. alt-tabbing away) is the simplest
+   way for any tile's CSS, anywhere in the app, to reveal its own external-link affordance with a
+   plain `.shift-held .tile-extlink{display:flex}` rule, with no per-component JS wiring needed. */
+document.addEventListener("keydown",function(e){if(e.key==="Shift")document.body.classList.add("shift-held")});
+document.addEventListener("keyup",function(e){if(e.key==="Shift")document.body.classList.remove("shift-held")});
+window.addEventListener("blur",function(){document.body.classList.remove("shift-held")});
 /* 2026-11-24 beautification pass: shared "view all" overlay. Any view can trim a long list down
    to a few rows and hand the full content to CC.sheet(title, node) instead of letting the page
    grow taller than the viewport — the alternative-to-scrolling navigation the no-scroll pass needs.
@@ -1091,6 +1106,31 @@ function render(){
   _restoreScroll();
 }
 
+/* 2026-11-27: .hp-mod cards are allowed to scroll internally rather than clip (see the
+   .hp-mod-scroll contract above), but a thin native scrollbar gives no hint there's more below —
+   that read as the page being broken/truncated rather than "scroll this card." Tag any card
+   that's actually overflowing with .is-overflowing so the fade+chevron in the stylesheet shows
+   up only where there's really more to see. A MutationObserver (not a one-shot call after
+   render()) is needed because most .hp-mod-scroll content repaints asynchronously once its sheet
+   data lands, well after the initial empty/"loading" render. */
+var _markOverflowRAF=null;
+function markOverflowingMods(){
+  document.querySelectorAll(".hp-mod").forEach(function(m){
+    var body=m.querySelector(".hp-mod-scroll");
+    m.classList.toggle("is-overflowing", !!body && (body.scrollHeight-body.clientHeight>2));
+  });
+}
+function scheduleMarkOverflow(){
+  if(_markOverflowRAF)return;
+  _markOverflowRAF=requestAnimationFrame(function(){_markOverflowRAF=null;markOverflowingMods()});
+}
+(function(){
+  var appEl=document.getElementById("app");
+  if(!appEl)return;
+  new MutationObserver(scheduleMarkOverflow).observe(appEl,{childList:true,subtree:true,characterData:true});
+  window.addEventListener("resize",scheduleMarkOverflow);
+})();
+
 /* Expose CCAPI on CC namespace for external scripts that need it at load time */
 CC.api = {h:h,ago:ago,usd:usd,sp:sp,fp:fp,tr:tr,sh:sh,iso:iso,clk:clk,render:render,
   svgEl:svgEl,icon:iconFor,cfgVal:cfgVal,nowMs:nowMs,sheetAt:sheetAt,
@@ -1110,19 +1150,33 @@ function buildNav(){
   var markSvg=svgEl("svg",{viewBox:"0 0 24 24"});markSvg.innerHTML=CC_MARK_ICON;mark.appendChild(markSvg);
   rail.appendChild(mark);
   var bg=badges();
-  TABS.forEach(function(t){
-    var btn=h("button",{"aria-selected":String(t.id===TAB),title:t.l,onclick:function(){go(t.id)}});
-    btn.innerHTML='<svg viewBox="0 0 24 24">'+t.i+'</svg>';
-    btn.appendChild(h("span",{class:"rlab"},t.l));
-    var b=h("span",{class:"rn"});if(bg[t.id])b.textContent=bg[t.id];else b.style.display="none";
+  function navBtn(id,label,svgInner){
+    var btn=h("button",{"aria-selected":String(id===TAB),title:label,onclick:function(){go(id)}});
+    btn.innerHTML='<svg viewBox="0 0 24 24">'+svgInner+'</svg>';
+    btn.appendChild(h("span",{class:"rlab"},label));
+    var b=h("span",{class:"rn"});if(bg[id])b.textContent=bg[id];else b.style.display="none";
     btn.appendChild(b);
     rail.appendChild(btn);
-    var mb=h("button",{"aria-current":String(t.id===TAB),onclick:function(){go(t.id)}});
-    mb.innerHTML='<svg viewBox="0 0 24 24">'+t.i+'</svg>';
-    mb.appendChild(h("span",null,t.l));
-    var mb2=h("span",{class:"badge"});if(bg[t.id])mb2.textContent=bg[t.id];mb.appendChild(mb2);
+    var mb=h("button",{"aria-current":String(id===TAB),onclick:function(){go(id)}});
+    mb.innerHTML='<svg viewBox="0 0 24 24">'+svgInner+'</svg>';
+    mb.appendChild(h("span",null,label));
+    var mb2=h("span",{class:"badge"});if(bg[id])mb2.textContent=bg[id];mb.appendChild(mb2);
     mob.appendChild(mb);
-  });
+  }
+  TABS.forEach(function(t){navBtn(t.id,t.l,t.i)});
+  /* 2026-11-27, JD's call: the rail only ever had Overview+Update while the build was in
+     progress ("JD's call" note above) — reasonable then, but now that all 10 categories are
+     live and in daily use, going Overview → tap a tile → back → tap another tile is the "I
+     asked for persistent navigation before" gap he's pointing at. These auto-register from
+     CC.catPages/CC.catIcon (cc-sheetfetch.js) — a category added there needs zero edits here,
+     same zero-config pattern the rest of the categories system already follows. */
+  if(CC.catPages&&CC.catIcon){
+    rail.appendChild(h("div",{class:"rail-ql-div"}));
+    Object.keys(CC.catPages).forEach(function(name){
+      var d=CC.catIcon[name];
+      navBtn(CC.catPages[name],name,d?'<path d="'+d+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>':'<circle cx="12" cy="12" r="3"/>');
+    });
+  }
   rail.appendChild(h("div",{class:"rsp"}));
   appendQuickLinks(rail);
 }
@@ -1139,6 +1193,13 @@ function addQuickLink(item){
   saveQuickLinks(list);buildNav();
 }
 function removeQuickLink(url){saveQuickLinks(loadQuickLinks().filter(function(x){return x.url!==url}));buildNav()}
+/* 2026-11-27, JD's call: "shift reveals a button that goes to an external source; shift+click
+   pins it to the rail" — the pin-to-rail backend already exists right here (addQuickLink etc.),
+   but the Wall tiles that need to call it live in cc-pages.js, a separate <script> / scope from
+   this IIFE. Expose the three entry points other category files need on CC (already the shared
+   namespace for catIcon/catColor/catSheetUrl) rather than duplicating the localStorage logic. */
+CC.pinQuickLink=addQuickLink;
+CC.isQuickLinked=function(url){return loadQuickLinks().some(function(x){return x.url===url})};
 function appendQuickLinks(rail){
   var links=loadQuickLinks();
   if(!links.length)return;
@@ -1326,7 +1387,7 @@ function loadData(){
      before any of them touch the page) but lets the browser fetch all 18 files in parallel
      instead of one at a time, which used to be a big chunk of the time before the page became
      interactive. -->
-<script defer src="cc-sheetfetch.js?v=20261127.1" onerror="void 0"></script>
+<script defer src="cc-sheetfetch.js?v=20261127.3" onerror="void 0"></script>
 <script defer src="cc-fresh.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-inbox.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-motion.js?v=20261125.19" onerror="void 0"></script>
@@ -1342,7 +1403,7 @@ function loadData(){
 <script defer src="cc-widgets.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-nurture.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-crm.js?v=20261126.14" onerror="void 0"></script>
-<script defer src="cc-active.js?v=20261126.15" onerror="void 0"></script>
+<script defer src="cc-active.js?v=20261127.3" onerror="void 0"></script>
 <script defer src="cc-sources2.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-map.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-records.js?v=20261125.19" onerror="void 0"></script>
@@ -1354,9 +1415,9 @@ function loadData(){
 <script defer src="cc-body-fig.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
-<script defer src="cc-health.js?v=20261127.1" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261127.2" onerror="void 0"></script>
-<script defer src="cc-pages.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261127.3" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261127.3" onerror="void 0"></script>
+<script defer src="cc-pages.js?v=20261127.3" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
 </body>
 </html>

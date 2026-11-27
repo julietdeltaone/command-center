@@ -47,6 +47,25 @@
 .ov-cat-name{font-size:17px;color:var(--text);font-weight:700;letter-spacing:-.01em;margin-top:2px}
 .ov-cat-sub{font-size:12px;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ov-cat-live::before{background:var(--green)}.ov-cat-partial::before{background:var(--amber)}.ov-cat-none::before{background:var(--red)}
+/* 2026-11-27, JD's call: cards only ever showed icon+name+one line, leaving most of the tile's
+   height blank — "fill up these cards more... or at least placeholders." margin-top:auto pins this
+   block to the tile's bottom so the card's own height carries it, instead of stretching the sub
+   line or leaving dead space. Each dashboard's setCatSummary() call supplies up to 3 {label,value}
+   rows; a category with none yet still gets one muted placeholder row rather than looking bare. */
+.ov-cat-stats{display:flex;flex-direction:column;gap:5px;margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
+.ov-cat-stat{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ov-cat-stat b{font-size:12.5px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-cat-stat span{font-size:11px;color:var(--muted);white-space:nowrap}
+.ov-cat-stat.placeholder b,.ov-cat-stat.placeholder span{color:var(--muted);font-weight:500;font-style:italic}
+/* 2026-11-27, JD's call: holding Shift reveals a small external-link button on a tile; plain click
+   opens the category's connected sheet, shift+click pins it to the rail (index.html's existing
+   Quick Links system, CC.pinQuickLink). Hidden by default so it never competes with the tile's own
+   click target; .shift-held is toggled on <body> by a global keydown/keyup listener in index.html. */
+.tile-extlink{display:none;position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:8px;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 70%,transparent);border:1px solid var(--line);color:var(--muted);z-index:2;cursor:pointer}
+.tile-extlink:hover{color:var(--text);border-color:var(--accent)}
+.tile-extlink svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.shift-held .tile-extlink{display:flex}
+.shift-held .tile-extlink.is-pinned{color:var(--accent);border-color:var(--accent)}
 .jwrap .ltab{max-width:none;width:100%}
 .jwrap .jringw svg{width:84px;height:84px}
 .jwrap .jtop .shm.big b{font-size:26px}
