@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261127.3
+     BUILD VERSION — single source of truth: 20261127.4
      Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.19"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
@@ -341,7 +341,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261127.3"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261127.4"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -1415,7 +1415,7 @@ function loadData(){
 <script defer src="cc-body-fig.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
-<script defer src="cc-health.js?v=20261127.3" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261127.4" onerror="void 0"></script>
 <script defer src="cc-categories.js?v=20261127.3" onerror="void 0"></script>
 <script defer src="cc-pages.js?v=20261127.3" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>

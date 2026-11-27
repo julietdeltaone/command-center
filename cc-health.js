@@ -264,11 +264,29 @@
     return wrap;
   }
 
-  /* ---------- Training heatmap: calendar-style, last 16 weeks, darker = more sets that day.
-     One of JD's favorite kinds of view, straight off the same Workouts pull, grouped by day. ---------- */
+  /* 2026-11-27, JD's call: the full Workouts pull already holds the whole FitNotes history (every
+     row back to the first logged set — nothing is trimmed on the way in, see loadAllWorkouts'
+     cap:4000, comfortably above the real row count), but the heatmap and volume trend below used
+     to hardcode a 16-week / 12-week window regardless of how much history was actually loaded —
+     "I don't think you made any adjustments" was fair: the data was all there, the views just
+     never looked past a fixed recent slice of it. This reads the real first-logged date and sizes
+     both views to the ACTUAL span of history (capped at a year so the heatmap doesn't run off the
+     screen on a multi-year sheet), so "how far back can you see" is answered by the chart itself. */
+  function historySpanWeeks(rows, header) {
+    var iDate = col(header, "Date"), earliest = null;
+    (rows || []).forEach(function (r) { var t = iDate != null ? ms(r[iDate]) : null; if (t != null && (earliest == null || t < earliest)) earliest = t; });
+    if (earliest == null) return {weeks: 16, earliest: null};
+    var weeks = Math.ceil((Date.now() - earliest) / (7 * 86400000)) + 1;
+    return {weeks: Math.max(4, Math.min(weeks, 52)), earliest: earliest};
+  }
+
+  /* ---------- Training heatmap: calendar-style, full logged history (see historySpanWeeks above),
+     darker = more sets that day. One of JD's favorite kinds of view, straight off the same
+     Workouts pull, grouped by day. ---------- */
   function workoutHeatmap(api) {
     var wrap = h("section", {class: "wt"}), body = h("div", null);
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Training heatmap"), h("span", {class: "bd-sub"}, "sets logged per day, last 16 weeks")));
+    var subEl = h("span", {class: "bd-sub"}, "sets logged per day, full history");
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Training heatmap"), subEl));
     wrap.appendChild(body);
     function paint() {
       body.innerHTML = "";
@@ -280,7 +298,9 @@
         var d = new Date(t); d.setHours(0, 0, 0, 0);
         var k = d.getTime(); byDay[k] = (byDay[k] || 0) + 1;
       });
-      var WEEKS = 16, today = new Date(); today.setHours(0, 0, 0, 0);
+      var WEEKS = historySpanWeeks(PW.rows, PW.header).weeks;
+      subEl.textContent = "sets logged per day, last " + WEEKS + " weeks (full logged history)";
+      var today = new Date(); today.setHours(0, 0, 0, 0);
       var startDow = (today.getDay() + 6) % 7;
       var gridStart = today.getTime() - ((WEEKS * 7 - 1 - startDow) * 86400000);
       var mx = Math.max.apply(null, Object.keys(byDay).map(function (k) { return byDay[k]; }).concat([1]));
@@ -317,14 +337,19 @@
      over bars, since trajectories and projections are what he actually wants more of here. ---------- */
   function volumeTrendWidget(api) {
     var wrap = h("section", {class: "wt"}), body = h("div", null);
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Volume trend"), h("span", {class: "bd-sub"}, "weekly total, last 12 weeks + 3-week projection")));
+    var subEl = h("span", {class: "bd-sub"}, "weekly total, full history + 3-week projection");
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Volume trend"), subEl));
     wrap.appendChild(body);
     function paint() {
       body.innerHTML = "";
       if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
       if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
-      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog).slice(-12);
+      /* 2026-11-27, JD's call: this used to hard-slice to the last 12 complete weeks no matter how
+         much history was loaded. Every complete week now plots — the real question he asked
+         ("how far back can you see") answered directly by the chart's own x-axis. */
+      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog);
       if (complete.length < 3) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough weekly history yet.")); return; }
+      subEl.textContent = "weekly total, all " + complete.length + " logged weeks + 3-week projection";
       var totals = complete.map(function (w) { return PROG_CATS.reduce(function (s, cat) { return s + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0); });
       var n = totals.length, sx = 0, sy = 0, sxy = 0, sxx = 0;
       totals.forEach(function (y, i) { sx += i; sy += y; sxy += i * y; sxx += i * i; });
@@ -332,18 +357,62 @@
       var PROJ = 3, projTotals = [];
       for (var p = 0; p < PROJ; p++) projTotals.push(Math.max(0, intercept + slope * (n + p)));
       var allVals = totals.concat(projTotals), mx = Math.max.apply(null, allVals.concat([1]));
-      var W = 600, H2 = 108, stepX = W / (allVals.length - 1);
+      var W = Math.max(600, n * 14), H2 = 108, stepX = W / (allVals.length - 1);
       function pt(i, v) { return [i * stepX, H2 - (v / mx) * (H2 - 16) - 8]; }
       var solidPts = totals.map(function (v, i) { return pt(i, v); });
       var dashPts = [pt(n - 1, totals[n - 1])].concat(projTotals.map(function (v, i) { return pt(n + i, v); }));
       var svg = sv("svg", {viewBox: "0 0 " + W + " " + H2, width: "100%", height: H2, role: "img", "aria-label": "Weekly training volume with projection"});
       svg.appendChild(sv("polyline", {points: solidPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": "2.5"}));
       svg.appendChild(sv("polyline", {points: dashPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--muted)", "stroke-width": "2", "stroke-dasharray": "5,5"}));
-      solidPts.forEach(function (p) { svg.appendChild(sv("circle", {cx: p[0], cy: p[1], r: "3", fill: "var(--accent)"})); });
-      body.appendChild(svg);
+      /* Markers clutter a long multi-month line — only dot the points once there are few enough
+         (≤16 weeks) to read as individual values rather than a dense trajectory. */
+      if (solidPts.length <= 16) solidPts.forEach(function (p) { svg.appendChild(sv("circle", {cx: p[0], cy: p[1], r: "3", fill: "var(--accent)"})); });
+      body.appendChild(h("div", {style: "overflow-x:auto"}, svg));
       body.appendChild(chartLegend([{line: "solid", label: "Actual"}, {line: "dashed", label: "Projected"}]));
       var dir = slope > totals[0] * 0.02 ? "trending up" : slope < -totals[0] * 0.02 ? "trending down" : "steady";
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:2px"}, "Total weight × reps lifted each week, across all tracked lifts — " + dir + ", projected to reach " + Math.round(projTotals[projTotals.length - 1]).toLocaleString("en-US") + " in " + PROJ + " more weeks."));
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:2px"}, "Total weight × reps lifted each week, across all tracked lifts, " + complete.length + " weeks back to " + fmtWeek(complete[0]) + " — " + dir + ", projected to reach " + Math.round(projTotals[projTotals.length - 1]).toLocaleString("en-US") + " in " + PROJ + " more weeks."));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return wrap;
+  }
+
+  /* ---------- Category breakdown: total volume by muscle group, full logged history. New
+     2026-11-27, JD's call — "we have so much to go on" / "much more complicated graphs": this is
+     the same volByWeekCat data the Volume trend chart already computes, just summed across every
+     week instead of plotted per week, so it costs nothing extra to fetch. Horizontal bars, direct
+     value labels (6 categories reads fine without a separate legend per the dataviz rule), sorted
+     by volume so the most-trained group is immediately obvious. Cardio and Abs have no weight×reps
+     figure (bodyweight / time-based), so they're out of scope for this one. ---------- */
+  function categoryBreakdownWidget(api) {
+    var wrap = h("section", {class: "wt"}), body = h("div", null);
+    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Category breakdown"), h("span", {class: "bd-sub"}, "total volume by muscle group, full history")));
+    wrap.appendChild(body);
+    function paint() {
+      body.innerHTML = "";
+      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
+      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
+      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog);
+      if (!complete.length) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough history yet.")); return; }
+      var totalsByCat = PROG_CATS.map(function (cat) {
+        var v = complete.reduce(function (s, w) { return s + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0);
+        return {cat: cat, v: v};
+      }).filter(function (x) { return x.v > 0; }).sort(function (a, b) { return b.v - a.v; });
+      if (!totalsByCat.length) { body.appendChild(h("div", {class: "ov-empty"}, "No tracked lifting volume yet.")); return; }
+      var mx = Math.max.apply(null, totalsByCat.map(function (x) { return x.v; }));
+      var rows = h("div", {style: "display:flex;flex-direction:column;gap:9px"});
+      totalsByCat.forEach(function (x) {
+        var pct = Math.max(2, (x.v / mx) * 100);
+        rows.appendChild(h("div", null,
+          h("div", {style: "display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:3px"},
+            h("span", {style: "color:var(--text);font-weight:600"}, x.cat),
+            h("span", {style: "color:var(--muted)"}, Math.round(x.v).toLocaleString("en-US") + " lb·reps")),
+          h("div", {style: "height:9px;border-radius:5px;background:var(--line);overflow:hidden"},
+            h("div", {style: "height:100%;width:" + pct + "%;border-radius:5px;background:" + catColor(x.cat)}))));
+      });
+      body.appendChild(rows);
+      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:10px"},
+        "Weight × reps summed across " + complete.length + " logged weeks, back to " + fmtWeek(complete[0]) + " — bar length and the number are the same measure, so the leader by eye is the leader by the math."));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
@@ -453,14 +522,22 @@
       CC.setCatSummary("Health", line, false, stats);
     }
 
-    var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr"});
+    /* 2026-11-27, JD's call: added a 4th row (Category Breakdown, full width) to go with the
+       expanded-to-full-history Heatmap and Volume trend above — more depth, not just a wider window
+       on the same two charts. Rows stay even (1fr each); any card that's now too tall for its slot
+       gets .hp-mod-scroll's internal scroll plus the .is-overflowing fade/chevron cue (Task #40,
+       same day) rather than clipping silently. */
+    var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr 1fr"});
     var heat = modWrap(workoutHeatmap(api));
     heat.style.gridColumn = "1 / span 2";
+    var catBreak = modWrap(categoryBreakdownWidget(api));
+    catBreak.style.gridColumn = "1 / span 2";
     body.appendChild(modWrap(heroLastWorkout(api)));
     body.appendChild(modWrap(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…")));
     body.appendChild(heat);
     body.appendChild(modWrap(volumeTrendWidget(api)));
     body.appendChild(modWrap(CC.body && CC.body.sleep ? CC.body.sleep(api) : h("div", {class: "ov-empty"}, "Loading sleep…")));
+    body.appendChild(catBreak);
     page.appendChild(body);
     return page;
   };
