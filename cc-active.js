@@ -75,7 +75,7 @@
       var compDays = compLatest != null ? Math.max(0, dayDelta(now, compLatest)) : null;
 
       var links = h("div", {style: "display:flex;gap:8px;flex-wrap:wrap;margin-left:auto"},
-        ldUrl ? h("a", {href: ldUrl, target: "_blank", rel: "noopener", class: "btn link", style: "text-decoration:none"}, "Open Ledger ↗") : null,
+        ldUrl ? h("a", {href: ldUrl, target: "_blank", rel: "noopener", class: "btn btn-ghost-accent", style: "text-decoration:none"}, "Open Ledger ↗") : null,
         lsUrl ? h("a", {href: lsUrl, target: "_blank", rel: "noopener", class: "btn", style: "text-decoration:none"}, "Open sheet ↗") : null,
         !ldUrl && !lsUrl ? h("span", {style: "color:var(--muted);font-size:12px"}, "Ledger links not configured") : null
       );

@@ -89,6 +89,13 @@ h1{font-size:clamp(28px,3.1vw,40px);font-weight:300;letter-spacing:.05em;text-tr
 .wnote{color:var(--muted)}
 .btn{border-radius:999px;background:var(--card);border-color:var(--line);color:var(--text);padding:0 18px}
 .btn.link{color:var(--accent);border-color:rgba(143,155,255,.55)}
+/* 2026-11-26: a ghost/outline accent link button — e.g. Business's "Open Ledger" — distinct from
+   index.html's own .btn.link (a filled accent CTA, white text, used by the Connect screen). Sharing
+   that class name there made the text invisible: index.html sets background:accent, and this file's
+   .btn.link only overrode color (also to accent), so text and fill matched exactly. .btn-ghost-accent
+   keeps the lighter, bordered look without touching .btn.link's filled CTA elsewhere. */
+.btn-ghost-accent{background:var(--card);border-color:rgba(143,155,255,.55);color:var(--accent)}
+.btn-ghost-accent:hover{background:var(--panel2)}
 .field{background:var(--card);border-color:var(--line);color:var(--text);border-radius:14px}
 .wbar,.banner{margin-bottom:var(--gap)}
 .banner{text-align:center;border-radius:999px;border-color:rgba(143,155,255,.4);background:rgba(143,155,255,.1)}

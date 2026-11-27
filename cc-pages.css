@@ -353,6 +353,30 @@ button.adm-click:hover,button.adm-click:focus-visible{background:var(--inset)}
 @media (prefers-reduced-motion:reduce){.adm-skel{animation:none}}
 .adm-row,button.adm-click{flex-wrap:wrap}.adm-main{flex:1 1 150px}.adm-meta{flex:0 1 auto;max-width:100%}.adm-pill{white-space:normal}
 
+/* Admin landing (2026-11-26): Admin opens here, not straight into Routines. Two folders you tap
+   into; each nested section (.rt-page-inner) gets its own "‹ Admin" back row above the same
+   rt-bar/rt-panel list it always had. */
+.adm-landing{display:flex;gap:16px;flex-wrap:wrap}
+.adm-folder{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;width:220px;padding:18px 20px;border-radius:16px;border:1px solid var(--line);background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-sh);cursor:pointer;transition:border-color .15s,transform .15s}
+.adm-folder:hover{border-color:rgba(143,155,255,.55);transform:translateY(-1px)}
+.adm-folder-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.adm-folder-top b{font-size:16px;font-weight:600}
+.adm-folder-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px}
+.adm-folder-badge.good{color:var(--green);background:color-mix(in srgb,var(--green) 15%,transparent)}
+.adm-folder-badge.warn{color:var(--amber);background:color-mix(in srgb,var(--amber) 15%,transparent)}
+.adm-folder-count{font-size:30px;font-weight:300;line-height:1}
+.adm-folder-sub{font-size:12.5px;color:var(--muted)}
+.rt-page-inner{display:flex;flex-direction:column;gap:12px}
+.adm-folder-head{display:flex;align-items:center;gap:10px}
+.adm-back{all:unset;box-sizing:border-box;font-size:13px;color:var(--muted);cursor:pointer;padding:4px 2px}
+.adm-back:hover{color:var(--text)}
+.adm-folder-t{font-size:15px;font-weight:600}
+.rt-health.parked{color:var(--violet)}.rt-health.parked i{background:var(--violet)}
+.rt-health.open i{background:var(--muted)}
+/* Must come after the display:flex rules above (equal specificity, last rule wins the cascade tie)
+   so [hidden] actually hides these — JD saw all three Admin sections stacked at once without this. */
+.adm-landing[hidden],.rt-page-inner[hidden]{display:none}
+
 /* Routines list (List / Index): one glass panel, compact rows, slide-over detail */
 .rt-page{display:flex;flex-direction:column;gap:12px}
 .rt-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:40px}

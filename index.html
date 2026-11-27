@@ -95,6 +95,16 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 .rail-btn .badge{position:absolute;top:3px;right:2px;min-width:14px;height:14px;border-radius:7px;background:var(--red);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px}
 .rail-btn .badge:empty{display:none}
 .rail-bottom{margin-top:auto;display:flex;flex-direction:column;gap:1px}
+/* 2026-11-26: Quick Links — pinned external links (e.g. Business's "Open Ledger"/"Open sheet") at the
+   bottom of the rail. Shift+drag any http(s) link anywhere in the app onto the rail to pin it; a plain
+   click on a pin opens it in a new tab, shift+click removes it. Stored in localStorage only — this is a
+   per-browser convenience, not hub data. */
+.rail-ql{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:10px}
+.rail-ql-div{width:28px;height:1px;background:var(--line);margin-bottom:4px}
+.rail-ql-btn{width:34px;height:34px;border:1px solid var(--line);background:var(--card);border-radius:10px;color:var(--accent);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
+.rail-ql-btn:hover{background:var(--panel2);border-color:rgba(143,155,255,.55)}
+.rail.ql-drag-over{outline:2px dashed var(--accent);outline-offset:-4px}
+.rail.ql-drag-over .rail-ql{background:rgba(143,155,255,.08);border-radius:10px}
 
 .main{flex:1;min-width:0;padding:0 16px 20px}
 
@@ -283,9 +293,9 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
 <link rel="stylesheet" href="cc-design.css?v=20261125.19">
-<link rel="stylesheet" href="cc-skin.css?v=20261126.9">
+<link rel="stylesheet" href="cc-skin.css?v=20261126.15">
 <link rel="stylesheet" href="cc-widgets.css?v=20261125.19">
-<link rel="stylesheet" href="cc-pages.css?v=20261126.12">
+<link rel="stylesheet" href="cc-pages.css?v=20261126.15">
 <link rel="stylesheet" href="cc-sources2.css?v=20261125.19">
 <link rel="stylesheet" href="views/views.css?v=20261125.19">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
@@ -324,7 +334,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261126.14"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+var BUILD="20261126.15"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
 try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
@@ -1114,6 +1124,63 @@ function buildNav(){
     mob.appendChild(mb);
   });
   rail.appendChild(h("div",{class:"rsp"}));
+  appendQuickLinks(rail);
+}
+
+/* ══════════ QUICK LINKS ══════════ */
+var QL_MIME="application/x-cc-quicklink";
+function loadQuickLinks(){try{var v=JSON.parse(localStorage.getItem("cc_quicklinks")||"[]");return Array.isArray(v)?v:[]}catch(e){return[]}}
+function saveQuickLinks(list){try{localStorage.setItem("cc_quicklinks",JSON.stringify(list))}catch(e){}}
+function addQuickLink(item){
+  if(!item||!item.url)return;
+  var list=loadQuickLinks();
+  if(list.some(function(x){return x.url===item.url}))return; // already pinned
+  list.push({label:(item.label||item.url).slice(0,40),url:item.url});
+  saveQuickLinks(list);buildNav();
+}
+function removeQuickLink(url){saveQuickLinks(loadQuickLinks().filter(function(x){return x.url!==url}));buildNav()}
+function appendQuickLinks(rail){
+  var links=loadQuickLinks();
+  if(!links.length)return;
+  var wrap=h("div",{class:"rail-ql",id:"railQl"});
+  wrap.appendChild(h("div",{class:"rail-ql-div"}));
+  links.forEach(function(lnk){
+    wrap.appendChild(h("button",{type:"button",class:"rail-ql-btn",
+      title:lnk.label+" — click to open, shift+click to remove",
+      onclick:function(e){if(e.shiftKey){removeQuickLink(lnk.url);return}window.open(lnk.url,"_blank","noopener")}},
+      (lnk.label||"?").trim().charAt(0).toUpperCase()));
+  });
+  rail.appendChild(wrap);
+}
+/* Shift+drag any http(s) link in the app onto the rail to pin it as a Quick Link. Without Shift held,
+   dragstart is left alone so an ordinary link drag (or just a click) behaves normally. */
+function initQuickLinkDnd(){
+  document.addEventListener("dragstart",function(e){
+    if(!e.shiftKey)return;
+    var a=e.target&&e.target.closest&&e.target.closest("a[href^='http']");
+    if(!a)return;
+    e.dataTransfer.setData(QL_MIME,JSON.stringify({label:(a.textContent||"Link").trim(),url:a.href}));
+    e.dataTransfer.effectAllowed="copy";
+  },true);
+  document.addEventListener("dragover",function(e){
+    var types=e.dataTransfer&&e.dataTransfer.types;
+    if(!types||Array.prototype.indexOf.call(types,QL_MIME)<0)return;
+    var rail=document.getElementById("rail");
+    if(!rail||!e.target||!e.target.closest||!e.target.closest("#rail"))return;
+    e.preventDefault();e.dataTransfer.dropEffect="copy";rail.classList.add("ql-drag-over");
+  });
+  document.addEventListener("dragleave",function(e){
+    if(e.target&&e.target.id==="rail")document.getElementById("rail").classList.remove("ql-drag-over");
+  });
+  document.addEventListener("drop",function(e){
+    var rail=document.getElementById("rail");
+    if(rail)rail.classList.remove("ql-drag-over");
+    if(!e.target||!e.target.closest||!e.target.closest("#rail"))return;
+    var raw=e.dataTransfer.getData(QL_MIME);
+    if(!raw)return;
+    e.preventDefault();
+    try{addQuickLink(JSON.parse(raw))}catch(err){}
+  });
 }
 /* 2026-11-25: JD stumbled onto a retired dashboard (old Business/Today/System/Private/Status
    pages — still fully defined in cc-widgets.js and views/system.js, just no longer on the rail)
@@ -1232,6 +1299,7 @@ function loadData(){
   document.getElementById("tbtn").addEventListener("click",toggleTheme);
   document.getElementById("rbtn").addEventListener("click",function(){D=null;render();loadData()});
   document.getElementById("dbtn").addEventListener("click",disconnect);
+  initQuickLinkDnd();
   buildNav();render();loadData();
 
   // Soft re-render every 30s to keep "ago" times fresh
@@ -1274,7 +1342,7 @@ function loadData(){
 <script defer src="cc-widgets.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-nurture.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-crm.js?v=20261126.14" onerror="void 0"></script>
-<script defer src="cc-active.js?v=20261126.13" onerror="void 0"></script>
+<script defer src="cc-active.js?v=20261126.15" onerror="void 0"></script>
 <script defer src="cc-sources2.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-map.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-records.js?v=20261125.19" onerror="void 0"></script>
@@ -1287,7 +1355,7 @@ function loadData(){
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
 <script defer src="cc-health.js?v=20261126.9" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261126.13" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261126.15" onerror="void 0"></script>
 <script defer src="cc-pages.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
 </body>

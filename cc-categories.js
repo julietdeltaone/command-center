@@ -691,7 +691,19 @@
   var ROUT_CACHE = {rows: null, header: null, err: null, loading: false};
   var RUNLOG_CACHE = {rows: null, header: null, err: null, loading: false};
   var CATS = ["Business", "Social", "Finance", "Clarkson", "Uber / Taxi", "Hub Core / Admin", "Records & Files", "Faith", "Local / CENTCOM", "Health"];
-  var ADM = {cat: null, rid: null};
+  /* ADM.section: null = the Admin landing (folder picker), "routines" or "queue" once JD taps in. */
+  var ADM = {cat: null, rid: null, section: null, open: {}};
+
+  /* Task Queue: the "MOVED Task Queue" tab on Command Center Data — JD's running list of things he
+     wants done, so tangents get logged instead of forgotten (see Messages log, Nov 22 2026). Same
+     spreadsheet as CC_DATA below (1w9xuc3...), named directly here so this section doesn't depend on
+     load order. 2026-11-26 pass: closed out 5 stale/duplicate rows on the sheet itself (Q-22, Q-34,
+     Q-18, Q-20, Q-36 — superseded by work already shipped, see each row's Notes); everything still
+     "Done"/"Merged" on the sheet is filtered out of this view by default so only live work shows. */
+  var TQ_SHEET = "1w9xuc3IyVLkLRSyNTEVdaWlZQ54NCOVKyjW-E-xYGvY";
+  var TQ_GID = "592375441";
+  var TQ_CACHE = {rows: null, header: null, err: null, loading: false};
+  var TQ = {q: "", f: "all", open: {}, qid: null};
 
   function colCI(hdr, name) {
     for (var i = 0; i < hdr.length; i++) if (String(hdr[i]).trim().toLowerCase() === name) return i;
@@ -799,20 +811,79 @@
     return idx;
   }
 
+  /* Task Queue rows. Status values on the sheet: Ready/Open/Awaiting JD/Blocked (live work),
+     Parked (deliberately deferred — not noise, just not now), Done/Merged (closed out, hidden by
+     default). Priority is JD's own "1 Now"/"2 Next"/"3 Later" text; Rank is his manual sort order
+     within that. */
+  function tqPriBand(p) {
+    if (/^1/.test(p || "")) return "now";
+    if (/^2/.test(p || "")) return "next";
+    return "later";
+  }
+  function tqStatusCls(s) {
+    s = (s || "").toLowerCase();
+    if (s === "done" || s === "merged") return "good";
+    if (s === "blocked") return "bad";
+    if (s === "awaiting jd") return "warn";
+    if (s === "parked") return "parked";
+    return "open";
+  }
+  function tqTasks() {
+    if (!TQ_CACHE.rows) return [];
+    var H = TQ_CACHE.header, ix = {};
+    ["id", "task", "area", "priority", "status", "added", "source", "notes", "owner", "track", "rank", "next action", "unlocks", "blocked by", "updated"]
+      .forEach(function (n) { ix[n] = colCI(H, n); });
+    function g(row, n) { return ix[n] != null && row[ix[n]] != null ? String(row[ix[n]]).trim() : ""; }
+    return TQ_CACHE.rows.filter(function (r) { return g(r, "task"); }).map(function (r) {
+      return {
+        id: g(r, "id"), task: g(r, "task"), area: g(r, "area") || "Other", pri: g(r, "priority"),
+        status: g(r, "status") || "Open", added: g(r, "added"), source: g(r, "source"), notes: g(r, "notes"),
+        owner: g(r, "owner"), track: g(r, "track"), rank: Number(g(r, "rank")) || 999,
+        next: g(r, "next action"), unlocks: g(r, "unlocks"), blockedBy: g(r, "blocked by"), updated: g(r, "updated")
+      };
+    }).sort(function (a, b) { return a.rank - b.rank; });
+  }
+
   CC.views.HubCoreAdmin = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas rt-page"});
     page.appendChild(catHead("Hub Core / Admin", "admin", api));
+
+    /* ───── landing: two folders, nothing else. Routines used to open straight into the routine
+       list; now Admin opens here and you tap in. ───── */
+    var landing = h("div", {class: "adm-landing", hidden: true});
+    var routinesWrap = h("div", {class: "rt-page-inner", hidden: true});
+    var queueWrap = h("div", {class: "rt-page-inner", hidden: true});
+    page.appendChild(landing); page.appendChild(routinesWrap); page.appendChild(queueWrap);
+
+    function folderBack(title) {
+      return h("div", {class: "adm-folder-head"},
+        h("button", {type: "button", class: "adm-back", onclick: function () { showSection(null); }}, "‹ Admin"),
+        h("span", {class: "adm-folder-t"}, title));
+    }
+
     var bar = h("div", {class: "rt-bar"});
     var panel = h("div", {class: "rt-panel"});
     var sheet = h("aside", {class: "rt-sheet rt-portal", "aria-hidden": "true"});
     var scrim = h("div", {class: "rt-scrim rt-portal"});
-    page.appendChild(bar); page.appendChild(panel);
-    /* Portal the detail drawer + scrim to <body> so they escape #app's stacking context and layer
+    routinesWrap.appendChild(folderBack("Routines"));
+    routinesWrap.appendChild(bar); routinesWrap.appendChild(panel);
+
+    var tqBar = h("div", {class: "rt-bar"});
+    var tqPanel = h("div", {class: "rt-panel"});
+    var tqSheet = h("aside", {class: "rt-sheet rt-portal", "aria-hidden": "true"});
+    var tqScrim = h("div", {class: "rt-scrim rt-portal"});
+    queueWrap.appendChild(folderBack("Task Queue"));
+    queueWrap.appendChild(tqBar); queueWrap.appendChild(tqPanel);
+
+    /* Portal both detail drawers + scrims to <body> so they escape #app's stacking context and layer
        above the sticky top bar and rail. Clear any stale portal, and tear these down when the Admin
        view is unmounted (navigating away) so an open drawer never bleeds onto another page. */
     Array.prototype.forEach.call(document.querySelectorAll(".rt-portal"), function (e) { e.remove(); });
     document.body.appendChild(scrim); document.body.appendChild(sheet);
-    ADM.q = ADM.q || ""; ADM.f = ADM.f || "all"; ADM.open = ADM.open || {}; ADM.seeded = ADM.seeded || false;
+    document.body.appendChild(tqScrim); document.body.appendChild(tqSheet);
+    ADM.q = ADM.q || ""; ADM.f = ADM.f || "all"; ADM.open = ADM.open || {};
+    TQ.q = TQ.q || ""; TQ.f = TQ.f || "all"; TQ.open = TQ.open || {};
+    ADM.section = null; // land on the folder picker every time Admin is opened fresh
     var idxCache = {n: -1, v: {}};
     function runsFor(o) {
       var n = RUNLOG_CACHE.rows ? RUNLOG_CACHE.rows.length : 0;
@@ -820,13 +891,52 @@
       return idxCache.v[o.id] || idxCache.v[o.name] || [];
     }
     function close() { ADM.rid = null; paintSheet(); }
-    function onKey(e) { if (e.key === "Escape" && ADM.rid && page.isConnected) close(); }
+    function onKey(e) {
+      if (e.key !== "Escape" || !page.isConnected) return;
+      if (ADM.rid) close();
+      if (TQ.qid) closeTq();
+    }
     scrim.addEventListener("click", close);
+    tqScrim.addEventListener("click", function () { closeTq(); });
     document.addEventListener("keydown", onKey);
     var teardown = new MutationObserver(function () {
-      if (!page.isConnected) { scrim.remove(); sheet.remove(); document.removeEventListener("keydown", onKey); teardown.disconnect(); }
+      if (!page.isConnected) {
+        scrim.remove(); sheet.remove(); tqScrim.remove(); tqSheet.remove();
+        document.removeEventListener("keydown", onKey); teardown.disconnect();
+      }
     });
     teardown.observe(document.documentElement, {childList: true, subtree: true});
+
+    function showSection(s) {
+      ADM.section = s;
+      landing.hidden = !!s;
+      routinesWrap.hidden = s !== "routines";
+      queueWrap.hidden = s !== "queue";
+      if (s === "routines") paint();
+      else if (s === "queue") paintTq();
+      else paintLanding();
+    }
+
+    function paintLanding() {
+      landing.innerHTML = "";
+      var R = admRoutines(), T = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; });
+      var rAttn = R.filter(function (x) { return x.h.cls !== "good"; }).length;
+      var tNow = T.filter(function (o) { return tqPriBand(o.pri) === "now"; }).length;
+      function folder(title, count, sub, badge, onclick) {
+        return h("button", {type: "button", class: "adm-folder", onclick: onclick},
+          h("div", {class: "adm-folder-top"}, h("b", null, title), badge ? h("span", {class: "adm-folder-badge " + badge[1]}, badge[0]) : null),
+          h("div", {class: "adm-folder-count"}, count == null ? "…" : count),
+          h("div", {class: "adm-folder-sub"}, sub));
+      }
+      landing.appendChild(folder("Routines", R.length || null,
+        R.length ? R.length + " routines" : (ROUT_CACHE.err ? ROUT_CACHE.err : "Loading…"),
+        rAttn ? [rAttn + " need attention", "warn"] : (R.length ? ["All healthy", "good"] : null),
+        function () { showSection("routines"); }));
+      landing.appendChild(folder("Task Queue", T.length || (TQ_CACHE.rows ? 0 : null),
+        TQ_CACHE.rows ? T.length + " open" : (TQ_CACHE.err ? TQ_CACHE.err : "Loading…"),
+        tNow ? [tNow + " priority 1", "warn"] : (TQ_CACHE.rows ? ["Nothing urgent", "good"] : null),
+        function () { showSection("queue"); }));
+    }
 
     function paintBar(R) {
       bar.innerHTML = "";
@@ -862,8 +972,10 @@
       });
       var groups = {};
       rows.forEach(function (o) { (groups[o.cat] = groups[o.cat] || []).push(o); });
+      /* 2026-11-26, JD's call: every group starts collapsed — no auto-opening groups with attention
+         items. ADM.open only gets set by an explicit click, so it stays collapsed across repaints
+         until JD opens it himself. */
       var order = CATS.concat(Object.keys(groups).filter(function (c) { return CATS.indexOf(c) < 0; })).filter(function (c) { return groups[c]; });
-      if (!ADM.seeded) { order.forEach(function (c) { ADM.open[c] = groups[c].some(function (x) { return x.h.cls !== "good"; }); }); ADM.seeded = true; }
       var head = h("div", {class: "rt-row rt-head", role: "row"},
         h("span", {class: "c-name"}, "Routine"),
         h("span", {class: "c-desc"}, "What it does"),
@@ -933,9 +1045,119 @@
         CC.setCatSummary("Hub Core / Admin", gd + "/" + R.length + " routines healthy" + (na ? " · " + na + " need attention" : ""), na > 0);
       }
     }
-    paint();
-    if (!ROUT_CACHE.rows && !ROUT_CACHE.err) loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, paint, 300, "Routines");
-    function loadRuns() { if (!RUNLOG_CACHE.rows && !RUNLOG_CACHE.err) loadSheet(ADMIN_DATA, RUNLOG_GID, api, RUNLOG_CACHE, paint, 1500, "RunLog"); }
+
+    /* ───── Task Queue folder: same List/Index pattern as Routines, reading the "MOVED Task Queue"
+       tab. Columns are repurposed onto the same 7-slot rt-row grid so it reads consistently and
+       needs no new responsive CSS: Task | Area · Owner | Priority | Updated | Owner | Status | Next
+       action. ───── */
+    function closeTq() { TQ.qid = null; paintTqSheet(); }
+    function tqRowsFiltered(T) {
+      var q = TQ.q.trim().toLowerCase();
+      return T.filter(function (o) {
+        var cls = tqStatusCls(o.status);
+        if (TQ.f === "done") { if (cls !== "good") return false; }
+        else {
+          if (cls === "good") return false;
+          if (TQ.f === "now" && tqPriBand(o.pri) !== "now") return false;
+          if (TQ.f === "parked" && cls !== "parked") return false;
+        }
+        return !q || (o.task + " " + o.area + " " + o.notes + " " + o.next).toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    function paintTqBar(T) {
+      tqBar.innerHTML = "";
+      var live = T.filter(function (o) { return tqStatusCls(o.status) !== "good"; });
+      var now = live.filter(function (o) { return tqPriBand(o.pri) === "now"; });
+      tqBar.appendChild(h("button", {type: "button", class: "rt-verdict " + (now.length ? "warn" : "good"),
+        onclick: function () { TQ.f = now.length ? "now" : "all"; paintTq(); }}, h("i"), now.length ? now.length + " priority 1" : "Nothing urgent"));
+      if (!TQ.pulled && T.length) TQ.pulled = Date.now();
+      tqBar.appendChild(h("span", {class: "rt-meta"}, T.length ? live.length + " open · pulled " + shortTime(TQ.pulled) : ""));
+      tqBar.appendChild(h("span", {class: "rt-gap"}));
+      var q = h("input", {type: "search", class: "rt-search", placeholder: "Search tasks", "aria-label": "Search tasks", value: TQ.q});
+      q.addEventListener("input", function () { TQ.q = q.value; paintTqPanel(T); });
+      tqBar.appendChild(q);
+      var seg = h("div", {class: "rt-seg", role: "group", "aria-label": "Filter"}, [["all", "Open"], ["now", "Priority 1"], ["parked", "Parked"], ["done", "Done"]].map(function (f) {
+        return h("button", {type: "button", class: TQ.f === f[0] ? "on" : "", "aria-pressed": TQ.f === f[0] ? "true" : "false", onclick: function () { TQ.f = f[0]; paintTq(); }}, f[1]);
+      }));
+      tqBar.appendChild(seg);
+    }
+    function paintTqPanel(T) {
+      tqPanel.innerHTML = "";
+      if (!T.length) {
+        tqPanel.appendChild(TQ_CACHE.err
+          ? h("div", {class: "hp-mod-ph"}, h("b", null, "Couldn't load the task queue"), h("span", null, TQ_CACHE.err),
+              h("button", {type: "button", class: "adm-retry", onclick: function () { TQ_CACHE.err = null; TQ_CACHE.rows = null; paintTq(); loadSheet(TQ_SHEET, TQ_GID, api, TQ_CACHE, onDataChange, 500, "Task Queue"); }}, "Try again"))
+          : h("div", {class: "rt-skel"}, [1, 2, 3, 4, 5, 6].map(function () { return h("div", {class: "rt-skrow"}); })));
+        return;
+      }
+      var rows = tqRowsFiltered(T);
+      var groups = {};
+      rows.forEach(function (o) { (groups[o.area] = groups[o.area] || []).push(o); });
+      var order = Object.keys(groups).sort(function (a, b) { return groups[b].length - groups[a].length; });
+      var head = h("div", {class: "rt-row rt-head", role: "row"},
+        h("span", {class: "c-name"}, "Task"),
+        h("span", {class: "c-desc"}, "Next action"),
+        h("span", {class: "c-every"}, "Priority"),
+        h("span", {class: "c-last"}, "Updated"),
+        h("span", {class: "c-runs"}, "Owner"),
+        h("span", {class: "c-health"}, "Status"),
+        h("span", {class: "c-dest"}, "Blocked by"));
+      tqPanel.appendChild(head);
+      var scroll = h("div", {class: "rt-scroll"});
+      if (!order.length) scroll.appendChild(h("div", {class: "hp-mod-ph"}, h("b", null, "Nothing matches"), h("button", {type: "button", class: "adm-retry", onclick: function () { TQ.q = ""; TQ.f = "all"; paintTq(); }}, "Clear filters")));
+      var priFq = {now: "fast", next: "week", later: "slow"};
+      order.forEach(function (c) {
+        var g = groups[c].slice().sort(function (a, b) { return a.rank - b.rank; });
+        var open = TQ.q || TQ.f !== "all" ? true : !!TQ.open[c];
+        scroll.appendChild(h("button", {type: "button", class: "rt-grp", "aria-expanded": open ? "true" : "false", onclick: function () { TQ.open[c] = !open; paintTqPanel(T); }},
+          h("span", {class: "rt-chev" + (open ? " open" : "")}, "›"), h("b", null, c), h("span", {class: "rt-cnt"}, g.length)));
+        if (open) g.forEach(function (o) {
+          var cls = tqStatusCls(o.status);
+          scroll.appendChild(h("button", {type: "button", class: "rt-row rt-item" + (TQ.qid === o.id ? " sel" : ""), role: "row", onclick: function () { TQ.qid = o.id; paintTqSheet(); paintTqPanel(T); }},
+            h("span", {class: "c-name"}, o.task),
+            h("span", {class: "c-desc", title: o.next || ""}, o.next || "—"),
+            h("span", {class: "c-every fq fq-" + (priFq[tqPriBand(o.pri)] || "slow")}, o.pri || "—"),
+            h("span", {class: "c-last"}, o.updated || o.added || "—"),
+            h("span", {class: "c-runs"}, o.owner || "—"),
+            h("span", {class: "c-health rt-health " + cls}, h("i"), o.status),
+            h("span", {class: "c-dest", title: o.blockedBy || ""}, o.blockedBy || "—")));
+        });
+      });
+      tqPanel.appendChild(scroll);
+    }
+    function paintTqSheet() {
+      var T = tqTasks(), o = TQ.qid ? T.filter(function (x) { return x.id === TQ.qid; })[0] : null;
+      tqSheet.innerHTML = ""; tqSheet.classList.toggle("open", !!o); tqScrim.classList.toggle("open", !!o); tqSheet.setAttribute("aria-hidden", o ? "false" : "true");
+      if (!o) return;
+      var rowNum = TQ_CACHE.rows.findIndex(function (r) { return String(r[0]).trim() === o.id; }) + 2;
+      var kv = function (k, v) { return v ? h("div", {class: "adm-kv"}, h("span", null, k), h("b", null, v)) : null; };
+      var closeBtn = h("button", {type: "button", class: "rt-x", "aria-label": "Close", title: "Close (Esc)", onclick: closeTq}, "✕");
+      tqSheet.appendChild(h("header", null, h("div", null, h("small", null, o.area + (o.id ? " · " + o.id : "")), h("h3", null, o.task)), closeBtn));
+      tqSheet.appendChild(h("div", {class: "rt-sbody"},
+        h("div", {class: "rt-health lg " + tqStatusCls(o.status)}, h("i"), o.status),
+        h("div", {class: "adm-kvs"},
+          kv("Priority", o.pri), kv("Owner", o.owner), kv("Track", o.track),
+          kv("Next action", o.next), kv("Unlocks", o.unlocks), kv("Blocked by", o.blockedBy),
+          kv("Added", o.added), kv("Updated", o.updated), kv("Source", o.source)),
+        o.notes ? [h("h4", null, "Notes"), h("p", {class: "adm-desc"}, o.notes)] : null,
+        h("a", {class: "rt-open", href: "https://docs.google.com/spreadsheets/d/" + TQ_SHEET + "/edit#gid=" + TQ_GID + (rowNum > 1 ? "&range=A" + rowNum : ""), target: "_blank", rel: "noopener"}, "Open in Google Sheets")));
+      closeBtn.focus({preventScroll: true});
+    }
+    function paintTq() {
+      var T = tqTasks();
+      paintTqBar(T); paintTqPanel(T); paintTqSheet();
+    }
+
+    function onDataChange() {
+      if (ADM.section === "routines") paint();
+      else if (ADM.section === "queue") paintTq();
+      else paintLanding();
+    }
+
+    showSection(null);
+    if (!ROUT_CACHE.rows && !ROUT_CACHE.err) loadSheet(ADMIN_DATA, ROUT_GID, api, ROUT_CACHE, onDataChange, 300, "Routines");
+    if (!TQ_CACHE.rows && !TQ_CACHE.err) loadSheet(TQ_SHEET, TQ_GID, api, TQ_CACHE, onDataChange, 500, "Task Queue");
+    function loadRuns() { if (!RUNLOG_CACHE.rows && !RUNLOG_CACHE.err) loadSheet(ADMIN_DATA, RUNLOG_GID, api, RUNLOG_CACHE, onDataChange, 1500, "RunLog"); }
     if (window.requestIdleCallback) requestIdleCallback(loadRuns, {timeout: 1500}); else setTimeout(loadRuns, 400);
     return page;
   };
