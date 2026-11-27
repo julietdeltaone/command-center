@@ -46,12 +46,16 @@
       fulfilled: bool(v("Service Fulfilled")), payment: v("Payment Status"), status: v("Client Status"),
       service: v("Service Type"), venue: v("Venue"), address: v("Address"),
       total: num(v("Total Value")), collected: num(v("Amount Collected")),
-      delivery: v("Estimated Delivery"), delivered: bool(v("Gallery Delivered")),
+      delivery: v("Estimated Delivery"), galleryDeliveredFlag: bool(v("Gallery Delivered")),
       notes: v("Notes"), galleryLink: v("Gallery Link")
     };
     o.balance = Math.max(0, o.total - o.collected);
     var st = String(o.status || "") + " " + String(o.payment || "");
     o.cancelled = /cancel|lost/i.test(st);
+    /* "Gallery Delivered" is sitting empty on every single row in the real sheet (never checked,
+       even on shoots from years ago) — it isn't a reliable signal. "Client Status" = "Gallery Ready"
+       is what JD actually uses to mean the project is done, so that's what counts as delivered here. */
+    o.delivered = /gallery ready/i.test(o.status || "");
     var pastDay = o.dateMs != null && o.dateMs < Date.now() - 86400000;
     o.pastDue = !o.cancelled && o.balance > 0 && pastDay;
     o.pipeline = /preparing contract|not started|negotiat|unsigned|inquiry/i.test(st) && !o.cancelled;
@@ -145,7 +149,7 @@
       function kv(k, v) { return v ? h("div", {class: "kv"}, h("span", null, k), h("b", null, v)) : null; }
       det.appendChild(h("div", {class: "cd-top", style: "--c:" + c}, h("div", null, h("h3", null, p.client || p.id), h("small", null, p.id)), h("span", {class: "crm-st", style: "--c:" + c}, h("i"), p.status || "No status")));
       det.appendChild(h("div", {class: "cd-money"}, h("div", {class: "cd-bar"}, h("i", {style: "width:" + pc + "%"})), h("div", {class: "cd-nums"}, h("span", null, h("b", null, usd(p.collected)), " collected"), h("span", null, h("b", {style: p.balance ? "color:" + colFor(p.attention ? 0.1 : 0.5) : ""}, p.balance ? usd(p.balance) : "Paid in full"), p.balance ? " due" : ""), h("span", null, "of ", h("b", null, usd(p.total))))));
-      det.appendChild(h("div", {class: "cd-kv"}, kv("Service", p.service), kv("Venue", p.venue), kv("Date", fmtDate(p.dateMs)), kv("Payment status", p.payment), kv("Est. delivery", p.delivery), kv("Gallery delivered", p.delivered ? "Yes" : "No")));
+      det.appendChild(h("div", {class: "cd-kv"}, kv("Service", p.service), kv("Venue", p.venue), kv("Date", fmtDate(p.dateMs)), kv("Payment status", p.payment), kv("Est. delivery", p.delivery)));
       det.appendChild(h("div", {class: "cd-act"}, lnk("Open in Ledger dashboard", dash), lnk("Ledger sheet", sheet)));
     }
     function paint() {
