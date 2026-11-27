@@ -851,6 +851,32 @@
     return same ? d.toLocaleTimeString("en-US", {timeZone: "America/New_York", hour: "numeric", minute: "2-digit"})
                 : d.toLocaleString("en-US", {timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
   }
+  /* Cadence band for colour-coding the frequency: faster cadences read cooler (cyan/indigo), daily
+     green, weekly violet, monthly+ amber. Falls back to parsing the frequency text when no cadence. */
+  function freqBand(o) {
+    var c = o.cad;
+    if (!c) { var f = (o.freq || "").toLowerCase();
+      if (/30 min|hourly|every hour|every \d+ ?h/.test(f)) return "fast";
+      if (/day|daily/.test(f)) return "day";
+      if (/week/.test(f)) return "week";
+      if (/month|drill|quarter|year/.test(f)) return "slow";
+      return ""; }
+    if (c <= 60) return "fast";
+    if (c <= 720) return "hrs";
+    if (c <= 1440) return "day";
+    if (c <= 10080) return "week";
+    return "slow";
+  }
+  /* Last-run freshness relative to how often the routine should run: on-time (green), getting old
+     (amber) and past due (red), so a run drifting late shows colour before health flips to Overdue. */
+  function lastBand(o) {
+    if (!o.t) return "";
+    var win = o.cad ? o.cad * 60000 : 86400000, r = (Date.now() - o.t) / win;
+    if (r <= 0.75) return "fresh";
+    if (r <= 1.5) return "ok";
+    if (r <= 2) return "aging";
+    return "stale";
+  }
   function hubGlyph(o) {
     var m = {yes: ["✓", "Feeds the hub"], partial: ["~", "Partly feeds the hub"], no: ["✕", "Not in the hub"]}[o.feeds];
     return h("span", {class: "rt-hub " + (o.feeds || "unk"), title: m ? m[1] : "Not reviewed yet"}, m ? m[0] : "–");
@@ -964,8 +990,8 @@
           scroll.appendChild(h("button", {type: "button", class: "rt-row rt-item" + (ADM.rid === o.id ? " sel" : ""), role: "row", onclick: function () { ADM.rid = o.id; paintSheet(); paintPanel(R); }},
             h("span", {class: "c-name"}, o.name),
             h("span", {class: "c-desc", title: o.desc || ""}, o.desc || "—"),
-            h("span", {class: "c-every"}, o.freq || cadText(o.cad)),
-            h("span", {class: "c-last"}, shortTime(o.t)),
+            h("span", {class: "c-every fq fq-" + freqBand(o)}, o.freq || cadText(o.cad)),
+            h("span", {class: "c-last lr-" + (lastBand(o) || "na")}, shortTime(o.t)),
             h("span", {class: "c-runs"}, h("span", {class: "rt-strip"}, runs.map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good"}); }))),
             h("span", {class: "c-health rt-health " + o.h.cls}, h("i"), o.h.cls === "good" ? "Healthy" : o.h.cls === "bad" ? "Failed" : /^Never/.test(o.h.text) ? "Never run" : "Overdue"),
             destCell(o)));

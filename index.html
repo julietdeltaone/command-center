@@ -285,7 +285,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <link rel="stylesheet" href="cc-design.css?v=20261125.19">
 <link rel="stylesheet" href="cc-skin.css?v=20261126.9">
 <link rel="stylesheet" href="cc-widgets.css?v=20261125.19">
-<link rel="stylesheet" href="cc-pages.css?v=20261126.11">
+<link rel="stylesheet" href="cc-pages.css?v=20261126.12">
 <link rel="stylesheet" href="cc-sources2.css?v=20261125.19">
 <link rel="stylesheet" href="views/views.css?v=20261125.19">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
@@ -1011,8 +1011,19 @@ function vCrew(){
 }
 
 /* ══════════ RENDER ══════════ */
+var _lastTab=null;
 function render(){
-  var app=document.getElementById("app");app.innerHTML="";
+  var app=document.getElementById("app");
+  /* Anchor scroll across a soft refresh (same tab): periodic re-renders used to yank the list back
+     to the top. Capture scroll before the rebuild and restore it after, but only when the tab hasn't
+     changed — on navigation go() resets to the top itself. */
+  var _sameTab=(_lastTab===TAB);
+  var _aTop=app.scrollTop;
+  var _inEl=_sameTab?app.querySelector(".rt-scroll,.hp-grid-wrap,.hp-mod-scroll"):null;
+  var _inTop=_inEl?_inEl.scrollTop:0;
+  _lastTab=TAB;
+  function _restoreScroll(){ if(!_sameTab)return; try{ app.scrollTop=_aTop; if(_inTop){var n=app.querySelector(".rt-scroll,.hp-grid-wrap,.hp-mod-scroll"); if(n)n.scrollTop=_inTop;} }catch(e){} }
+  app.innerHTML="";
   if(!D){var sk=h("div",{class:"sk"});for(var i=0;i<3;i++)sk.appendChild(h("div",{class:"skl",style:"width:"+(55+Math.random()*35)+"%"}));sk.appendChild(h("div",{class:"stats"},h("div",{class:"sks"}),h("div",{class:"sks"}),h("div",{class:"sks"}),h("div",{class:"sks"})));for(var j=0;j<4;j++)sk.appendChild(h("div",{class:"skl",style:"width:"+(45+Math.random()*40)+"%;margin-top:8px"}));app.appendChild(sk);return}
   document.getElementById("stag").hidden=!D.sample;
 
@@ -1058,7 +1069,7 @@ function render(){
         crew:crewTuples(), tab:tabName
       };
       var result=CC.views[tabName](CCAPI);
-      if(result){app.appendChild(result);return}
+      if(result){app.appendChild(result);_restoreScroll();return}
       console.warn("CC.views."+tabName+" returned nothing, falling back to built-in");
     }catch(e){
       console.error("CC.views."+tabName+" error, falling back to built-in:",e);
@@ -1067,6 +1078,7 @@ function render(){
 
   var V={wall:vWall,today:vToday,biz:vBiz,priv:vPriv,sys:vSys,crew:vCrew};
   app.appendChild((V[TAB]||vWall)());
+  _restoreScroll();
 }
 
 /* Expose CCAPI on CC namespace for external scripts that need it at load time */
@@ -1275,7 +1287,7 @@ function loadData(){
 <script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
 <script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
 <script defer src="cc-health.js?v=20261126.9" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261126.11" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261126.12" onerror="void 0"></script>
 <script defer src="cc-pages.js?v=20261125.19" onerror="void 0"></script>
 <script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
 </body>
