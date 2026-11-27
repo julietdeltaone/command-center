@@ -880,9 +880,14 @@
     page.appendChild(catHead("Hub Core / Admin", "admin", api));
     var bar = h("div", {class: "rt-bar"});
     var panel = h("div", {class: "rt-panel"});
-    var sheet = h("aside", {class: "rt-sheet", "aria-hidden": "true"});
-    var scrim = h("div", {class: "rt-scrim"});
-    page.appendChild(bar); page.appendChild(panel); page.appendChild(scrim); page.appendChild(sheet);
+    var sheet = h("aside", {class: "rt-sheet rt-portal", "aria-hidden": "true"});
+    var scrim = h("div", {class: "rt-scrim rt-portal"});
+    page.appendChild(bar); page.appendChild(panel);
+    /* Portal the detail drawer + scrim to <body> so they escape #app's stacking context and layer
+       above the sticky top bar and rail. Clear any stale portal, and tear these down when the Admin
+       view is unmounted (navigating away) so an open drawer never bleeds onto another page. */
+    Array.prototype.forEach.call(document.querySelectorAll(".rt-portal"), function (e) { e.remove(); });
+    document.body.appendChild(scrim); document.body.appendChild(sheet);
     ADM.q = ADM.q || ""; ADM.f = ADM.f || "all"; ADM.open = ADM.open || {}; ADM.seeded = ADM.seeded || false;
     var idxCache = {n: -1, v: {}};
     function runsFor(o) {
@@ -891,8 +896,13 @@
       return idxCache.v[o.id] || idxCache.v[o.name] || [];
     }
     function close() { ADM.rid = null; paintSheet(); }
+    function onKey(e) { if (e.key === "Escape" && ADM.rid && page.isConnected) close(); }
     scrim.addEventListener("click", close);
-    page.addEventListener("keydown", function (e) { if (e.key === "Escape" && ADM.rid) close(); });
+    document.addEventListener("keydown", onKey);
+    var teardown = new MutationObserver(function () {
+      if (!page.isConnected) { scrim.remove(); sheet.remove(); document.removeEventListener("keydown", onKey); teardown.disconnect(); }
+    });
+    teardown.observe(document.documentElement, {childList: true, subtree: true});
 
     function paintBar(R) {
       bar.innerHTML = "";
