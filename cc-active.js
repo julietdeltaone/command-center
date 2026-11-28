@@ -231,67 +231,87 @@
         {k: "g30", t: "Fastest growing", s: "followers gained, 30 days", f: function (v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toLocaleString("en-US"); }}]
         .map(function (b) { var r = top(b.k); b.top = r.top; b.me = r.me; b.n = r.n; return b; })};
   }
+  /* ---------- v8 layout pieces (Nov 28, JD: "all-new design", activity as a true sidebar, stats not
+     descriptions, nothing truncated, no rings cutting text) ---------- */
   function heatMap(m) {
     var start = m.asof - STRIP + 1;
     var list = m.list.slice().sort(function (a, b) { return (b.me - a.me) || ((b.posts30 == null ? -1 : b.posts30) - (a.posts30 == null ? -1 : a.posts30)) || a.name.localeCompare(b.name); });
-    var cols = "minmax(120px,170px) repeat(" + STRIP + ",minmax(0,1fr)) 40px";
-    var wrap = h("div", {class: "mp-heat"});
-    var hd = h("div", {class: "mp-row mp-hd", style: "grid-template-columns:" + cols}, h("span"));
-    for (var n = start; n <= m.asof; n++) { var dd = new Date(n * DAY); hd.appendChild(h("span", {class: "mp-wk"}, dd.getUTCDay() === 1 ? dshort(diso(n)) : "")); }
-    hd.appendChild(h("span", {class: "mp-num mp-wk"}, "30d"));
-    wrap.appendChild(hd);
-    var body = h("div", {class: "mp-rows"});
+    var g = h("div", {class: "b4-heat", style: "--n:" + STRIP});
+    g.appendChild(h("span"));
+    for (var n = start; n <= m.asof; n++) { var dd = new Date(n * DAY); g.appendChild(h("span", {class: "b4-wk"}, dd.getUTCDay() === 1 ? dshort(diso(n)) : "")); }
+    g.appendChild(h("span", {class: "b4-wk b4-num"}, "30d"));
     list.forEach(function (b) {
-      var row = h("div", {class: "mp-row" + (b.me ? " me" : ""), style: "grid-template-columns:" + cols},
-        h("a", {class: "mp-name", href: b.url, target: "_blank", rel: "noopener", title: b.name + " on Instagram"}, b.me ? "You" : b.name));
+      var me = b.me ? " me" : "";
+      g.appendChild(h("a", {class: "b4-name" + me, href: b.url, target: "_blank", rel: "noopener", title: b.name + " on Instagram"}, b.me ? "You" : b.name));
       for (var n2 = start; n2 <= m.asof; n2++) {
-        var d = diso(n2), k = b.days[d] || 0, tier = Math.min(k, 3), na = n2 < b.from;
+        var d = diso(n2), k = b.days[d] || 0, na = n2 < b.from;
         var tip = (b.me ? "You" : b.name) + " · " + dshort(d) + ": " + (na ? "not tracked yet" : k ? k + (k === 1 ? " new post" : " new posts") : "no new post");
-        row.appendChild(k ? h("a", {class: "mp-c t" + tier, href: b.links[d] || b.url, target: "_blank", rel: "noopener", title: tip + (b.links[d] ? " · opens the post" : " · opens the profile")})
-          : h("i", {class: "mp-c t0" + (na ? " na" : ""), title: tip}));
+        g.appendChild(k ? h("a", {class: "b4-c t" + Math.min(k, 3) + me, href: b.links[d] || b.url, target: "_blank", rel: "noopener", title: tip + (b.links[d] ? " · opens the post" : " · opens the profile")})
+          : h("i", {class: "b4-c t0" + (na ? " na" : "") + me, title: tip}));
       }
-      row.appendChild(h("b", {class: "mp-num"}, b.posts30 == null ? "…" : String(b.posts30)));
-      body.appendChild(row);
+      g.appendChild(h("b", {class: "b4-num" + me}, b.posts30 == null ? "…" : String(b.posts30)));
     });
-    wrap.appendChild(body);
-    wrap.appendChild(h("div", {class: "hc-legend"},
-      h("span", null, h("i", {class: "mp-c t0"}), "no post"), h("span", null, h("i", {class: "mp-c t1"}), "1"),
-      h("span", null, h("i", {class: "mp-c t2"}), "2"), h("span", null, h("i", {class: "mp-c t3"}), "3+"),
-      h("span", {class: "hc-legend-r"}, m.perma ? "click a square to open that post" : "click a square to open the account (newest posts on top)")));
-    return wrap;
+    return g;
   }
-  function leaders(m) {
-    return h("div", {class: "mp-lead"}, m.boards.map(function (b) {
-      return h("div", {class: "bz3-blk mp-board"},
-        h("div", {class: "bz3-eb"}, b.t), h("small", {class: "mp-sub"}, b.s),
-        h("ol", {class: "mp-top"}, b.top.map(function (x, i) {
-          return h("li", {class: x.me ? "me" : ""}, h("span", {class: "mp-pl p" + (i + 1)}, String(i + 1)),
+  function igStats(m) {
+    var tr = m.list.filter(function (b) { return b.posts30 != null; }), peers = tr.filter(function (b) { return !b.me; });
+    var srt = peers.map(function (b) { return b.posts30; }).sort(function (a, b) { return a - b; });
+    var med = srt.length ? (srt.length % 2 ? srt[srt.length >> 1] : (srt[srt.length / 2 - 1] + srt[srt.length / 2]) / 2) : null;
+    var top = tr.slice().sort(function (a, b) { return b.posts30 - a.posts30; })[0];
+    var me = m.list.filter(function (b) { return b.me; })[0];
+    var lastAge = me && me.lastPost ? m.asof - dnum(me.lastPost) : null;
+    var quiet = tr.filter(function (b) { return b.posts30 === 0; }).length;
+    function st(l, v, s, k) { return h("div", {class: "b4-ig-st " + (k || "")}, h("span", null, l), h("b", null, v), h("small", null, s)); }
+    return h("div", {class: "b4-ig-stats"},
+      st("Most active", top ? top.posts30 + " posts" : "—", top ? top.name : "", ""),
+      st("Typical", med != null ? (Math.round(med * 10) / 10) + " posts" : "—", "median, 30 days", ""),
+      st("You", me && me.posts30 != null ? me.posts30 + (me.posts30 === 1 ? " post" : " posts") : "—", lastAge != null ? "last post " + lastAge + "d ago" : "", me && med != null && me.posts30 != null ? (me.posts30 >= med ? "good" : me.posts30 > 0 ? "warn" : "bad") : ""),
+      st("Silent", quiet + " of " + tr.length, "no post in 30 days", ""));
+  }
+  function leaderList(m) {
+    return h("div", {class: "b4-lead"}, m.boards.map(function (b) {
+      return h("div", {class: "b4-board"},
+        h("div", {class: "b4-eb"}, b.t),
+        h("ol", null, b.top.map(function (x, i) {
+          return h("li", {class: x.me ? "me" : ""}, h("span", {class: "b4-pl p" + (i + 1)}, String(i + 1)),
             h("a", {href: x.url, target: "_blank", rel: "noopener"}, x.me ? "You" : x.name), h("b", null, b.f(x[b.k])));
         })),
-        h("div", {class: "mp-you"}, b.me ? (b.me.place <= 3 ? "You're in the top three" : "You: " + b.me.place + " of " + b.me.of + " · " + b.f(b.me.v)) : "You: not ranked yet"));
+        h("div", {class: "b4-you"}, b.me ? (b.me.place <= 3 ? "You're in the top three" : "You · " + b.me.place + " of " + b.me.of + " · " + b.f(b.me.v)) : "You · not ranked"));
     }));
   }
-  function marketCard(api) {
-    var m = pulseModel(api), now = nowOf(api), cm = compModel(api);
-    var right = h("span", null, "From Business Pulse · ",
-      h("a", {href: PULSE_SITE, target: "_blank", rel: "noopener", class: "bz3-link"}, "Open Business Pulse ↗"));
-    var feed = h("div", {class: "bz3-moves"}, cm.moves.filter(function (x) {
-      return x.kind !== "System" && x.kind !== "AI search" && !/instagram|\big\b/i.test(x.text);
-    }).slice(0, 10).map(function (x) {
-      return h("div", {class: "bz3-move"},
-        h("i", {class: "bz3-dot", style: "background:" + kindCol(x.kind), title: x.kind}),
-        h("div", {class: "bz3-move-t"}, h("b", null, x.kind), " ", x.link ? h("a", {href: x.link, target: "_blank", rel: "noopener", class: "mp-flink"}, x.text) : x.text),
-        h("span", {class: "bz3-ago"}, agoShort(x.t, now)));
+  function igCard(api) {
+    var m = pulseModel(api);
+    var link = h("a", {href: PULSE_SITE, target: "_blank", rel: "noopener", class: "b4-open", title: "Open Business Pulse"}, "Pulse ↗");
+    if (!m) return h("section", {class: "hc b4-ig"}, h("div", {class: "hc-empty"}, PULSE.err || "Reading Business Pulse…"));
+    return h("section", {class: "hc b4-ig", "data-src": "https://docs.google.com/spreadsheets/d/" + COMP_SHEET + "/edit#gid=570304817"},
+      h("div", {class: "b4-ig-top"}, igStats(m), link),
+      h("div", {class: "b4-ig-body"},
+        h("div", {class: "b4-heat-w"}, heatMap(m),
+          h("div", {class: "b4-leg"}, h("i", {class: "b4-c t0"}), "none", h("i", {class: "b4-c t1"}), "1", h("i", {class: "b4-c t2"}), "2", h("i", {class: "b4-c t3"}), "3+",
+            h("em", null, m.perma ? "click a square for the post" : "click a square for the account"))),
+        leaderList(m)));
+  }
+  function feedCard(api) {
+    var now = nowOf(api), cm = compModel(api);
+    var rows = cm.moves.filter(function (x) { return x.kind !== "System" && x.kind !== "AI search" && !/instagram|\big\b/i.test(x.text); });
+    var counts = {}; rows.forEach(function (x) { if (x.t && now - x.t < 7 * DAY) counts[x.kind] = (counts[x.kind] || 0) + 1; });
+    var list = h("div", {class: "b4-feed"}, rows.slice(0, 40).map(function (x) {
+      return h("div", {class: "b4-fi"},
+        h("div", {class: "b4-fh"}, h("i", {style: "background:" + kindCol(x.kind)}), h("b", null, x.kind), h("span", null, agoShort(x.t, now))),
+        h("div", {class: "b4-ft"}, x.link ? h("a", {href: x.link, target: "_blank", rel: "noopener"}, x.text) : x.text));
     }));
-    if (!feed.children.length) feed.appendChild(h("div", {class: "hc-empty"}, cm.src === "loading" ? "Reading activity…" : "No pricing, website, review or Facebook moves on file."));
-    var top = m ? heatMap(m) : h("div", {class: "hc-empty"}, PULSE.err || "Reading Business Pulse…");
-    var body = h("div", {class: "bz3-comp mp"},
-      h("div", {class: "bz3-eb"}, "Instagram posting, last " + STRIP + " days" + (m ? " · " + m.list.length + " accounts" : "")),
-      top,
-      h("div", {class: "mp-bottom"},
-        h("div", {class: "mp-col"}, h("div", {class: "bz3-eb"}, "Leaders"), m ? leaders(m) : null),
-        h("div", {class: "mp-col"}, h("div", {class: "bz3-eb"}, "Activity outside Instagram"), feed)));
-    return card("Market pulse", right, body, "bz3-c-comp");
+    if (!rows.length) list.appendChild(h("div", {class: "hc-empty"}, cm.src === "loading" ? "Reading activity…" : "Nothing on file."));
+    return h("section", {class: "hc b4-side", "data-src": "https://docs.google.com/spreadsheets/d/" + COMP_SHEET + "/edit#gid=" + COMP_MOVES_GID},
+      h("div", {class: "hc-h"}, h("h3", null, "Activity"), h("span", {class: "hc-r"}, Object.keys(counts).length ? Object.keys(counts).map(function (k) { return counts[k] + " " + k.toLowerCase(); }).join(" · ") + " this week" : "")),
+      list);
+  }
+  function ledgerStrip(api) {
+    var L = ledgerTiles(api);
+    var strip = h("div", {class: "b4-led"}, L.tiles.map(function (t) {
+      return h("div", {class: "b4-ls " + (t.k || "n"), title: t.s || ""},
+        h("span", null, t.l), h("b", null, t.v == null ? "—" : String(t.v)), h("small", null, t.s || ""));
+    }));
+    return {node: strip, L: L};
   }
 
   /* ---------- social & website watch ---------- */
@@ -327,7 +347,7 @@
   }
   function socwCard(api) {
     var m = socwModel(api);
-    var right = h("span", null, m.src === "sheet" ? "Social & Website Watch sheet · " : "Snapshot from Nov 28 (sheet not connected yet) · ",
+    var right = h("span", null, m.src === "sheet" ? "" : "Snapshot (sheet not read) · ",
       h("a", {href: sheetLink(SOCW_SHEET, SOCW_CHANNELS_GID), target: "_blank", rel: "noopener", class: "bz3-link"}, "Open sheet ↗"));
     var worst = m.channels.concat(m.website).filter(function (r) { return r.d != null; }).sort(function (a, b) { return b.d / b.target - a.d / a.target; })[0];
     var body = h("div", {class: "bz3-socw"},
@@ -346,23 +366,19 @@
 
   CC.views.Business = function (api) {
     var ldUrl = cfg(api, "ledger_dashboard_url"), lsUrl = cfg(api, "ledger_sheet_url");
-    var page = h("div", {class: "hp-wrap hp-canvas bz3"});
+    var page = h("div", {class: "hp-wrap hp-canvas bz3 b4"});
     page.appendChild(h("div", {class: "hp-head", "aria-label": "Business"},
       ldUrl ? h("a", {href: ldUrl, target: "_blank", rel: "noopener", class: "hp-next"}, "Open Ledger ↗") : null,
       lsUrl ? h("a", {href: lsUrl, target: "_blank", rel: "noopener", class: "hp-next"}, "Ledger sheet ↗") : null));
-    var ledSec = h("section", {class: "bz3-led"});
-    var body = h("div", {class: "hp-canvas-body bz3-body"});
-    page.appendChild(ledSec); page.appendChild(body);
+    var body = h("div", {class: "b4-grid"});
+    page.appendChild(body);
     function paint() {
-      var L = ledgerTiles(api);
-      ledSec.innerHTML = "";
-      ledSec.appendChild(h("div", {class: "bz3-sec-h"}, h("span", null, "Projects & Ledger"), h("small", null, "Counts and totals from the Ledger. Details live in the Ledger itself.")));
-      var g = h("div", {class: "kt-grid bz3-tiles"});
-      L.tiles.forEach(function (t) { g.appendChild(V().tile(t)); });
-      ledSec.appendChild(g);
+      var ls = ledgerStrip(api), L = ls.L;
+      var sw = socwCard(api);
       body.innerHTML = "";
-      body.appendChild(marketCard(api));
-      var sw = socwCard(api); body.appendChild(sw.node);
+      body.appendChild(h("div", {class: "b4-main"}, ls.node,
+        h("div", {class: "b4-row"}, igCard(api), sw.node)));
+      body.appendChild(feedCard(api));
       if (CC.setCatSummary) {
         var li = sw.model.channels.filter(function (r) { return r.d != null; })[0];
         var postTile = li ? {l: "Since " + li.name + " post", v: li.d + "d", k: li.k, viz: V().ring(Math.min(100, li.d / (li.target * 3) * 100), li.k, {size: 56, label: li.d, sub: "days"})} : null;
