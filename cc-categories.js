@@ -256,10 +256,17 @@
     var rows = (SOC_UNFOLLOWERS_CACHE.rows || []).map(function (r) {
       return {t: iD != null ? ms(r[iD]) : null, p: iP != null ? String(r[iP] || "") : "", acct: iA != null ? String(r[iA] || "") : "", u: iU != null ? String(r[iU] || "") : "", n: iN != null ? String(r[iN] || "") : "", note: iNo != null ? String(r[iNo] || "") : ""};
     }).filter(function (x) { return x.t; }).sort(function (a, b) { return b.t - a.t; });
-    var ig = rows.filter(function (x) { return /insta/i.test(x.p); }), fb = rows.filter(function (x) { return /face/i.test(x.p); });
+    var igRaw = rows.filter(function (x) { return /insta/i.test(x.p); }), fb = rows.filter(function (x) { return /face/i.test(x.p); });
+    /* one row per person per day: someone who left two of JD's accounts the same day shows once, with both accounts */
+    var ig = [], seen = {};
+    igRaw.forEach(function (x) {
+      var key = x.u + "|" + new Date(x.t).toDateString();
+      if (seen[key]) { if (x.acct && seen[key].accts.indexOf(x.acct) < 0) seen[key].accts.push(x.acct); return; }
+      var y = {}; for (var k in x) y[k] = x[k]; y.accts = x.acct ? [x.acct] : []; y.note = /also left/i.test(x.note) ? "" : x.note; seen[key] = y; ig.push(y);
+    });
     function within(list, days) { return list.filter(function (x) { return Date.now() - x.t < days * 86400000; }); }
     function weeks(list, n) { var out = [], d0 = Date.now(); for (var i = n - 1; i >= 0; i--) { var a = d0 - (i + 1) * 7 * 86400000, b = d0 - i * 7 * 86400000; out.push(list.filter(function (x) { return x.t > a && x.t <= b; }).length); } return out; }
-    var accts = {}; ig.forEach(function (x) { if (x.acct) accts[x.acct] = (accts[x.acct] || 0) + 1; });
+    var accts = {}; igRaw.forEach(function (x) { if (x.acct && Date.now() - x.t < 30 * 86400000) accts[x.acct] = (accts[x.acct] || 0) + 1; }); igRaw.forEach(function (x) { if (x.acct && accts[x.acct] == null) accts[x.acct] = 0; });
     return {rows: rows, ig: ig, fb: fb, within: within, weeks: weeks, accts: accts, back: fb.filter(function (x) { return /return|back on/i.test(x.note); })};
   }
   function who(x) { return x.u ? "@" + x.u : x.n || "Someone"; }
@@ -282,9 +289,17 @@
         return h("div", {class: "so2-item" + (/return|back on/i.test(x.note) ? " back" : "")},
           h("span", {class: "so2-date"}, h("b", null, new Date(x.t).getDate()), h("i", null, new Date(x.t).toLocaleDateString("en-US", {month: "short"}))),
           link ? h("a", {href: link, target: "_blank", rel: "noopener", class: "so2-main"}, nm) : h("span", {class: "so2-main"}, nm),
-          h("span", {class: "so2-meta"}, kind === "ig" ? h("span", {class: "so2-acct"}, x.acct) : null, x.note ? h("small", null, x.note) : null, h("small", null, ago(x.t))));
+          h("span", {class: "so2-meta"}, kind === "ig" ? h("span", {class: "so2-acct"}, (x.accts || [x.acct]).join(" + ")) : null, x.note ? h("small", null, x.note) : null, h("small", null, ago(x.t))));
       })) : modPlaceholder(SOC_UNFOLLOWERS_CACHE.err ? "Couldn't load the watch list" : readingText("unfollow watch", SOC_UNFOLLOWERS_CACHE), SOC_UNFOLLOWERS_CACHE.err || "");
-      return mod(title, null, right, feed);
+      var top;
+      if (kind === "ig") {
+        var ks = Object.keys(m.accts).sort(function (a, b) { return m.accts[b] - m.accts[a]; }), mxa = Math.max.apply(null, ks.map(function (k) { return m.accts[k]; }).concat([1]));
+        top = h("div", {class: "so2-top"}, ks.map(function (k) { return h("div", {class: "so2-chip"}, h("i", null, k), h("b", null, String(m.accts[k])), h("div", {class: "w4-mbar thin"}, h("u", {style: "width:" + (m.accts[k] / mxa * 100) + "%"}))); }));
+      } else {
+        var gone = list.filter(function (x) { return /still gone/i.test(x.note); }).length;
+        top = h("div", {class: "so2-top"}, [["Unfriended", list.length], ["Still gone", gone], ["Came back", m.back.length]].map(function (c) { return h("div", {class: "so2-chip"}, h("i", null, c[0]), h("b", null, String(c[1]))); }));
+      }
+      return mod(title, null, right, h("div", {class: "so2-lane"}, top, h("small", {class: "so2-cap"}, kind === "ig" ? "Unfollows per account, last 30 days" : "All Facebook friend changes on file"), feed));
     }
 
     function paint() {
@@ -366,7 +381,7 @@
   function niceDesc(s) {
     s = String(s || "").replace(/\b[A-Z0-9]*\d[A-Z0-9*]{6,}\b/g, "").replace(/\b(EDI|PAYMNT|REF|TN|DIR DEP|PPD|ID|WEB)\b\*?/gi, "").replace(/[*#]+/g, " ").replace(/\s{2,}/g, " ").trim();
     s = s.split(" ").slice(0, 4).join(" ");
-    return s.toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }) || "Unnamed";
+    return s ? s.toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : "Recurring payment";
   }
   var FIN_SKIP = /TRANSFER|LOAN_PAYMENTS/i;
   function finModel() {
@@ -389,6 +404,7 @@
     var bills = [];
     finRows("rec").forEach(function (r) {
       if (!/yes/i.test(r["Active"] || "") || !/out/i.test(r["Direction"] || "")) return;
+      if (/internet transfer|m1 finance|transfer to x?\d/i.test(r["Description"] || "")) return; // money moving between JD's own accounts
       var last = ms(r["Last Date"]), per = PER[String(r["Frequency"] || "").toUpperCase()]; if (!last || !per) return;
       var nx = last; while (nx < now - 86400000) nx += per * 86400000;
       bills.push({t: nx, name: niceDesc(r["Description"]), amt: Math.abs(num(r["Avg Amount"]) || num(r["Last Amount"]) || 0), kind: String(r["Frequency"]).toLowerCase().replace("_", "-")});
@@ -437,7 +453,8 @@
       var accBody = m.acc.length ? h("div", {class: "fin2-acc"}, Object.keys(byInst).map(function (inst) {
         return h("div", {class: "fin2-inst"}, h("h4", null, inst), byInst[inst].map(function (a) {
           var cur = num(a["Current"]) || 0, cr = a["Type"] === "credit";
-          return hbar(String(a["Account"]).toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }) + " ··" + a["Mask"], cur, mxA, (cr && cur ? "−" : "") + m0(cur), cr ? "cr" : a["Type"] === "investment" ? "inv" : "");
+          var lim = num(a["Limit"]);
+          return hbar(String(a["Account"]).toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }) + " ··" + a["Mask"], cur, cr && lim ? lim : mxA, (cr && cur ? "−" : "") + m0(cur), cr ? "cr" : a["Type"] === "investment" ? "inv" : "");
         }));
       })) : modPlaceholder(FIN.acc.err ? "Couldn't load accounts" : readingText("accounts", FIN.acc), FIN.acc.err || "");
       body.appendChild(mod("Accounts", null, h("span", {class: "hc-r"}, m.updated ? "Plaid · updated " + ago(m.updated) : ""), accBody, false));
@@ -1407,7 +1424,7 @@
 
     function paintLanding() {
       landing.innerHTML = "";
-      var R = admRoutines(), T = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; });
+      var R = admRoutines(), T = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good" && !/archiv|cancel|won.?t/i.test(o.status); });
       reportAdmin(R);
       /* Admin v2 (Nov 28, JD): open straight to one dashboard with the most important facts of both
          layers. Routines on the left, Task Queue on the right; each has a link into its full list. */
@@ -1416,6 +1433,13 @@
       var recent = R.filter(function (x) { return x.t; }).sort(function (x, y) { return y.t - x.t; });
       var day = R.filter(function (x) { return x.t && Date.now() - x.t < 86400000; }).length;
       function seg(n, cls, label) { return n ? h("i", {class: "adm2-seg " + cls, style: "flex:" + n, title: n + " " + label}) : null; }
+      function breakdown(title, all, flagged) {
+        var c = {}, f = {}; all.forEach(function (k) { c[k] = (c[k] || 0) + 1; }); flagged.forEach(function (k) { f[k] = (f[k] || 0) + 1; });
+        var ks = Object.keys(c).sort(function (a, b) { return c[b] - c[a]; }).slice(0, 8), mx = Math.max.apply(null, ks.map(function (k) { return c[k]; }).concat([1]));
+        return h("div", {class: "adm2-bd"}, h("h4", null, title), h("div", {class: "adm2-bdg"}, ks.map(function (k) {
+          return h("div", {class: "adm2-bdr"}, h("span", null, k), h("div", {class: "adm2-bdt"}, h("u", {style: "width:" + (c[k] / mx * 100) + "%"}), f[k] ? h("em", {style: "width:" + (f[k] / mx * 100) + "%"}) : null), h("b", null, String(c[k])));
+        })));
+      }
       function kpi(v, l, cls) { return h("div", {class: "adm2-kpi" + (cls ? " " + cls : "")}, h("b", null, v), h("span", null, l)); }
       function row(main, sub, right, cls) { return h("div", {class: "adm2-row" + (cls ? " " + cls : "")}, h("i", {class: "adm2-dot"}), h("div", {class: "adm2-rm"}, h("b", null, main), sub ? h("small", null, sub) : null), right ? h("span", {class: "adm2-rr"}, right) : null); }
       var rPanel = h("section", {class: "adm2-panel"},
@@ -1425,7 +1449,8 @@
           h("div", {class: "adm2-bar"}, seg(good.length, "good", "healthy"), seg(warn.length, "warn", "overdue"), seg(bad.length, "bad", "failed")),
           h("div", {class: "adm2-cols"},
             h("div", {class: "adm2-list"}, h("h4", null, "Needs attention"), attn.length ? attn.slice(0, 7).map(function (x) { return row(x.name, x.h.text, x.cat, x.h.cls); }) : h("div", {class: "adm2-empty"}, "Everything is on schedule.")),
-            h("div", {class: "adm2-list"}, h("h4", null, "Last runs"), recent.slice(0, 7).map(function (x) { return row(x.name, x.cat + (x.status ? " · " + x.status : ""), ago(x.t), x.h.cls); }))))
+            h("div", {class: "adm2-list"}, h("h4", null, "Last runs"), recent.slice(0, 7).map(function (x) { return row(x.name, x.cat + (x.status ? " · " + x.status : ""), ago(x.t), x.h.cls); }))),
+          breakdown("Routines by category", R.map(function (x) { return x.cat; }), R.filter(function (x) { return x.h.cls !== "good"; }).map(function (x) { return x.cat; })))
           : h("div", {class: "hp-mod-ph"}, h("b", null, ROUT_CACHE.err ? "Couldn't load routines" : "Loading routines…"), ROUT_CACHE.err ? h("span", null, ROUT_CACHE.err) : null));
       var bands = {now: [], next: [], later: []}; T.forEach(function (o) { bands[tqPriBand(o.pri)].push(o); });
       var blocked = T.filter(function (o) { return tqStatusCls(o.status) === "bad"; }), awaiting = T.filter(function (o) { return tqStatusCls(o.status) === "warn"; });
@@ -1436,7 +1461,8 @@
           h("div", {class: "adm2-bar"}, seg(bands.now.length, "bad", "priority 1"), seg(bands.next.length, "warn", "priority 2"), seg(bands.later.length, "muted", "later")),
           h("div", {class: "adm2-cols"},
             h("div", {class: "adm2-list"}, h("h4", null, "Up next"), bands.now.concat(bands.next).slice(0, 7).map(function (o) { return row(o.task, [o.area, o.owner, o.status].filter(Boolean).join(" · "), o.pri ? "P" + String(o.pri).charAt(0) : "", tqStatusCls(o.status)); })),
-            h("div", {class: "adm2-list"}, h("h4", null, "Blocked or waiting on you"), blocked.concat(awaiting).length ? blocked.concat(awaiting).slice(0, 7).map(function (o) { return row(o.task, o.blockedBy ? "blocked by " + o.blockedBy : o.next || o.status, o.owner, tqStatusCls(o.status)); }) : h("div", {class: "adm2-empty"}, "Nothing blocked."))))
+            h("div", {class: "adm2-list"}, h("h4", null, "Blocked or waiting on you"), blocked.concat(awaiting).length ? blocked.concat(awaiting).slice(0, 7).map(function (o) { return row(o.task, o.blockedBy ? "blocked by " + o.blockedBy : o.next || o.status, o.owner, tqStatusCls(o.status)); }) : h("div", {class: "adm2-empty"}, "Nothing blocked."))),
+          breakdown("Open tasks by area", T.map(function (o) { return o.area; }), bands.now.map(function (o) { return o.area; })))
           : h("div", {class: "hp-mod-ph"}, h("b", null, TQ_CACHE.err ? "Couldn't load the task queue" : "Loading the task queue…"), TQ_CACHE.err ? h("span", null, TQ_CACHE.err) : null));
       landing.className = "adm2";
       landing.appendChild(rPanel); landing.appendChild(tPanel);
@@ -1545,7 +1571,7 @@
       if (R.length) {
         var recent = R.filter(function (x) { return x.t; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 5);
         var okN = R.filter(function (x) { return x.h.cls === "good"; }).length;
-        var openT = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; }).length;
+        var openT = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good" && !/archiv|cancel|won.?t/i.test(o.status); }).length;
         answers("Hub Core / Admin", [
           {w: "stat", span: 1, icon: "check", q: "Healthy", a: okN + " / " + R.length, sub: Math.round(okN / R.length * 100) + "% on schedule", k: okN / R.length >= 0.85 ? "good" : "warn"},
           {w: "stat", span: 1, icon: "alert", q: "Need attention", a: String(R.length - okN), sub: openT + " open tasks", k: R.length - okN ? "warn" : "good"},

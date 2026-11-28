@@ -26,7 +26,7 @@
     "#ccl .icons{display:grid;grid-template-columns:repeat(10,1fr);gap:10px}" +
     "#ccl .ic{display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.22);transition:color .3s ease}" +
     "#ccl .ic .sq{flex:none;box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;line-height:0;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);transition:background .3s ease,border-color .3s ease,color .3s ease}#ccl .ic .sq svg{display:block}" +
-    "#ccl .ic i{font-style:normal;font-size:10px;letter-spacing:.08em;text-transform:uppercase}" +
+    "#ccl .ic i{position:static;display:block;line-height:1.2;font-style:normal;font-size:10px;letter-spacing:.08em;text-transform:uppercase}" +
     "#ccl .ic.on{color:#e9ecf2}#ccl .ic.on .sq{background:var(--c);border-color:var(--c);color:#0b0d12}" +
     "#ccl .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}" +
     "#ccl .bar u{display:block;height:100%;width:0;background:#e9ecf2;transition:width .3s linear}" +
