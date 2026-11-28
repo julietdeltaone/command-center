@@ -57,6 +57,11 @@
     if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
     return Math.floor(diff / 86400000) + "d ago";
   }
+  /* Wall v3 helpers (Nov 28) */
+  function whenTxt(t) { if (!t) return ""; var d = new Date(t); return d.toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"}) + (d.getHours() || d.getMinutes() ? " · " + d.toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}) : ""); }
+  function relDays(t) { if (!t) return ""; var d = Math.round((new Date(new Date(t).toDateString()) - new Date(new Date().toDateString())) / 86400000); return d === 0 ? "today" : d === 1 ? "tomorrow" : d === -1 ? "yesterday" : d > 0 ? "in " + d + " days" : -d + " days ago"; }
+  function answers(name, rows, health) { if (CC.setCatAnswers) CC.setCatAnswers(name, {answers: rows, health: health || null}); }
+
   /* "Reading X…" that fills in a live row count once the first page has landed, so a multi-page
      pull doesn't just sit there looking stuck. */
   function readingText(label, cache) {
@@ -308,6 +313,17 @@
       body.appendChild(mod("Platform Mix", null, null,
         modPlaceholder("Single-platform for now", "Instagram only. TikTok, Facebook and X breakdowns land here once those exports are wired in.")));
 
+      /* Wall v3: when did someone last unfollow? */
+      if (SOC_UNFOLLOWERS_CACHE.rows || SOC_UNFOLLOWERS_CACHE.err) {
+        var uh = SOC_UNFOLLOWERS_CACHE.header || [], iD = col(uh, "date_detected"), iU = col(uh, "username"), iP = col(uh, "platform"), lastU = null;
+        (SOC_UNFOLLOWERS_CACHE.rows || []).forEach(function (r) { var t = iD != null ? ms(r[iD]) : null; if (t && (!lastU || t > lastU.t)) lastU = {t: t, u: iU != null ? r[iU] : "", p: iP != null ? r[iP] : ""}; });
+        answers("Social", [
+          {q: "Last unfollow", a: lastU ? "@" + lastU.u : "None on file", sub: lastU ? (lastU.p ? lastU.p + " · " : "") + whenTxt(lastU.t) + " · " + relDays(lastU.t) : "", k: "n"},
+          {q: "Unfollows this week", a: unfRecent != null ? String(unfRecent) : "—", k: unfRecent > 3 ? "warn" : "n"},
+          {q: "Instagram followers", a: followers != null ? followers.toLocaleString() : "—", k: "n"}
+        ], SOC_UNFOLLOWERS_CACHE.err ? CC.feedHealth(null, 6, SOC_UNFOLLOWERS_CACHE.err) : null);
+      }
+
       if (CC.setCatSummary) {
         var line = followers != null ? followers.toLocaleString() + " IG followers" + (unfRecent != null ? " · " + unfRecent + " unfollow" + (unfRecent === 1 ? "" : "s") + " this week" : "") : "Loading Instagram export…";
         CC.setCatSummary("Social", line, false, [
@@ -428,6 +444,7 @@
 
       if (CC.setCatSummary) {
         var line = total30 != null ? fmtMoney(total30) + " over " + count30 + " transaction" + (count30 === 1 ? "" : "s") + " (30d)" : "Loading transactions…";
+        answers("Finance", [{q: "Not set up yet", a: "Waiting on a plan", sub: "Tell me what you want this card to answer", k: "off"}]);
         CC.setCatSummary("Finance", line, false, [
           {value: count30 != null ? String(count30) : "—", label: "Transactions (30d)"},
           {value: total30 != null ? fmtMoney(total30) : "—", label: "Total (30d)"},
@@ -530,7 +547,7 @@
       if (!/shift/i.test(r.kind || "")) return;
       var st = Date.parse(r.start || ""), en = Date.parse(r.end_or_due || "");
       if (isNaN(st) || st < today) return;
-      agenda.push({t: st, day: clkDayMs(clkYmd(st)), kind: "shift", title: (r.title || "Shift"), time: new Date(st).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}) + (isNaN(en) ? "" : "–" + new Date(en).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"})), hrs: isNaN(en) ? null : (en - st) / 3600000});
+      agenda.push({t: st, day: clkDayMs(clkYmd(st)), kind: "shift", note: String(r.notes || r.note || r.detail || "").trim(), title: (r.title || "Shift"), time: new Date(st).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}) + (isNaN(en) ? "" : "–" + new Date(en).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"})), hrs: isNaN(en) ? null : (en - st) / 3600000});
     });
     var ev = clkObjs(CLK.events);
     if (ev) ev.forEach(function (r) {
@@ -649,6 +666,21 @@
       tiles.innerHTML = ""; T.forEach(function (t) { tiles.appendChild(CC.viz.tile(t)); });
       body.innerHTML = "";
       body.appendChild(clkQueueCard(m)); body.appendChild(clkWaitingCard(m)); body.appendChild(clkAgendaCard(m));
+      /* Wall v3: next thing, next shift (days, or hours under a day), notes */
+      (function () {
+        var now = Date.now(), nx = (m.agenda || []).filter(function (a) { return a.kind === "shift" ? a.t > now : a.day >= m.today; })[0];
+        var ns = m.nextShift, hrsTo = ns ? (ns.t - now) / 3600000 : null;
+        var shiftA = !ns ? (m.nextShiftText || "None on file") : hrsTo < 24 ? (hrsTo < 1 ? "in " + Math.max(1, Math.round(hrsTo * 60)) + " min" : "in " + Math.round(hrsTo) + " hours") : "in " + Math.round(hrsTo / 24) + " days";
+        var notes = [];
+        if (ns && ns.note) notes.push(ns.note);
+        if (m.overdue) notes.push(m.overdue + " overdue item" + (m.overdue === 1 ? "" : "s"));
+        if (m.waiting && m.waiting.length) notes.push(m.waiting.length + " waiting on you");
+        answers("Clarkson", [
+          {q: "Next up", a: nx ? (nx.kind === "shift" ? "Shift · " + nx.title : nx.title) : "Nothing on the calendar", sub: nx ? (nx.kind === "shift" ? whenTxt(nx.t) : new Date(nx.day + 3600000).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"}) + (nx.time ? " · " + nx.time : "")) : "", k: "n"},
+          {q: "Next shift", a: shiftA, sub: ns ? whenTxt(ns.t) + (ns.time ? " · " + ns.time : "") : "", k: hrsTo != null && hrsTo < 24 ? "warn" : "n"},
+          {q: "Notes", a: notes.length ? notes.join(" · ") : "Nothing special", k: m.overdue ? "bad" : notes.length ? "warn" : "good"}
+        ]);
+      })();
       if (CC.setCatSummary) {
         var line = m.open != null ? m.open + " open · " + (m.overdue || 0) + " overdue" + (m.waiting ? " · " + m.waiting.length + " waiting on you" : "") : "Loading Clarkson…";
         CC.setCatSummary("Clarkson", line, false, T.map(function (t) { return {value: String(t.v), label: t.l, k: t.k}; }).slice(0, 3).concat([{value: String(m.eventsN), label: "Upcoming events"}]).slice(0, 3),
@@ -807,6 +839,11 @@
         ? h("div", {class: "cat-feed"}, m.uber.slice(-6).reverse().map(function (x) { return h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, new Date(x.t).toLocaleDateString("en-US", {month: "short", day: "numeric"})), h("span", {class: "cat-feed-name"}, fmtMoney(x.amt)), h("span", {class: "cat-feed-time"}, ago(x.t))); }))
         : modPlaceholder("No Uber trip data yet", m.uberMarks.length + " weekly statement emails seen" + (lastMark ? ", latest " + new Date(lastMark).toLocaleDateString("en-US", {month: "short", day: "numeric"}) : "") + ". The amounts live in the Uber driver app, so trips show here once a statement export is captured.")));
 
+      answers("Uber / Taxi", [
+        {q: "Last ride", a: m.last ? fmtMoney(m.last.amt) : "None on file", sub: m.last ? whenTxt(m.last.t) + " · " + relDays(m.last.t) : "", k: "n"},
+        {q: "Rides this year", a: String((m.years.filter(function (y) { return y.y === String(m.yr); })[0] || {orders: 0}).orders), sub: "Taxi One + Zero", k: "n"},
+        {q: "Uber", a: m.uber.length ? m.uber.length + " rides" : "No trip feed yet", k: m.uber.length ? "n" : "off"}
+      ]);
       if (CC.setCatSummary) {
         var y0 = m.years.filter(function (y) { return y.y === String(m.yr); })[0];
         CC.setCatSummary("Uber / Taxi", (y0 ? y0.orders : 0) + " taxi trips in " + m.yr + (m.last ? " · last " + ago(m.last.t) : ""), false, [
@@ -1012,6 +1049,19 @@
       body.appendChild(mod("Upcoming", null, null, upBody));
       body.appendChild(mod("Faith", null, null, faithBody));
 
+      (function () {
+        var eh = PC.events.header || [], iTi = col(eh, "event_title"), iSt = col(eh, "start_time"), nowT = Date.now(), nextE = null;
+        eventRows.forEach(function (r) { var t = iSt != null ? ms(r[iSt]) : null; if (t && t >= nowT - 3600000 && (!nextE || t < nextE.t)) nextE = {t: t, ti: iTi != null ? fmtCell(r[iTi]) : ""}; });
+        var dh3 = PC.device.header || [], iB3 = col(dh3, "battery_level"), iS3 = col(dh3, "slot_time"), lastD = deviceRows.length ? deviceRows[deviceRows.length - 1] : null;
+        var b3 = lastD && iB3 != null ? numAt(lastD, iB3) : null, t3 = lastD && iS3 != null ? ms(lastD[iS3]) : null;
+        var rh3 = PC.reminders.header || [], iO3 = col(rh3, "open_reminders"), rem = reminderRows.length && iO3 != null ? reminderRows[reminderRows.length - 1][iO3] : null;
+        answers("Personal", [
+          {q: "Next on the calendar", a: nextE ? nextE.ti.slice(0, 60) : "Nothing coming up", sub: nextE ? whenTxt(nextE.t) + " · " + relDays(nextE.t) : "", k: "n"},
+          {q: "Messages today", a: PC.messages.rows ? String(byDay[today] || 0) : "—", sub: PC.messages.rows ? (byDay[dayKey2(Date.now() - 86400000)] || 0) + " yesterday" : "", k: "n"},
+          {q: "Open reminders", a: rem != null && rem !== "" ? String(rem) : "—", k: "n"},
+          {q: "Phone battery", a: b3 != null ? b3 + "%" : "—", sub: t3 ? "read " + ago(t3) : "", k: b3 != null && b3 < 20 ? "warn" : "n"}
+        ], CC.feedHealth(t3, 1, PC.device.err));
+      })();
       if (CC.setCatSummary) {
         var sumT = PC.messages.rows ? (byDay[today] || 0) : null;
         /* Battery/upcoming only — never location or address fields here (the Wall tile is a
@@ -1133,6 +1183,17 @@
       return o;
     });
   }
+  /* Wall v3: data-pipeline health per hub category, from the routines that feed it. On time (last
+     run within 1.5 cadences, not failed) = full marks; within 3 cadences = half; later or failed = 0.
+     Routines that have never run yet (scheduled) are left out. */
+  CC.routineHealth = function (cat) {
+    var R = admRoutines().filter(function (o) { return o.cat === cat && o.cad > 0 && o.t; });
+    if (!R.length) return null;
+    var now = Date.now(), score = 0, late = 0;
+    R.forEach(function (o) { var age = (now - o.t) / 60000, sc = /fail|error/i.test(o.status) ? 0 : age <= o.cad * 1.5 ? 1 : age <= o.cad * 3 ? 0.5 : 0; score += sc; if (sc < 1) late++; });
+    var pct = Math.round(score / R.length * 100);
+    return {pct: pct, k: pct >= 80 ? "good" : pct >= 50 ? "warn" : "bad", note: (R.length - late) + " of " + R.length + " routines on time"};
+  };
   function admRuns(o) {
     if (!RUNLOG_CACHE.rows) return [];
     var H = RUNLOG_CACHE.header, iN = colCI(H, "routine"), iT = colCI(H, "run_time"), iS = colCI(H, "status"), iO = colCI(H, "output_count"), iNote = colCI(H, "note"), iId = colCI(H, "routine_id");
@@ -1429,6 +1490,13 @@
     function paint() {
       var R = admRoutines();
       paintBar(R); paintPanel(R); paintSheet();
+      if (R.length) {
+        var recent = R.filter(function (x) { return x.t; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 5);
+        var okN = R.filter(function (x) { return x.h.cls === "good"; }).length;
+        answers("Hub Core / Admin", [{q: "Last routines", list: recent.map(function (x) {
+          return {a: x.name, sub: ago(x.t) + (x.status ? " · " + x.status : ""), k: /fail|error/i.test(x.status) ? "bad" : x.h.cls === "good" ? "good" : "warn"};
+        })}], {pct: Math.round(okN / R.length * 100), k: okN / R.length >= 0.85 ? "good" : okN / R.length >= 0.6 ? "warn" : "bad", note: okN + " of " + R.length + " routines healthy"});
+      }
       if (CC.setCatSummary && R.length) {
         var gd = R.filter(function (x) { return x.h.cls === "good"; }).length, na = R.length - gd;
         var failed = R.filter(function (x) { return x.h.cls === "bad"; }).length;
@@ -1621,6 +1689,10 @@
 
       if (CC.setCatSummary) {
         var line = invCount != null ? invCount.toLocaleString() + " items tracked" : "Loading inventory…";
+        answers("Records & Files", [
+          {q: "Items tracked", a: invCount != null ? invCount.toLocaleString() : "—", sub: "Records inventory", k: "n"},
+          {q: "Room and file registries", a: "Not wired yet", k: "off"}
+        ], REC_INV_CACHE.err ? CC.feedHealth(null, 24, REC_INV_CACHE.err) : REC_INV_CACHE.rows ? {pct: 100, k: "good", note: "inventory read OK"} : null);
         CC.setCatSummary("Records & Files", line, false, [
           {value: invCount != null ? invCount.toLocaleString() : "—", label: "Inventory items"},
           {value: "—", label: "Room inventory (soon)"},
@@ -1865,6 +1937,22 @@
       body.appendChild(mod("Local Feed", null, null, feedBody));
       body.appendChild(mod("Scanner Watch", null, null, scanBody));
 
+      if (CENTCOM_FEED_CACHE.rows) (function () {
+        var fh = CENTCOM_FEED_CACHE.header, iTi = col(fh, "title"), iPl = col(fh, "place"), iWh = col(fh, "when"), nowT = Date.now(), last = null, next = null;
+        feed.forEach(function (r) {
+          var t = iWh != null ? ms(r[iWh]) : null; if (t == null) return;
+          if (t <= nowT && t > nowT - 30 * 86400000 && (!last || t > last.t)) last = {t: t, r: r};
+          if (t > nowT && t < nowT + 60 * 86400000 && (!next || t < next.t)) next = {t: t, r: r};
+        });
+        function row(q, x) { return {q: q, a: x ? shortTitle(fmtCell(x.r[iTi])) : "Nothing on file", sub: x ? fmtWhen(x.r[iWh]) + (iPl != null && x.r[iPl] ? " · " + fmtCell(x.r[iPl]) : "") : "", k: "n"}; }
+        var rows = [row("Last reported", last), row("Next up", next)];
+        if (CENTCOM_SCANNER_CACHE.rows && CENTCOM_SCANNER_CACHE.rows.length) {
+          var sh = CENTCOM_SCANNER_CACHE.header, iX = col(sh, "text"), iC = col(sh, "captured_at"), ls = null;
+          CENTCOM_SCANNER_CACHE.rows.forEach(function (r) { var t = iC != null ? ms(r[iC]) : null; if (t && (!ls || t > ls.t)) ls = {t: t, x: iX != null ? fmtCell(r[iX]) : ""}; });
+          if (ls) rows.push({q: "Last scanner call", a: ls.x.slice(0, 70), sub: ago(ls.t), k: "n"});
+        }
+        answers("Local / CENTCOM", rows);
+      })();
       if (CC.setCatSummary) {
         var line = feedCount != null ? feedCount.toLocaleString() + " local packets" + (newWeek ? " · " + newWeek + " new this week" : "") : "Loading CENTCOM feed…";
         CC.setCatSummary("Local / CENTCOM", line, false, [

@@ -281,6 +281,26 @@
       onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } }}, s);
   }
 
+  function answerRow(r) {
+    var kc = r.k && STATE_COL[r.k] ? "color:" + STATE_COL[r.k] : null;
+    if (r.chips) return h("div", {class: "wv3-row"}, h("span", {class: "wv3-q"}, r.q),
+      h("div", {class: "wv3-chips"}, r.chips.map(function (c) { return h("span", {class: "wv3-chip"}, h("i", null, c.l), h("b", {style: c.k && STATE_COL[c.k] ? "color:" + STATE_COL[c.k] : null}, c.v)); })));
+    if (r.list) return h("div", {class: "wv3-row"}, h("span", {class: "wv3-q"}, r.q),
+      h("ol", {class: "wv3-list"}, r.list.length ? r.list.map(function (it) { return h("li", null, h("b", {style: it.k && STATE_COL[it.k] ? "color:" + STATE_COL[it.k] : null}, it.a), it.sub ? h("small", null, it.sub) : null); }) : h("li", null, h("small", null, "Nothing yet"))));
+    return h("div", {class: "wv3-row"}, h("span", {class: "wv3-q"}, r.q),
+      h("b", {class: "wv3-a", style: kc}, r.a == null ? "—" : String(r.a)), r.sub ? h("small", {class: "wv3-sub"}, r.sub) : null);
+  }
+  function dataHealth(name, ans) {
+    var parts = [], rh = CC.routineHealth ? CC.routineHealth(name) : null, ah = ans && ans.health;
+    if (rh) parts.push(rh); if (ah && ah.pct != null) parts.push(ah);
+    if (!parts.length) return h("span", {class: "wv3-meter off", title: "Data health: no reporting workflow to measure yet"}, h("i", null, h("u", {style: "width:0"})), h("em", null, "—"));
+    var pct = Math.round(parts.reduce(function (a, p) { return a + p.pct; }, 0) / parts.length);
+    var k = pct >= 80 ? "good" : pct >= 50 ? "warn" : "bad";
+    var note = parts.map(function (p) { return p.note; }).filter(Boolean).join(" · ");
+    return h("span", {class: "wv3-meter " + k, title: "Data health " + pct + "/100 — " + note},
+      h("i", null, h("u", {style: "width:" + pct + "%"})), h("em", null, k === "good" ? "Data OK" : k === "warn" ? "Data late" : "Data stale"));
+  }
+
   CC.views.Wall = function (api) {
     var page = h("div", {class: "ov ov-onlycats wv2"});
     var cats = h("div", {class: "ov-catgrid wv2-grid", role: "group", "aria-label": "Top categories"});
@@ -299,24 +319,23 @@
         var summary = CC.catSummary && CC.catSummary[g.name];
         var st = BS.ready() ? BS.laneStatus(g) : {pct: null, state: "none"};
 
-        var hero = null;
-        if (summary && summary.hero) { try { hero = summary.hero(); } catch (e) { hero = null; } }
-        if (!hero) hero = BS.ready() ? buildGauge(BS, g, color) : h("div", {class: "wg-loading"}, BS.error() || "Loading…");
-
-        var rows = summary && summary.stats && summary.stats.length ? summary.stats : null;
-        var statsEl = h("div", {class: "ov-cat-stats wv2-stats"},
-          rows ? rows.map(function (s) {
-            return h("div", {class: "ov-cat-stat" + (s.value === "—" ? " placeholder" : "")},
-              h("span", null, s.label), h("b", {style: s.k && STATE_COL[s.k] ? "color:" + STATE_COL[s.k] : null}, String(s.value)));
-          }) : h("div", {class: "ov-cat-stat placeholder"}, h("span", null, summary ? summary.line : (st.state === "none" ? "Not started yet" : "Reading…"))));
-
-        var tile = h("button", {type: "button", class: "ov-cat wv2-tile ov-cat-" + st.state, style: "--c:" + color, onclick: openCat},
+        /* Wall v3 (Nov 28, JD): each card answers questions instead of showing build %.
+           The meter is DATA health: is the workflow reporting this category fresh and working. */
+        var ans = CC.catAnswers && CC.catAnswers[g.name];
+        var meter = dataHealth(g.name, ans);
+        var body = h("div", {class: "wv3-body"});
+        if (ans && ans.answers && ans.answers.length) ans.answers.forEach(function (r) { body.appendChild(answerRow(r)); });
+        else {
+          var rows = summary && summary.stats && summary.stats.length ? summary.stats : null;
+          if (rows) rows.slice(0, 4).forEach(function (s2) { body.appendChild(answerRow({q: s2.label, a: String(s2.value), k: s2.k})); });
+          else body.appendChild(h("div", {class: "wv3-wait"}, summary && summary.line ? summary.line : "Reading…"));
+        }
+        var tile = h("button", {type: "button", class: "ov-cat wv2-tile wv3-tile", style: "--c:" + color, onclick: openCat},
           h("div", {class: "wv2-top"},
             h("div", {class: "ov-cat-icon", style: "--c:" + color}, icon),
-            h("div", {class: "wv2-name"}, h("b", null, g.name), h("small", null, summary && summary.line ? summary.line : (BS.ready() ? st.pct + "% built" : ""))),
-            st.pct != null ? h("span", {class: "wv2-pct", title: "Build progress " + st.pct + "% (Build Status tab)"}, st.pct + "%") : null),
-          h("div", {class: "wv2-hero"}, hero),
-          statsEl);
+            h("div", {class: "wv2-name"}, h("b", null, g.name)),
+            meter),
+          body);
         var ext = extLink(api, g); if (ext) tile.appendChild(ext);
         cats.appendChild(tile);
       });

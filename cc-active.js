@@ -379,6 +379,19 @@
       body.appendChild(h("div", {class: "b4-main"}, ls.node,
         h("div", {class: "b4-row"}, igCard(api), sw.node)));
       body.appendChild(feedCard(api));
+      /* Wall v3: last competitor post, waiting on you, channel ages, next shoot */
+      if (CC.setCatAnswers) (function () {
+        var pm = pulseModel(api), lastC = null;
+        if (pm) pm.list.forEach(function (b) { if (b.me || !b.lastPost) return; if (!lastC || b.lastPost > lastC.d) lastC = {d: b.lastPost, n: b.name}; });
+        var short = {"LinkedIn": "LinkedIn", "Instagram": "Instagram", "Facebook": "Facebook", "Google Business Profile": "Google"};
+        var nd = L.c.nextD;
+        CC.setCatAnswers("Business", {answers: [
+          {q: "Last competitor post", a: lastC ? lastC.n : (PULSE.err ? "Couldn't read" : "Reading…"), sub: lastC ? dshort(lastC.d) + " · " + (function (a) { return a <= 0 ? "today" : a === 1 ? "yesterday" : a + " days ago"; })(pm.asof - dnum(lastC.d)) : "", k: "n"},
+          {q: "Clients waiting on you", a: String(L.c.you), sub: L.c.client + " waiting on the client", k: L.c.you ? "bad" : "good"},
+          {q: "Since your last post", chips: sw.model.channels.map(function (r) { return {l: short[r.name] || r.name, v: r.d == null ? "—" : r.d + "d", k: r.k}; })},
+          {q: "Next shoot", a: nd == null ? "None booked" : nd === 0 ? "Today" : nd === 1 ? "Tomorrow" : "in " + nd + " days", k: nd != null && nd <= 2 ? "warn" : "n"}
+        ]});
+      })();
       if (CC.setCatSummary) {
         var li = sw.model.channels.filter(function (r) { return r.d != null; })[0];
         var postTile = li ? {l: "Since " + li.name + " post", v: li.d + "d", k: li.k, viz: V().ring(Math.min(100, li.d / (li.target * 3) * 100), li.k, {size: 56, label: li.d, sub: "days"})} : null;

@@ -894,6 +894,42 @@
     return T;
   }
 
+  /* Wall v3 (Nov 28, JD): last week's recap — best estimated 1-rep max, best cardio, average sleep,
+     and the last workouts. "Last week" = the most recent full Monday–Sunday week. 1RM estimate is
+     the Epley formula, weight × (1 + reps / 30), from sets of 1 to 12 reps. */
+  function reportAnswers() {
+    var m = workoutModel(), wkEnd = weekKey(Date.now()), wkStart = weekKey(addDays(new Date(wkEnd), -7)), rows = [];
+    var best = null;
+    if (PW.rows) {
+      var hd = PW.header, iD = col(hd, "Date"), iE = col(hd, "Exercise"), iW = col(hd, "Weight (lb)"), iR = col(hd, "Reps"), iC = col(hd, "Category");
+      PW.rows.forEach(function (r) {
+        var t = iD != null ? ms(r[iD]) : null; if (t == null || t < wkStart || t >= wkEnd) return;
+        if (iC != null && r[iC] === "Cardio") return;
+        var w = numAt(r, iW), rp = numAt(r, iR); if (!w || !rp || rp > 12) return;
+        var e = w * (1 + rp / 30); if (!best || e > best.e) best = {e: e, w: w, rp: rp, ex: r[iE], t: t};
+      });
+    }
+    rows.push({q: "Best 1-rep max, last week", a: best ? Math.round(best.e) + " lb · " + best.ex : PW.rows ? "No lifting last week" : "Reading…", sub: best ? best.w + " lb × " + best.rp + " on " + fmtDay(best.t) : "", k: "n"});
+    var bc = null;
+    if (m) Object.keys(m.days).forEach(function (k) { var o = m.days[k]; if (o.t >= wkStart && o.t < wkEnd && o.cardioMin && (!bc || o.cardioMin > bc.cardioMin)) bc = o; });
+    rows.push({q: "Best cardio, last week", a: bc ? Math.round(bc.cardioMin) + " min · " + Object.keys(bc.cardioEx).join(", ") : m ? "No cardio last week" : "Reading…", sub: bc ? fmtDay(bc.t) : "", k: bc ? "good" : "warn"});
+    var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel(21) : null, avgS = null, nS = 0, newestS = null;
+    if (sm) {
+      var byDate = {};
+      sm.nights.forEach(function (n) { if (n.min == null) return; if (!newestS || n.t > newestS) newestS = n.t; if (n.t < wkStart || n.t >= wkEnd || n.min < SLEEP_PARTIAL) return; if (!byDate[n.k] || n.min > byDate[n.k]) byDate[n.k] = n.min; });
+      var vals = Object.keys(byDate).map(function (k) { return byDate[k]; }); nS = vals.length;
+      if (nS) avgS = vals.reduce(function (a, b) { return a + b; }, 0) / nS;
+    }
+    rows.push({q: "Average sleep, last week", a: avgS != null ? hrs(avgS) : sm ? "No full nights logged" : "Reading…", sub: avgS != null ? nS + " nights logged" : "", k: avgS == null ? "off" : avgS >= SLEEP_GOOD ? "good" : avgS >= SLEEP_LOW ? "warn" : "bad"});
+    if (m) {
+      var last = Object.keys(m.days).sort().reverse().slice(0, 3).map(function (k) { return m.days[k]; });
+      rows.push({q: "Last workouts", list: last.map(function (o) { return {a: o.top + " · " + o.sets + " sets", sub: fmtDay(o.t) + " · " + daysAgoTxt(o.t), k: "n"}; })});
+    }
+    var fh = CC.feedHealth(newestS, 36, CC.body && CC.body.sleepErr && CC.body.sleepErr());
+    CC.setCatAnswers("Health", {answers: rows, health: newestS ? {pct: fh.pct, k: fh.k, note: "sleep " + fh.note.replace("newest data ", "")} : null});
+  }
+  function daysAgoTxt(t) { var d = daysBetween(t, Date.now()); return d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days ago"; }
+
   CC.views.Health = function (api) {
     var page = h("div", {class: "hp-wrap hp-canvas hv2"});
     page.appendChild(h("div", {class: "hp-head", "aria-label": "Health"},
@@ -906,6 +942,7 @@
       reportSummary();
     }
     function reportSummary() {
+      if (CC.setCatAnswers) reportAnswers();
       if (!CC.setCatSummary) return;
       var kt = knowledgeTiles(api), t = kt[0];
       var line = t && t.l !== "Status" ? t.l + ": " + t.v + " · " + t.s : "Reading workout history…";

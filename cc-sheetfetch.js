@@ -116,6 +116,7 @@
   /* Public entry point. cache is the mutable {rows, header, err, loading} object the caller
      already keeps; onDone is called every time cache changes in a way worth repainting —
      once immediately with cached data if we have it, and again once a fresh fetch lands. */
+  CC.loadStats = CC.loadStats || {started: 0, done: 0, failed: 0, label: ""};
   CC.fetchSheetPaginated = function (opts) {
     var cache = opts.cache;
     /* Multiple widgets can share one cache (e.g. Health's hero/heatmap/trend widgets all
@@ -127,18 +128,21 @@
 
     var key = cacheKey(opts.sheetId, opts.gid, opts.cap);
     var cached = readCache(key);
+    /* 2026-11-28: counted for the full-screen loader (cc-loader.js): how many sheet reads are out and back. */
+    var LS = CC.loadStats; LS.started++; LS.label = opts.errLabel ? String(opts.errLabel).replace(/^Could not (load|read) /, "") : "";
+    var counted = false; function tick() { if (!counted) { counted = true; LS.done++; } }
     var age = cached ? Date.now() - cached.ts : Infinity;
 
     if (cached && age < STALE_OK_MS) {
       cache.header = cached.header;
       cache.rows = cached.rows;
-      opts.onDone();
+      tick(); opts.onDone();
       if (age < FRESH_MS) return; // fresh enough, skip the network entirely
       // stale-but-usable: already showing cached rows above; fall through to a quiet
       // background refetch below, which will overwrite cache.rows and repaint when it lands
     }
 
-    if (!opts.sheetsUrl) { cache.err = "Not connected: add sheets_url in Config."; opts.onDone(); return; }
+    if (!opts.sheetsUrl) { tick(); cache.err = "Not connected: add sheets_url in Config."; opts.onDone(); return; }
 
     cache.loading = true;
     fetchAllPages(opts).then(function (res) {
@@ -146,12 +150,13 @@
       cache.rows = res.rows;
       cache.err = null;
       cache.loading = false;
-      cache.progress = null;
+      cache.progress = null; tick();
       writeCache(key, res.header, res.rows);
       opts.onDone();
       if (cache._waiters) { var w = cache._waiters; cache._waiters = null; w.forEach(function (fn) { fn(); }); }
     }).catch(function (e) {
       // keep whatever we had (even stale cache) rather than wiping the grid on a failed refresh
+      tick(); LS.failed++;
       if (!cache.rows) cache.err = (opts.errLabel || "Could not load sheet") + ": " + e.message;
       cache.loading = false;
       opts.onDone();
@@ -223,6 +228,29 @@
     if (_wallT) clearTimeout(_wallT);
     _wallT = setTimeout(function () { _wallT = null; try { if (CC.api && CC.api.tab === "wall" && !document.getElementById("ccsheet")) CC.api.render(); } catch (e) {} }, 500);
   };
+  /* 2026-11-28 (Wall v3, JD: "the 10 cards should answer questions"): each category's dashboard
+     reports the answers to JD's questions for it. o = {answers: [row...], health: {pct, k, note}}.
+     A row is {q: "Last ride", a: "$360", sub: "Oct 22 · 36 days ago", k: good|warn|bad|n}, or
+     {q: "...", chips: [{l, v, k}]} for a set of small values, or {q, list: [{a, sub, k}]} for a short list.
+     health is the health of the information pipeline feeding the category (are its routines and
+     sheets arriving on time), not of the business or the body it describes. */
+  CC.catAnswers = CC.catAnswers || {};
+  CC.setCatAnswers = function (name, o) {
+    CC.catAnswers[name] = {answers: (o && o.answers) || [], health: (o && o.health) || null, updatedAt: Date.now()};
+    if (_wallT) clearTimeout(_wallT);
+    _wallT = setTimeout(function () { _wallT = null; try { if (CC.api && CC.api.tab === "wall" && !document.getElementById("ccsheet")) CC.api.render(); } catch (e) {} }, 500);
+  };
+  /* Health of a feed from the time of its newest data: on time = 100, slides to 40 by three
+     cadences late, 15 beyond that, 0 on a read error. */
+  CC.feedHealth = function (t, cadenceHrs, err) {
+    if (err) return {pct: 0, k: "bad", note: "read failed"};
+    if (!t) return {pct: 0, k: "off", note: "no data yet"};
+    var age = (Date.now() - t) / 3600000, c = cadenceHrs || 24, pct;
+    if (age <= c * 1.5) pct = 100; else if (age <= c * 3) pct = Math.round(100 - (age - c * 1.5) / (c * 1.5) * 60); else pct = 15;
+    var ago = age < 1 ? Math.max(1, Math.round(age * 60)) + "m" : age < 48 ? Math.round(age) + "h" : Math.round(age / 24) + "d";
+    return {pct: pct, k: pct >= 80 ? "good" : pct >= 40 ? "warn" : "bad", note: "newest data " + ago + " ago"};
+  };
+
   /* Known-placeholder categories as of 2026-11-25, used as a fallback by the stricter Build %
      rule (cc-build.js) before the category's own dashboard has run once this session and
      reported a live CC.catSummary. Once a dashboard runs, its own live signal takes over.
