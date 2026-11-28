@@ -1370,6 +1370,7 @@
     function paintLanding() {
       landing.innerHTML = "";
       var R = admRoutines(), T = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; });
+      reportAdmin(R);
       var rAttn = R.filter(function (x) { return x.h.cls !== "good"; }).length;
       var tNow = T.filter(function (o) { return tqPriBand(o.pri) === "now"; }).length;
       function folder(title, count, sub, badge, onclick) {
@@ -1487,9 +1488,7 @@
       closeBtn.focus({preventScroll: true});
     }
 
-    function paint() {
-      var R = admRoutines();
-      paintBar(R); paintPanel(R); paintSheet();
+    function reportAdmin(R) {
       if (R.length) {
         var recent = R.filter(function (x) { return x.t; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 5);
         var okN = R.filter(function (x) { return x.h.cls === "good"; }).length;
@@ -1497,6 +1496,11 @@
           return {a: x.name, sub: ago(x.t) + (x.status ? " · " + x.status : ""), k: /fail|error/i.test(x.status) ? "bad" : x.h.cls === "good" ? "good" : "warn"};
         })}], {pct: Math.round(okN / R.length * 100), k: okN / R.length >= 0.85 ? "good" : okN / R.length >= 0.6 ? "warn" : "bad", note: okN + " of " + R.length + " routines healthy"});
       }
+    }
+    function paint() {
+      var R = admRoutines();
+      paintBar(R); paintPanel(R); paintSheet();
+      reportAdmin(R);
       if (CC.setCatSummary && R.length) {
         var gd = R.filter(function (x) { return x.h.cls === "good"; }).length, na = R.length - gd;
         var failed = R.filter(function (x) { return x.h.cls === "bad"; }).length;

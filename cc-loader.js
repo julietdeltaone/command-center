@@ -76,7 +76,7 @@
       iconsSet = true;
       CATS.forEach(function (c, i) { var s = CC.catIconSvg(c[0], 22); if (s) orbs[i].insertBefore(s, orbs[i].firstChild); });
     }
-    var api = window.D ? 1 : 0, LS = CC.loadStats || {started: 0, done: 0, failed: 0, label: ""};
+    var LS = CC.loadStats || {started: 0, done: 0, failed: 0, label: ""}, api = (window.D || LS.done || document.querySelector(".wv3-tile")) ? 1 : 0;
     var sheets = LS.started ? Math.min(1, (LS.done + LS.failed) / LS.started) : 0;
     var A = CC.catAnswers || {}, S = CC.catSummary || {}, n = 0, working = null;
     CATS.forEach(function (c, i) {
