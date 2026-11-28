@@ -21,29 +21,29 @@
   css.textContent =
     "#ccl{position:fixed;inset:0;z-index:99999;background:#0b0d12;color:#e9ecf2;display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;opacity:1;transition:opacity .4s ease;cursor:pointer}" +
     "#ccl.out{opacity:0;pointer-events:none}" +
-    "#ccl .box{width:min(720px,86vw);display:flex;flex-direction:column;gap:28px}" +
-    "#ccl .wm{font-size:12px;font-weight:700;letter-spacing:.34em;color:rgba(255,255,255,.55)}" +
-    "#ccl .icons{display:grid;grid-template-columns:repeat(10,1fr);gap:10px}" +
-    "#ccl .ic{display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.22);transition:color .3s ease}" +
-    "#ccl .ic .sq{flex:none;box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;line-height:0;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);transition:background .3s ease,border-color .3s ease,color .3s ease}#ccl .ic .sq svg{display:block}" +
-    "#ccl .ic i{position:static;display:block;line-height:1.2;font-style:normal;font-size:10px;letter-spacing:.08em;text-transform:uppercase}" +
-    "#ccl .ic.on{color:#e9ecf2}#ccl .ic.on .sq{background:var(--c);border-color:var(--c);color:#0b0d12}" +
-    "#ccl .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}" +
-    "#ccl .bar u{display:block;height:100%;width:0;background:#e9ecf2;transition:width .3s linear}" +
-    "#ccl .row{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:rgba(255,255,255,.7)}" +
-    "#ccl .row span:last-child{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.45);white-space:nowrap}" +
-    "#ccl .skip{font-size:11px;color:rgba(255,255,255,.25);letter-spacing:.06em}" +
-    "@media (max-width:640px){#ccl .icons{grid-template-columns:repeat(5,1fr);row-gap:16px}}" +
+    "#ccl .ccl-box{width:min(720px,86vw);display:flex;flex-direction:column;gap:28px}" +
+    "#ccl .ccl-wm{font-size:12px;font-weight:700;letter-spacing:.34em;color:rgba(255,255,255,.55)}" +
+    "#ccl .cclicons{display:grid;grid-template-columns:repeat(10,1fr);gap:10px}" +
+    "#ccl .cclic{display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.22);transition:color .3s ease}" +
+    "#ccl .cclic .sq{flex:none;box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;line-height:0;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);transition:background .3s ease,border-color .3s ease,color .3s ease}#ccl .cclic .sq svg{display:block}" +
+    "#ccl .cclic i{position:static;display:block;line-height:1.2;font-style:normal;font-size:10px;letter-spacing:.08em;text-transform:uppercase}" +
+    "#ccl .cclic.on{color:#e9ecf2}#ccl .cclic.on .sq{background:var(--c);border-color:var(--c);color:#0b0d12}" +
+    "#ccl .ccl-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}" +
+    "#ccl .ccl-bar u{display:block;height:100%;width:0;background:#e9ecf2;transition:width .3s linear}" +
+    "#ccl .ccl-row{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:rgba(255,255,255,.7)}" +
+    "#ccl .ccl-row span:last-child{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.45);white-space:nowrap}" +
+    "#ccl .ccl-skip{font-size:11px;color:rgba(255,255,255,.25);letter-spacing:.06em}" +
+    "@media (max-width:640px){#ccl .cclicons{grid-template-columns:repeat(5,1fr);row-gap:16px}}" +
     "@media (prefers-reduced-motion:reduce){#ccl,#ccl *{transition:none!important}}";
   document.head.appendChild(css);
 
   var root = document.createElement("div"); root.id = "ccl"; root.setAttribute("role", "status");
-  root.innerHTML = '<div class="box"><div class="wm">COMMAND CENTER</div><div class="icons"></div><div class="bar"><u></u></div>' +
-    '<div class="row"><span class="now">Connecting to the hub</span><span class="left"></span></div><div class="skip">Click anywhere or press Esc to skip</div></div>';
-  var iconsEl = root.querySelector(".icons"), barEl = root.querySelector(".bar u"), nowEl = root.querySelector(".now"), leftEl = root.querySelector(".left");
+  root.innerHTML = '<div class="ccl-box"><div class="ccl-wm">COMMAND CENTER</div><div class="cclicons"></div><div class="ccl-bar"><u></u></div>' +
+    '<div class="ccl-row"><span class="ccl-now">Connecting to the hub</span><span class="ccl-left"></span></div><div class="ccl-skip">Click anywhere or press Esc to skip</div></div>';
+  var iconsEl = root.querySelector(".cclicons"), barEl = root.querySelector(".ccl-bar u"), nowEl = root.querySelector(".ccl-now"), leftEl = root.querySelector(".ccl-left");
   var cells = CATS.map(function (c) {
-    var d = document.createElement("div"); d.className = "ic"; d.style.setProperty("--c", c[2]);
-    d.innerHTML = "<span class=\"sq\"></span><i>" + c[1] + "</i>"; iconsEl.appendChild(d); return d;
+    var d = document.createElement("div"); d.className = "cclic"; d.style.setProperty("--c", c[2]);
+    d.innerHTML = "<span class=\"ccl-sq\"></span><i>" + c[1] + "</i>"; iconsEl.appendChild(d); return d;
   });
   (function mount() { if (document.body) document.body.appendChild(root); else setTimeout(mount, 10); })();
 
@@ -66,7 +66,7 @@
         CATS.forEach(function (c, i) { var s = CC.catIconSvg(c[0], 20); if (s) cells[i].firstChild.appendChild(s); });
       }
       var A = CC.catAnswers || {}, n = 0, next = null;
-      CATS.forEach(function (c, i) { var ok = !!A[c[0]]; if (ok) n++; else if (!next) next = c[1]; cells[i].className = "ic" + (ok ? " on" : ""); });
+      CATS.forEach(function (c, i) { var ok = !!A[c[0]]; if (ok) n++; else if (!next) next = c[1]; cells[i].className = "cclic" + (ok ? " on" : ""); });
       var hub = !!(window.D || n || (CC.loadStats && CC.loadStats.done));
       var target = hub ? 0.25 + 0.75 * n / CATS.length : Math.min(0.2, el / typical * 0.5);
       shownP = Math.max(shownP, target); // never moves backward
