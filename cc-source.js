@@ -63,7 +63,8 @@
       sources: [R(/routines? ok|routine/i, "admin", "0", "Routines"), R(/problem/i, "ccData", "1487466811", "Problems"),
         R(/crew|pulse|message/i, "ccData", "852169438", "Messages"), R(/today|business|needs you|collected|outstanding/i, "ccData", "675835590", "Items"),
         R(/usage/i, "admin", null, "Usage")],
-      build: [R(/.*/, "ccData", "1499956834", "Build Status")]
+      build: [R(/.*/, "ccData", "1499956834", "Build Status")],
+      ubertaxi: [R(/by year|by month|taxi trips 20|all-time|since last/i, "taxi", "186456877", "Taxi One (Square)"), R(/recent taxi|uber/i, "taxi", "0", "Taxi Raw")]
     },
     /* page id → [sheet key, [tab label, gid]...] (the same tabs each page's Data view lists) */
     tabs: {

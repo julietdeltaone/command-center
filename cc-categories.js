@@ -682,65 +682,137 @@
 
   var TAXI_DATA = "18IAvYJbZ2D8TKcmIEhLbtjOZNsVbPLbhn9cWCnU7Osg";
   var TAXI_CACHE = {rows: null, header: null, err: null, loading: false};
+  var T1_GID = "186456877", T1_CACHE = {rows: null, header: null, err: null, loading: false};
 
   CC.views.UberTaxi = function (api) {
+    /* 2026-11-28, JD: Taxi One (his own Square account) always runs under Taxi Zero (his dad's
+       taxi), so the page shows one Taxi lane, not two; Uber is the second lane. The sheet keeps
+       the source labels (square_taxi_one, taxi_zero_sweep, uber_email) so each stays traceable.
+       Fixes the old page counting every Taxi Raw row as a trip: Uber statement emails and the
+       weekly Facebook sweeps are notices, not rides. Only kind trip_payment / trip / ride counts.
+       Years before 2026 come from the "Taxi One (Square)" tab's By year table (Square yearly
+       totals, no per-trip rows exist for 2023 to 2025). */
     var page = h("div", {class: "hp-wrap hp-canvas"});
     page.appendChild(catHead("Uber / Taxi", "ubertaxi", api));
     var tilesWrap = h("div", {class: "hp-tilesbar"});
     page.appendChild(tilesWrap);
-    var body = canvasBody("1.2fr 1fr", "1fr", []);
+    var body = canvasBody("1.5fr 1fr", "1fr 1fr", []);
     page.appendChild(body);
+    var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    function money0(n) { return "$" + Math.round(n || 0).toLocaleString("en-US"); }
+
+    function model() {
+      if (!TAXI_CACHE.rows) return null;
+      var hdr = TAXI_CACHE.header, iAmt = col(hdr, "amount"), iDate = col(hdr, "event_time"), iKind = col(hdr, "kind"),
+        iSrc = col(hdr, "source"), iDet = col(hdr, "detail"), iWk = col(hdr, "week_or_date");
+      var trips = [], uberMarks = [], sweeps = [];
+      TAXI_CACHE.rows.forEach(function (r) {
+        var kind = iKind != null ? String(r[iKind] || "") : "", src = iSrc != null ? String(r[iSrc] || "") : "";
+        var t = iDate != null ? ms(r[iDate]) : null;
+        if (/^(trip_payment|trip|ride)$/i.test(kind)) {
+          if (t) trips.push({t: t, amt: numAt(r, iAmt) || 0, src: src, uber: /uber/i.test(src), det: iDet != null ? String(r[iDet] || "") : ""});
+        } else if (/uber/i.test(src)) uberMarks.push({t: t});
+        else if (/sweep/i.test(kind)) {
+          var m = /(\d+) keyword hits?/.exec(iDet != null ? String(r[iDet] || "") : "");
+          sweeps.push({t: t || (iWk != null ? ms(r[iWk]) : null), hits: m ? Number(m[1]) : 0});
+        }
+      });
+      trips.sort(function (a, b) { return a.t - b.t; });
+      var taxi = trips.filter(function (x) { return !x.uber; }), uber = trips.filter(function (x) { return x.uber; });
+      /* yearly totals: Square history table first, then any year it doesn't cover from Taxi Raw */
+      var years = {};
+      if (T1_CACHE.rows) {
+        var all = [T1_CACHE.header || []].concat(T1_CACHE.rows), on = false;
+        all.forEach(function (r) {
+          var a = String(r[0] == null ? "" : r[0]).trim();
+          if (a === "Year") { on = true; return; }
+          if (!on) return;
+          if (/^\d{4}$/.test(a)) years[a] = {y: a, orders: Number(r[1]) || 0, sales: Number(String(r[2]).replace(/[$,]/g, "")) || 0, tips: Number(r[3]) || 0, net: Number(String(r[5]).replace(/[$,]/g, "")) || 0, note: r[6] || "", from: "square"};
+          else if (a && !/^all time/i.test(a)) on = false;
+        });
+      }
+      taxi.forEach(function (x) {
+        var y = String(new Date(x.t).getFullYear());
+        if (years[y] && years[y].from === "square") return;
+        var o = years[y] || (years[y] = {y: y, orders: 0, sales: 0, tips: 0, net: null, note: "from trip rows", from: "raw"});
+        o.orders++; o.sales += x.amt;
+      });
+      var yr = new Date().getFullYear(), months = MON.map(function () { return {n: 0, amt: 0}; });
+      taxi.forEach(function (x) { var d = new Date(x.t); if (d.getFullYear() === yr) { months[d.getMonth()].n++; months[d.getMonth()].amt += x.amt; } });
+      var since = Date.now() - 28 * 86400000;
+      return {taxi: taxi, uber: uber, uberMarks: uberMarks, sweeps: sweeps, years: Object.keys(years).sort().map(function (k) { return years[k]; }),
+        months: months, yr: yr, hits4: sweeps.filter(function (s) { return s.t && s.t >= since; }).reduce(function (a, s) { return a + s.hits; }, 0),
+        last: taxi[taxi.length - 1] || null};
+    }
 
     function paint() {
-      var tiles = [];
-      var tripsN = null, earnings = null;
-      var iDate = null, iKind = null, iAmt = null;
-      if (TAXI_CACHE.rows) {
-        var hdr = TAXI_CACHE.header;
-        iAmt = col(hdr, "amount"); iDate = col(hdr, "event_time"); iKind = col(hdr, "kind");
-        var now = Date.now(), DAY = 86400000;
-        var last30 = TAXI_CACHE.rows.filter(function (r) { var t = iDate != null ? ms(r[iDate]) : null; return t && (now - t) < 30 * DAY; });
-        earnings = last30.reduce(function (s, r) { var v = iAmt != null ? numAt(r, iAmt) : 0; return s + (v || 0); }, 0);
-        var trips = last30.filter(function (r) { return iKind != null && /trip|ride/i.test(String(r[iKind])); });
-        tripsN = trips.length || last30.length;
-
-        tiles.push(tile("Trips (30d)", tripsN, "recorded rides"));
-        tiles.push(tile("Earnings (30d)", fmtMoney(earnings), "from rides"));
-        tiles.push(tile("All Time Rows", TAXI_CACHE.rows.length.toLocaleString(), "total records"));
-      } else if (TAXI_CACHE.err) {
-        tiles.push(tile("Uber / Taxi", "!", TAXI_CACHE.err, "watch"));
-      } else {
-        tiles.push(tile("Uber / Taxi", "…", "loading"));
-      }
+      var m = model(), tiles = [];
+      if (m) {
+        var ytd = m.years.filter(function (y) { return y.y === String(m.yr); })[0];
+        var allOrders = m.years.reduce(function (a, y) { return a + y.orders; }, 0);
+        var lastDays = m.last ? Math.floor((Date.now() - m.last.t) / 86400000) : null;
+        tiles.push(tile("Taxi trips " + m.yr, ytd ? ytd.orders : 0, ytd ? money0(ytd.sales) + " collected" : "none yet"));
+        tiles.push(tile("Since last trip", lastDays == null ? "—" : lastDays + "d", m.last ? new Date(m.last.t).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"}) : "no trips", lastDays != null && lastDays > 45 ? "watch" : null));
+        tiles.push(tile("All-time taxi trips", allOrders, m.years.length ? "since " + m.years[0].y : ""));
+        tiles.push(tile("Uber trips", m.uber.length || "—", m.uber.length ? "logged" : "no trip feed yet"));
+      } else if (TAXI_CACHE.err) tiles.push(tile("Uber / Taxi", "!", TAXI_CACHE.err, "watch"));
+      else tiles.push(tile("Uber / Taxi", "…", "loading"));
       tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
-      var tripsBody;
-      if (TAXI_CACHE.rows && TAXI_CACHE.rows.length) {
-        var rows = TAXI_CACHE.rows.slice(-12).reverse();
-        tripsBody = h("div", {class: "cat-feed"}, rows.map(function (r) {
-          var amt = iAmt != null ? numAt(r, iAmt) : null;
-          return h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-user"}, iKind != null ? fmtCell(r[iKind]) : "—"),
-            h("span", {class: "cat-feed-name"}, amt != null ? fmtMoney(amt) : ""),
-            h("span", {class: "cat-feed-time"}, iDate != null ? ago(ms(r[iDate])) : ""));
-        }));
-      } else if (TAXI_CACHE.err) {
-        tripsBody = modPlaceholder("Couldn't load trips", TAXI_CACHE.err);
-      } else {
-        tripsBody = modPlaceholder(readingText("trips", TAXI_CACHE));
-      }
-
       body.innerHTML = "";
-      body.appendChild(mod("Recent Trips", null, null, tripsBody));
-      body.appendChild(mod("Square Reports", null, null,
-        modPlaceholder("Not connected yet", "Square income reports — daily totals, fees, payout schedule — will appear here once linked.")));
+      if (!m) {
+        body.appendChild(mod("Taxi", null, null, TAXI_CACHE.err ? modPlaceholder("Couldn't load trips", TAXI_CACHE.err) : modPlaceholder(readingText("trips", TAXI_CACHE))));
+        return;
+      }
+      /* 1. Taxi by year */
+      var yBody;
+      if (m.years.length) {
+        var mxS = Math.max.apply(null, m.years.map(function (y) { return y.sales; }).concat([1]));
+        yBody = h("div", {class: "tx-years"},
+          h("div", {class: "tx-ybars"}, m.years.map(function (y) {
+            return h("div", {class: "tx-ycol", title: y.y + ": " + y.orders + " trips, " + fmtMoney(y.sales) + " collected" + (y.net != null ? ", " + fmtMoney(y.net) + " after Square fees" : "") + (y.note ? " (" + y.note + ")" : "")},
+              h("b", null, money0(y.sales)),
+              h("i", {style: "height:" + Math.max(3, y.sales / mxS * 100).toFixed(1) + "%"}),
+              h("span", null, y.y), h("small", null, y.orders + " trips"));
+          })),
+          h("div", {class: "hc-foot"}, "Taxi One Square totals per year (" + (m.years[0].note || "first year partial") + " for " + m.years[0].y + ") · runs under Taxi Zero · hover a year for net after fees"));
+      } else yBody = modPlaceholder("No yearly totals yet");
+      body.appendChild(mod("Taxi by year", null, h("span", {class: "hc-r"}, "Taxi One + Zero"), yBody, false));
+
+      /* 2. Last trips */
+      var recent = m.taxi.slice(-6).reverse();
+      body.appendChild(mod("Recent taxi trips", null, null, recent.length ? h("div", {class: "cat-feed"}, recent.map(function (x) {
+        var pay = /Credit|Debit|Cash/.exec(x.det);
+        return h("div", {class: "cat-feed-item"},
+          h("span", {class: "cat-feed-user"}, new Date(x.t).toLocaleDateString("en-US", {month: "short", day: "numeric"})),
+          h("span", {class: "cat-feed-name"}, fmtMoney(x.amt) + (pay ? " · " + pay[0].toLowerCase() : "")),
+          h("span", {class: "cat-feed-time"}, ago(x.t)));
+      })) : modPlaceholder("No trips logged")));
+
+      /* 3. This year by month */
+      var curM = new Date().getMonth(), mxN = Math.max.apply(null, m.months.map(function (x) { return x.n; }).concat([1]));
+      var strip = h("div", {class: "tx-months"}, m.months.map(function (x, i) {
+        var fut = i > curM;
+        return h("div", {class: "tx-m" + (fut ? " fut" : "") + (x.n ? "" : " zero"), title: MON[i] + " " + m.yr + ": " + (fut ? "ahead" : x.n + " trip" + (x.n === 1 ? "" : "s") + (x.n ? ", " + fmtMoney(x.amt) : ""))},
+          h("i", {style: x.n ? "background:color-mix(in srgb,var(--accent) " + Math.round(30 + 70 * x.n / mxN) + "%,transparent)" : ""}, x.n ? String(x.n) : ""),
+          h("span", null, MON[i]), h("small", null, x.n ? money0(x.amt) : ""));
+      }));
+      var active = m.months.filter(function (x, i) { return i <= curM && x.n; }).length;
+      body.appendChild(mod(m.yr + " by month", null, h("span", {class: "hc-r"}, active + " of " + (curM + 1) + " months with a trip"), h("div", null, strip,
+        h("div", {class: "hc-foot"}, "number = trips · shade = busier month · Facebook group sweep: " + m.hits4 + " taxi mention" + (m.hits4 === 1 ? "" : "s") + " in the last 4 weeks")), false));
+
+      /* 4. Uber */
+      var lastMark = m.uberMarks.map(function (x) { return x.t; }).filter(Boolean).sort(function (a, b) { return b - a; })[0];
+      body.appendChild(mod("Uber", null, null, m.uber.length
+        ? h("div", {class: "cat-feed"}, m.uber.slice(-6).reverse().map(function (x) { return h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, new Date(x.t).toLocaleDateString("en-US", {month: "short", day: "numeric"})), h("span", {class: "cat-feed-name"}, fmtMoney(x.amt)), h("span", {class: "cat-feed-time"}, ago(x.t))); }))
+        : modPlaceholder("No Uber trip data yet", m.uberMarks.length + " weekly statement emails seen" + (lastMark ? ", latest " + new Date(lastMark).toLocaleDateString("en-US", {month: "short", day: "numeric"}) : "") + ". The amounts live in the Uber driver app, so trips show here once a statement export is captured.")));
 
       if (CC.setCatSummary) {
-        var line = tripsN != null ? tripsN + " trip" + (tripsN === 1 ? "" : "s") + " · " + fmtMoney(earnings) + " (30d)" : "Loading trip history…";
-        CC.setCatSummary("Uber / Taxi", line, false, [
-          {value: tripsN != null ? String(tripsN) : "—", label: "Trips (30d)"},
-          {value: earnings != null ? fmtMoney(earnings) : "—", label: "Earnings (30d)"},
-          {value: TAXI_CACHE.rows ? TAXI_CACHE.rows.length.toLocaleString() : "—", label: "All-time rows"}
+        var y0 = m.years.filter(function (y) { return y.y === String(m.yr); })[0];
+        CC.setCatSummary("Uber / Taxi", (y0 ? y0.orders : 0) + " taxi trips in " + m.yr + (m.last ? " · last " + ago(m.last.t) : ""), false, [
+          {value: y0 ? String(y0.orders) : "0", label: "Taxi trips " + m.yr},
+          {value: y0 ? money0(y0.sales) : "—", label: "Collected " + m.yr},
+          {value: String(m.years.reduce(function (a, y) { return a + y.orders; }, 0)), label: "All-time trips"}
         ]);
       }
     }
@@ -748,6 +820,8 @@
 
     if (!TAXI_CACHE.rows && !TAXI_CACHE.err)
       loadSheet(TAXI_DATA, "0", api, TAXI_CACHE, paint, 2000, "Taxi Raw");
+    if (!T1_CACHE.rows && !T1_CACHE.err)
+      loadSheet(TAXI_DATA, T1_GID, api, T1_CACHE, paint, 200, "Taxi One (Square)");
 
     return page;
   };

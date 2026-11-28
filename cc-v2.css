@@ -349,3 +349,17 @@
 .hmw-n{font-size:10px;color:var(--muted);text-align:center;line-height:14px;font-variant-numeric:tabular-nums}
 .hmw-n.cur{color:var(--text)}
 .hmx-st b.wrap{font-size:14px;line-height:1.6;overflow:hidden;text-overflow:ellipsis}
+/* Uber / Taxi page (Nov 28): Taxi by year bars + this-year month strip */
+.tx-years{display:flex;flex-direction:column;height:100%;gap:8px}
+.tx-ybars{flex:1 1 auto;min-height:120px;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:14px;align-items:end}
+.tx-ycol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;gap:4px}
+.tx-ycol b{font-size:13px;font-weight:800;white-space:nowrap}
+.tx-ycol i{display:block;width:62%;max-width:90px;border-radius:5px 5px 2px 2px;background:color-mix(in srgb,var(--accent) 75%,transparent)}
+.tx-ycol span{font-size:12px;font-weight:700;color:var(--text)}
+.tx-ycol small{font-size:10.5px;color:var(--muted)}
+.tx-months{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px;margin:4px 0 8px}
+.tx-m{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.tx-m i{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1/1;max-height:54px;border-radius:6px;background:var(--line2,rgba(255,255,255,.07));font-style:normal;font-weight:800;font-size:13px;color:#fff}
+.tx-m.fut i{background:transparent;border:1px dashed var(--line)}
+.tx-m span{font-size:10.5px;color:var(--muted)}
+.tx-m small{font-size:10px;color:var(--muted);min-height:12px;white-space:nowrap}
