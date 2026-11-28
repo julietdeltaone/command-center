@@ -119,7 +119,7 @@
   /* Card candidates: framed boxes (border + rounded corners) of card size, plus anything with data-src. */
   function isCard(e) {
     if (e.hasAttribute("data-src")) return true;
-    if (e.closest(".cc-src-tip")) return false;
+    if (e.closest(".cc-src-tip, .topbar, header, nav")) return false;
     var r = e.getBoundingClientRect();
     if (r.width < 110 || r.height < 54) return false;
     if (r.width > innerWidth * 0.98 && r.height > innerHeight * 0.9) return false;
