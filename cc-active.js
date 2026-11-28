@@ -268,7 +268,7 @@
           return h("li", {class: x.me ? "me" : ""}, h("span", {class: "mp-pl p" + (i + 1)}, String(i + 1)),
             h("a", {href: x.url, target: "_blank", rel: "noopener"}, x.me ? "You" : x.name), h("b", null, b.f(x[b.k])));
         })),
-        h("div", {class: "mp-you"}, b.me ? (b.me.place <= 3 ? "You're in the top three" : "You: " + b.me.place + " of " + b.me.n + " · " + b.f(b.me.v)) : "You: not ranked yet"));
+        h("div", {class: "mp-you"}, b.me ? (b.me.place <= 3 ? "You're in the top three" : "You: " + b.me.place + " of " + b.me.of + " · " + b.f(b.me.v)) : "You: not ranked yet"));
     }));
   }
   function marketCard(api) {
