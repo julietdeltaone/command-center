@@ -166,44 +166,132 @@
   }
   function agoShort(t, now) { if (!t) return ""; var d = dayDelta(now, t); return d <= 0 ? "today" : d === 1 ? "1d" : d + "d"; }
 
-  function compCard(api) {
-    var m = compModel(api), now = nowOf(api), V_ = V();
-    var counts = {}; m.week.forEach(function (x) { counts[x.kind] = (counts[x.kind] || 0) + 1; });
-    var segs = KINDS.map(function (k) { return {v: counts[k.k] || 0, c: k.c, l: k.k}; });
-    var right = h("span", null,
-      m.src === "sheet" ? "Competitor Watch sheet · " : m.src === "loading" ? "Reading sheet… · " : "From the morning feed (sheet not connected yet) · ",
-      h("a", {href: sheetLink(COMP_SHEET, COMP_MOVES_GID), target: "_blank", rel: "noopener", class: "bz3-link"}, "Open sheet ↗"));
-    var mx = Math.max.apply(null, m.ladder.concat([1]));
-    var ladder = h("div", {class: "bz3-ladder", role: "img", "aria-label": "AI discoverability ladder: " + m.ladder.map(function (n, i) { return n + " at " + i; }).join(", ")},
-      m.ladder.map(function (n, i) {
-        var st = i >= 3 ? "good" : i === 2 ? "n" : i === 1 ? "warn" : "bad", me = m.mine === i;
-        return h("div", {class: "bz3-rung" + (me ? " me" : "")},
-          h("span", {class: "bz3-rung-n"}, String(n)),
-          h("div", {class: "bz3-rung-p"}, h("i", {style: "height:" + Math.max(4, n / mx * 100) + "%;background:" + V_.col(st)})),
-          h("small", null, me ? h("em", null, "You · " + i + "/4") : i + "/4"));
-      }));
-    var list = h("div", {class: "bz3-moves"}, m.moves.filter(function (x) { return x.kind !== "System" && x.kind !== "AI search"; }).slice(0, 8).map(function (x) {
+  /* ---------- Market pulse (v7, Nov 28: JD's call) ----------
+     Replaces the Competitor Watch card with three pieces of Business Pulse, rebuilt here in the
+     Command Center's own classes and tokens (no iframe, no Pulse CSS), so a reskin of the hub
+     reskins this too:
+       1. Instagram posting heat map, one row per tracked account. A square with a post is a link:
+          to the post itself when Business Pulse has its permalink (PULSE_DATA.igPosts), otherwise
+          to the account's profile, where the newest posts sit at the top.
+       2. Leaders: top three for most posts (30 days), largest following, fastest growing (30 days).
+       3. Activity outside Instagram: pricing, website, reviews, Facebook and other moves from the
+          Business Pulse sheet's Moves tab, dollar figures masked as before.
+     Data: Business Pulse's own published data file (data/data.js, written by the Pulse Publisher
+     from the Business Pulse sheet), so both dashboards show the same numbers. Counting follows
+     Business Pulse exactly: posts from the change in each profile's post total between daily
+     pulls, followers from the latest live pull, growth against the pull 30 days back. */
+  var PULSE_JS = "https://julietdeltaone.github.io/business-pulse/data/data.js";
+  var PULSE_SITE = "https://julietdeltaone.github.io/business-pulse/";
+  var JD_ID = "jd-meyers-productions", STRIP = 35;
+  var PULSE = {data: null, err: null, loading: false, cbs: []};
+  function loadPulse(cb) {
+    if (PULSE.data || PULSE.err) { cb(); return; }
+    PULSE.cbs.push(cb); if (PULSE.loading) return; PULSE.loading = true;
+    var s = document.createElement("script");
+    s.src = PULSE_JS + "?t=" + Math.floor(Date.now() / 600000); s.async = true;
+    function done() { PULSE.loading = false; var c = PULSE.cbs; PULSE.cbs = []; c.forEach(function (f) { f(); }); }
+    s.onload = function () { PULSE.data = window.PULSE_DATA || null; if (!PULSE.data) PULSE.err = "Business Pulse data file was empty"; done(); };
+    s.onerror = function () { PULSE.err = "Could not load Business Pulse data"; done(); };
+    document.head.appendChild(s);
+  }
+  function etIso(t) { try { return new Intl.DateTimeFormat("en-CA", {timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"}).format(new Date(t)); } catch (e) { return new Date(t).toISOString().slice(0, 10); } }
+  function dnum(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / DAY : null; }
+  function diso(n) { return new Date(n * DAY).toISOString().slice(0, 10); }
+  var MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function dshort(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? MONS[+m[2] - 1] + " " + (+m[3]) : ""; }
+  function cleanName(s) { return String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, "").replace(/\s+/g, " ").trim(); }
+  function pulseModel(api) {
+    var D = PULSE.data; if (!D) return null;
+    var asof = dnum(etIso(nowOf(api))), age = function (s) { var n = dnum(s); return n == null ? null : asof - n; };
+    var rows = {}; (D.igActivity || []).forEach(function (r) { (rows[r.handle] = rows[r.handle] || []).push(r); });
+    var posts = D.igPosts || {}, list = [];
+    (D.competitors || []).forEach(function (c) {
+      var hnd = c.ig_handle, rs = hnd && rows[hnd]; if (!rs) return;
+      rs.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      var live = rs.filter(function (r) { return !/pull failed|carried|not pulled/i.test(r.activity || "") && r.followers != null; });
+      var last = live[live.length - 1]; if (!last || age(last.date) > 4) return;
+      var f30 = null; live.forEach(function (x) { if (age(x.date) >= 30) f30 = x; });
+      var mc = rs.filter(function (r) { return r.media_count != null; }), days = {}, links = {}, lp = posts[hnd];
+      if (lp && lp.length) lp.forEach(function (p) { if (p.date) { days[p.date] = (days[p.date] || 0) + 1; if (p.permalink && !links[p.date]) links[p.date] = p.permalink; } });
+      else for (var i = 1; i < mc.length; i++) { var d = mc[i].media_count - mc[i - 1].media_count; if (d > 0) days[mc[i].date] = d; }
+      var span = mc.length > 1 ? dnum(mc[mc.length - 1].date) - dnum(mc[0].date) : (lp && lp.length ? 90 : 0);
+      var p30 = span >= 28 ? Object.keys(days).reduce(function (t, d) { var a = age(d); return t + (a < 30 && a >= 0 ? days[d] : 0); }, 0) : null;
+      list.push({id: c.id, me: c.id === JD_ID, name: cleanName(c.name), handle: hnd, url: "https://www.instagram.com/" + encodeURIComponent(hnd) + "/",
+        followers: last.followers, g30: f30 ? last.followers - f30.followers : null, posts30: p30, days: days, links: links,
+        from: mc.length ? dnum(mc[0].date) : asof, lastPost: (mc[mc.length - 1] || {}).last_media_date || null});
+    });
+    function top(key) {
+      var r = list.filter(function (b) { return b[key] != null; }).sort(function (a, b) { return b[key] - a[key] || a.name.localeCompare(b.name); });
+      var me = null; r.forEach(function (b, i) { if (b.me) me = {place: i + 1, of: r.length, v: b[key]}; });
+      return {top: r.slice(0, 3), me: me, n: r.length};
+    }
+    return {asof: asof, list: list, perma: Object.keys(posts).length > 0,
+      boards: [{k: "posts30", t: "Most posts", s: "last 30 days", f: function (v) { return v + (v === 1 ? " post" : " posts"); }},
+        {k: "followers", t: "Largest following", s: "Instagram followers", f: function (v) { return v.toLocaleString("en-US"); }},
+        {k: "g30", t: "Fastest growing", s: "followers gained, 30 days", f: function (v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toLocaleString("en-US"); }}]
+        .map(function (b) { var r = top(b.k); b.top = r.top; b.me = r.me; b.n = r.n; return b; })};
+  }
+  function heatMap(m) {
+    var start = m.asof - STRIP + 1;
+    var list = m.list.slice().sort(function (a, b) { return (b.me - a.me) || ((b.posts30 == null ? -1 : b.posts30) - (a.posts30 == null ? -1 : a.posts30)) || a.name.localeCompare(b.name); });
+    var cols = "minmax(120px,170px) repeat(" + STRIP + ",minmax(0,1fr)) 40px";
+    var wrap = h("div", {class: "mp-heat"});
+    var hd = h("div", {class: "mp-row mp-hd", style: "grid-template-columns:" + cols}, h("span"));
+    for (var n = start; n <= m.asof; n++) { var dd = new Date(n * DAY); hd.appendChild(h("span", {class: "mp-wk"}, dd.getUTCDay() === 1 ? dshort(diso(n)) : "")); }
+    hd.appendChild(h("span", {class: "mp-num mp-wk"}, "30d"));
+    wrap.appendChild(hd);
+    var body = h("div", {class: "mp-rows"});
+    list.forEach(function (b) {
+      var row = h("div", {class: "mp-row" + (b.me ? " me" : ""), style: "grid-template-columns:" + cols},
+        h("a", {class: "mp-name", href: b.url, target: "_blank", rel: "noopener", title: b.name + " on Instagram"}, b.me ? "You" : b.name));
+      for (var n2 = start; n2 <= m.asof; n2++) {
+        var d = diso(n2), k = b.days[d] || 0, tier = Math.min(k, 3), na = n2 < b.from;
+        var tip = (b.me ? "You" : b.name) + " · " + dshort(d) + ": " + (na ? "not tracked yet" : k ? k + (k === 1 ? " new post" : " new posts") : "no new post");
+        row.appendChild(k ? h("a", {class: "mp-c t" + tier, href: b.links[d] || b.url, target: "_blank", rel: "noopener", title: tip + (b.links[d] ? " · opens the post" : " · opens the profile")})
+          : h("i", {class: "mp-c t0" + (na ? " na" : ""), title: tip}));
+      }
+      row.appendChild(h("b", {class: "mp-num"}, b.posts30 == null ? "…" : String(b.posts30)));
+      body.appendChild(row);
+    });
+    wrap.appendChild(body);
+    wrap.appendChild(h("div", {class: "hc-legend"},
+      h("span", null, h("i", {class: "mp-c t0"}), "no post"), h("span", null, h("i", {class: "mp-c t1"}), "1"),
+      h("span", null, h("i", {class: "mp-c t2"}), "2"), h("span", null, h("i", {class: "mp-c t3"}), "3+"),
+      h("span", {class: "hc-legend-r"}, m.perma ? "click a square to open that post" : "click a square to open the account (newest posts on top)")));
+    return wrap;
+  }
+  function leaders(m) {
+    return h("div", {class: "mp-lead"}, m.boards.map(function (b) {
+      return h("div", {class: "bz3-blk mp-board"},
+        h("div", {class: "bz3-eb"}, b.t), h("small", {class: "mp-sub"}, b.s),
+        h("ol", {class: "mp-top"}, b.top.map(function (x, i) {
+          return h("li", {class: x.me ? "me" : ""}, h("span", {class: "mp-pl p" + (i + 1)}, String(i + 1)),
+            h("a", {href: x.url, target: "_blank", rel: "noopener"}, x.me ? "You" : x.name), h("b", null, b.f(x[b.k])));
+        })),
+        h("div", {class: "mp-you"}, b.me ? (b.me.place <= 3 ? "You're in the top three" : "You: " + b.me.place + " of " + b.me.n + " · " + b.f(b.me.v)) : "You: not ranked yet"));
+    }));
+  }
+  function marketCard(api) {
+    var m = pulseModel(api), now = nowOf(api), cm = compModel(api);
+    var right = h("span", null, "From Business Pulse · ",
+      h("a", {href: PULSE_SITE, target: "_blank", rel: "noopener", class: "bz3-link"}, "Open Business Pulse ↗"));
+    var feed = h("div", {class: "bz3-moves"}, cm.moves.filter(function (x) {
+      return x.kind !== "System" && x.kind !== "AI search" && !/instagram|\big\b/i.test(x.text);
+    }).slice(0, 10).map(function (x) {
       return h("div", {class: "bz3-move"},
         h("i", {class: "bz3-dot", style: "background:" + kindCol(x.kind), title: x.kind}),
-        h("div", {class: "bz3-move-t"}, h("b", null, x.kind), " ", x.text),
+        h("div", {class: "bz3-move-t"}, h("b", null, x.kind), " ", x.link ? h("a", {href: x.link, target: "_blank", rel: "noopener", class: "mp-flink"}, x.text) : x.text),
         h("span", {class: "bz3-ago"}, agoShort(x.t, now)));
     }));
-    if (!list.children.length) list.appendChild(h("div", {class: "hc-empty"}, "No pricing, website, social or review moves on file."));
-    var body = h("div", {class: "bz3-comp"},
-      h("div", {class: "bz3-comp-top"},
-        h("div", {class: "bz3-blk"},
-          h("div", {class: "bz3-eb"}, "Moves, last 7 days"),
-          h("div", {class: "bz3-big"}, String(m.week.length), h("span", null, m.week.length === 1 ? " move" : " moves")),
-          V_.stack(segs, {tall: true}),
-          h("div", {class: "hc-legend"}, KINDS.filter(function (k) { return counts[k.k]; }).map(function (k) { return h("span", null, h("i", {class: "sw", style: "background:" + k.c}), k.k + " " + counts[k.k]); }))),
-        h("div", {class: "bz3-blk"},
-          h("div", {class: "bz3-eb"}, "AI search ladder · " + m.rated + " rated"),
-          ladder,
-          h("div", {class: "bz3-note"}, m.mine != null ? "You sit at " + m.mine + "/4. " + m.ladder.slice(m.mine + 1).reduce(function (a, b) { return a + b; }, 0) + " rated above you." : "Your own score isn't on file yet."))),
-      h("div", {class: "bz3-eb"}, "Latest moves (pricing, website, social, reviews)"),
-      list,
-      m.issue ? h("div", {class: "hc-alarm warn"}, h("i"), h("span", null, h("b", null, "Watcher: "), m.issue.text)) : null);
-    return card("Competitor Watch", right, body, "bz3-c-comp");
+    if (!feed.children.length) feed.appendChild(h("div", {class: "hc-empty"}, cm.src === "loading" ? "Reading activity…" : "No pricing, website, review or Facebook moves on file."));
+    var top = m ? heatMap(m) : h("div", {class: "hc-empty"}, PULSE.err || "Reading Business Pulse…");
+    var body = h("div", {class: "bz3-comp mp"},
+      h("div", {class: "bz3-eb"}, "Instagram posting, last " + STRIP + " days" + (m ? " · " + m.list.length + " accounts" : "")),
+      top,
+      h("div", {class: "mp-bottom"},
+        h("div", {class: "mp-col"}, h("div", {class: "bz3-eb"}, "Leaders"), m ? leaders(m) : null),
+        h("div", {class: "mp-col"}, h("div", {class: "bz3-eb"}, "Activity outside Instagram"), feed)));
+    return card("Market pulse", right, body, "bz3-c-comp");
   }
 
   /* ---------- social & website watch ---------- */
@@ -273,7 +361,7 @@
       L.tiles.forEach(function (t) { g.appendChild(V().tile(t)); });
       ledSec.appendChild(g);
       body.innerHTML = "";
-      body.appendChild(compCard(api));
+      body.appendChild(marketCard(api));
       var sw = socwCard(api); body.appendChild(sw.node);
       if (CC.setCatSummary) {
         var li = sw.model.channels.filter(function (r) { return r.d != null; })[0];
@@ -287,6 +375,7 @@
     }
     paint();
     CC.crm.load(api, paint);
+    loadPulse(paint);
     load(api, COMP_SHEET, COMP_MOVES_GID, C_MOVES, paint, 2000);
     load(api, COMP_SHEET, COMP_ROSTER_GID, C_ROSTER, paint, 500);
     load(api, SOCW_SHEET, SOCW_CHANNELS_GID, S_CH, paint, 200);

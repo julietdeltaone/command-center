@@ -47,7 +47,8 @@
       ],
       business: [
         R(/projects|ledger|on you|waiting|scheduled|shot|collect|next shoot/i, "ledger", "0", "Projects"),
-        R(/competitor|moves|ai search|ladder/i, "pulse", "1641812027", "Moves"),
+        R(/instagram posting|market pulse|leaders|most posts|largest following|fastest growing/i, "pulse", "570304817", "IG Activity"),
+        R(/competitor|moves|ai search|ladder|activity outside/i, "pulse", "1641812027", "Moves"),
         R(/website|main site|pricing page|portfolio/i, "socw", "1246215395", "Website"),
         R(/social|linkedin|instagram|facebook|google business|days since last post/i, "socw", "1642331537", "Channels")
       ],
