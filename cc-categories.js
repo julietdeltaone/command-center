@@ -1037,7 +1037,8 @@
   }
   function admHealth(r) {
     if (/fail|error/i.test(r.status)) return {cls: "bad", text: "Failed last run"};
-    if (!r.t) return {cls: "warn", text: "Never run"};
+    /* 2026-11-28: a routine that has never run is waiting for its first scheduled run, not a problem. */
+    if (!r.t) return {cls: "good", text: "Scheduled · first run pending"};
     if (r.cad && Date.now() - r.t > r.cad * 60000 * 2) return {cls: "warn", text: "Overdue · last ran " + eastern(r.t)};
     return {cls: "good", text: "Healthy"};
   }
@@ -1047,7 +1048,8 @@
     ["routine", "cadence_min", "last_run", "last_status", "last_output_count", "writer", "routine_id", "category", "description", "frequency",
      "feeds_hub", "feeds_to", "why_not_in_hub", "runs_on", "status", "notes"].forEach(function (n) { ix[n] = colCI(H, n); });
     function g(row, n) { return ix[n] != null && row[ix[n]] != null ? String(row[ix[n]]).trim() : ""; }
-    return ROUT_CACHE.rows.filter(function (r) { return g(r, "routine"); }).map(function (r) {
+    /* 2026-11-28: same hide rule as the main data API: merged, disabled, retired or done rows are left out. */
+    return ROUT_CACHE.rows.filter(function (r) { return g(r, "routine") && ["merged", "disabled", "retired", "done"].indexOf(g(r, "status").toLowerCase()) < 0; }).map(function (r) {
       var o = {name: g(r, "routine"), id: g(r, "routine_id") || g(r, "routine").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
         cat: g(r, "category") || "Unsorted", desc: g(r, "description"), freq: g(r, "frequency"), cad: Number(g(r, "cadence_min")) || 0,
         t: ms(g(r, "last_run")), status: g(r, "last_status"), outputs: g(r, "last_output_count"),
@@ -1316,7 +1318,7 @@
             h("span", {class: "c-every fq fq-" + freqBand(o)}, o.freq || cadText(o.cad)),
             h("span", {class: "c-last lr-" + (lastBand(o) || "na")}, shortTime(o.t)),
             h("span", {class: "c-runs"}, h("span", {class: "rt-strip"}, runs.map(function (r) { return h("i", {class: /fail|error/i.test(r.s) ? "bad" : "good"}); }))),
-            h("span", {class: "c-health rt-health " + o.h.cls}, h("i"), o.h.cls === "good" ? "Healthy" : o.h.cls === "bad" ? "Failed" : /^Never/.test(o.h.text) ? "Never run" : "Overdue"),
+            h("span", {class: "c-health rt-health " + o.h.cls}, h("i"), o.h.cls === "good" ? (/^Scheduled/.test(o.h.text) ? "Scheduled" : "Healthy") : o.h.cls === "bad" ? "Failed" : /^Never/.test(o.h.text) ? "Never run" : "Overdue"),
             destCell(o)));
         });
       });
