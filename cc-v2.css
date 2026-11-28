@@ -328,3 +328,24 @@
 .ck-ag-n{color:var(--text);overflow-wrap:anywhere}
 @media (max-width:1280px){.ck2-body{grid-template-columns:1fr 1fr}.ck2-body>.ck-c-q{grid-column:1/-1}}
 @media (max-width:900px){.ck2-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ck2-body{grid-template-columns:1fr;grid-template-rows:none!important}}
+/* Health carousels (Nov 28): segmented view switch in the card header + week/split heat grids */
+.hc-car{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.hc-heat .hc-h,.hc-vol .hc-h{align-items:center;flex-wrap:wrap}
+.hc-tabs{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:rgba(127,127,127,.06)}
+.hc-tab{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.hc-tab:hover{color:var(--text)}
+.hc-tab.on{background:var(--text);color:var(--bg,#0b0d10)}
+.hc-tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hmw-grid{display:grid;gap:2px 3px;width:100%}
+.hmw-wk{text-align:center}
+.hmw-lab{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;line-height:15px}
+.hmw-lab i{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+.hmw-tot{font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:9.5px}
+.hmw-c{position:relative;display:flex;align-items:center;justify-content:center;border-radius:3px;min-width:0;overflow:hidden;background-clip:padding-box}
+.hmw-c:not(.rest){opacity:var(--o,1)}
+.hmw-c b{font-size:9.5px;font-weight:700;color:#fff;line-height:1;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.hmw-c.rest{background:var(--line2,rgba(255,255,255,.07));opacity:.55}
+.hmw-c.cur{outline:1.5px dashed var(--text);outline-offset:-1px}
+.hmw-n{font-size:10px;color:var(--muted);text-align:center;line-height:15px;font-variant-numeric:tabular-nums}
+.hmw-n.cur{color:var(--text)}
+.hmx-st b.wrap{white-space:normal;font-size:14px;line-height:1.25}

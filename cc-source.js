@@ -180,7 +180,9 @@
     if (!ON) return;
     block(e);
     var c = cardFor(e.target), src = (c && c.src) || pageFallback();
-    if (src) window.open(src.url, "_blank", "noopener");
+    /* No features string: with one (even just "noopener") Chrome opens a popup window; without it, a
+       normal new tab. JD asked for a tab (Nov 28). Opener cut by hand instead. */
+    if (src) { var w = window.open(src.url, "_blank"); if (w) { try { w.opener = null; } catch (x) {} } }
   }, true);
 
   var st = document.createElement("style");
