@@ -136,6 +136,17 @@
       moves = items(api, "Competitors").map(function (i) { return {time: i.time, kind: classify(i.text), business: "", text: i.text, link: i.link}; });
       var m = /scored (\d)/;
       moves.forEach(function (x) { var r = m.exec(x.text || ""); x.ai_score = r ? r[1] : ""; x.business = (/^([A-Z][^:;,]{2,55}?) scored/.exec(x.text || "") || [])[1] || ""; });
+    } else {
+      /* 2026-11-28 (JD approved): the sheet was seeded once from Items, so Items rows newer than the
+         sheet's newest Moves row are added too, skipping any whose id the sheet already carries. */
+      var have = {}, newest = 0;
+      moves.forEach(function (x) { if (x.item_id) have[x.item_id] = 1; var t = ms(x.time); if (t && t > newest) newest = t; });
+      items(api, "Competitors").forEach(function (i) {
+        var t = ms(i.time);
+        if (!i.text || !t || t <= newest || (i.id && have[i.id])) return;
+        var r = /scored (\d)/.exec(i.text);
+        moves.push({time: i.time, kind: classify(i.text), business: (/^([A-Z][^:;,]{2,55}?) scored/.exec(i.text) || [])[1] || "", ai_score: r ? r[1] : "", text: i.text, link: i.link, item_id: i.id});
+      });
     }
     moves = moves.filter(function (x) { return x && x.text; }).map(function (x) { return {t: ms(x.time), kind: x.kind || classify(x.text), biz: x.business || "", score: x.ai_score === "" || x.ai_score == null ? null : Number(x.ai_score), text: maskMoney(x.text), link: x.link || ""}; })
       .sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
