@@ -365,7 +365,7 @@
       var pct = Math.max(0, Math.min(100, r.pct || 0));
       el = h("div", {class: cls}, head(r),
         h("b", {class: "w4-big", style: kStyle(r.k)}, clean(r.a)),
-        h("div", {class: "w4-meter"}, h("u", {style: "width:" + pct + "%;" + (r.k && STATE_COL[r.k] ? "background:" + STATE_COL[r.k] : "")})),
+        h("div", {class: "w4-mbar"}, h("u", {style: "width:" + pct + "%;" + (r.k && STATE_COL[r.k] ? "background:" + STATE_COL[r.k] : "")})),
         r.sub ? h("small", null, clean(r.sub)) : null);
     } else if (w === "bars") {
       var vals = r.values || [], mx = Math.max.apply(null, vals.concat([1]));
@@ -379,7 +379,7 @@
       el = h("div", {class: cls}, head(r), h("div", {class: "w4-gauges"}, r.chips.map(function (c) {
         var pc = c.pct != null ? c.pct : 0;
         return h("div", {class: "w4-gauge"}, h("i", null, clean(c.l)), h("b", {style: kStyle(c.k)}, clean(c.v)),
-          h("div", {class: "w4-meter thin"}, h("u", {style: "width:" + pc + "%;" + (c.k && STATE_COL[c.k] ? "background:" + STATE_COL[c.k] : "")})));
+          h("div", {class: "w4-mbar thin"}, h("u", {style: "width:" + pc + "%;" + (c.k && STATE_COL[c.k] ? "background:" + STATE_COL[c.k] : "")})));
       })));
     } else if (w === "list") {
       el = h("div", {class: cls}, head(r), h("ol", {class: "w4-list"}, r.list.length ? r.list.map(function (it) {

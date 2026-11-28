@@ -351,115 +351,153 @@
      saying what it was. One Knowledge dashboard, clearly: money tiles up top, then two labeled
      modules below — Recent Transactions (the ledger) and Automation (the Keeper run that feeds
      it), each its own box so it's obvious they're two FACETS of one dashboard, not two dashboards. */
+  /* Finance v2 (Nov 28): built on Luna's Plaid sync (Finance Data sheet, synced ~6:45 AM and PM ET).
+     Accounts = current state of 10 accounts at 4 institutions. Balances = one row per account per day
+     (the trend). Transactions: Plaid sign convention, positive = money out. Own-account transfers and
+     card payments (TRANSFER_IN / TRANSFER_OUT / LOAN_PAYMENTS) are left out of spending and income.
+     Recurring (Active only) + Liabilities due dates drive upcoming bills. Display only, no advice. */
+  var FIN_TABS = {acc: "717880774", bal: "1698478831", tx: "1882002263", rec: "2042122858", liab: "2005722675", hold: "179835261"};
+  var FIN = {}; Object.keys(FIN_TABS).forEach(function (k) { FIN[k] = {rows: null, header: null, err: null, loading: false}; });
+  function finRows(k) {
+    var c = FIN[k]; if (!c.rows) return [];
+    var H = c.header; return c.rows.map(function (r) { var o = {}; H.forEach(function (name, i) { o[name] = r[i]; }); return o; });
+  }
+  function num(v) { var n = parseFloat(String(v == null ? "" : v).replace(/[$,]/g, "")); return isNaN(n) ? null : n; }
+  function niceDesc(s) {
+    s = String(s || "").replace(/\b[A-Z0-9]*\d[A-Z0-9*]{6,}\b/g, "").replace(/\b(EDI|PAYMNT|REF|TN|DIR DEP|PPD|ID|WEB)\b\*?/gi, "").replace(/[*#]+/g, " ").replace(/\s{2,}/g, " ").trim();
+    s = s.split(" ").slice(0, 4).join(" ");
+    return s.toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }) || "Unnamed";
+  }
+  var FIN_SKIP = /TRANSFER|LOAN_PAYMENTS/i;
+  function finModel() {
+    var acc = finRows("acc"), now = Date.now(), d30 = now - 30 * 86400000;
+    var cash = 0, inv = 0, owe = 0, limit = 0, updated = null;
+    acc.forEach(function (a) {
+      var cur = num(a["Current"]) || 0, t = ms(a["Updated At"]); if (t && (!updated || t > updated)) updated = t;
+      if (a["Type"] === "depository") cash += cur; else if (a["Type"] === "investment") inv += cur; else if (a["Type"] === "credit") { owe += cur; limit += num(a["Limit"]) || 0; }
+    });
+    var tx = finRows("tx").map(function (r) { return {t: ms(r["Date"]), amt: num(r["Amount"]), cat: String(r["Category"] || ""), name: r["Name"], acct: r["Account"], src: r["Source"]}; }).filter(function (x) { return x.t && x.amt != null; });
+    var spend30 = 0, income30 = 0, byCat = {}, weeks = [0, 0, 0, 0, 0, 0, 0, 0];
+    tx.forEach(function (x) {
+      if (FIN_SKIP.test(x.cat)) return;
+      var wk = Math.floor((now - x.t) / (7 * 86400000));
+      if (x.amt > 0) { if (wk >= 0 && wk < 8) weeks[7 - wk] += x.amt; if (x.t >= d30) { spend30 += x.amt; var c = x.cat.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, function (m) { return m.toUpperCase(); }) || "Other"; byCat[c] = (byCat[c] || 0) + x.amt; } }
+      else if (x.t >= d30) income30 += -x.amt;
+    });
+    var cats = Object.keys(byCat).map(function (k) { return {k: k, v: byCat[k]}; }).sort(function (a, b) { return b.v - a.v; });
+    var PER = {WEEKLY: 7, BIWEEKLY: 14, SEMI_MONTHLY: 15, MONTHLY: 30.4, ANNUALLY: 365};
+    var bills = [];
+    finRows("rec").forEach(function (r) {
+      if (!/yes/i.test(r["Active"] || "") || !/out/i.test(r["Direction"] || "")) return;
+      var last = ms(r["Last Date"]), per = PER[String(r["Frequency"] || "").toUpperCase()]; if (!last || !per) return;
+      var nx = last; while (nx < now - 86400000) nx += per * 86400000;
+      bills.push({t: nx, name: niceDesc(r["Description"]), amt: Math.abs(num(r["Avg Amount"]) || num(r["Last Amount"]) || 0), kind: String(r["Frequency"]).toLowerCase().replace("_", "-")});
+    });
+    finRows("liab").forEach(function (r) {
+      var due = ms(r["Next Due Date"]), bal = num(r["Balance"]) || 0; if (!due || due < now - 86400000 || !bal) return;
+      bills.push({t: due, name: "Card " + String(r["Account"] || "").replace(/^.*··/, "··"), amt: num(r["Min Payment"]) || 0, kind: "card due", bal: bal});
+    });
+    bills.sort(function (a, b) { return a.t - b.t; });
+    var hold = finRows("hold").map(function (r) { return {tk: r["Ticker"], v: num(r["Value"]) || 0, acct: r["Account"]}; }).sort(function (a, b) { return b.v - a.v; });
+    var byDate = {}; finRows("bal").forEach(function (r) {
+      var d = r["Date"], cur = num(r["Current"]) || 0, a = acc.filter(function (x) { return x["Mask"] == r["Mask"]; })[0], ty = a ? a["Type"] : "";
+      byDate[d] = (byDate[d] || 0) + (ty === "credit" ? -cur : cur);
+    });
+    var trend = Object.keys(byDate).sort().map(function (d) { return {d: d, v: byDate[d]}; });
+    return {acc: acc, cash: cash, inv: inv, owe: owe, limit: limit, net: cash + inv - owe, updated: updated, spend30: spend30, income30: income30, cats: cats, weeks: weeks, bills: bills, hold: hold, trend: trend, ready: !!FIN.acc.rows};
+  }
+  function m0(n) { return n == null ? "—" : (n < 0 ? "−" : "") + "$" + Math.round(Math.abs(n)).toLocaleString("en-US"); }
+
   CC.views.Finance = function (api) {
-    var page = h("div", {class: "hp-wrap hp-canvas"});
+    var page = h("div", {class: "hp-wrap hp-canvas fin2"});
     page.appendChild(catHead("Finance", "finance", api));
     var tilesWrap = h("div", {class: "hp-tilesbar"});
     page.appendChild(tilesWrap);
-    var body = canvasBody("1.3fr 1fr", "1fr", []);
+    var body = h("div", {class: "fin2-grid"});
     page.appendChild(body);
 
+    function hbar(label, v, mx, right, cls) {
+      return h("div", {class: "fin2-hb" + (cls ? " " + cls : "")}, h("span", {class: "fin2-hl"}, label), h("div", {class: "fin2-ht"}, h("u", {style: "width:" + (mx ? Math.max(2, v / mx * 100) : 0) + "%"})), h("b", null, right));
+    }
     function paint() {
-      var tiles = [];
-      var total30 = null, count30 = null;
-
-      if (FIN_CACHE.rows) {
-        var hdr = FIN_CACHE.header;
-        var iAmt = col(hdr, "amount"), iDate = col(hdr, "date"), iMerch = col(hdr, "merchant");
-        var now = Date.now(), DAY = 86400000;
-        var last30 = FIN_CACHE.rows.filter(function (r) { var t = iDate != null ? ms(r[iDate]) : null; return t && (now - t) < 30 * DAY; });
-        total30 = last30.reduce(function (s, r) { var v = iAmt != null ? numAt(r, iAmt) : 0; return s + (v || 0); }, 0);
-        count30 = last30.length;
-        var merchants30 = {};
-        last30.forEach(function (r) { var m = iMerch != null ? r[iMerch] : "?"; merchants30[m] = (merchants30[m] || 0) + 1; });
-        var topMerchant = Object.keys(merchants30).sort(function (a, b) { return merchants30[b] - merchants30[a]; })[0] || "—";
-
-        tiles.push(tile("Transactions (30d)", last30.length, "recorded transactions"));
-        tiles.push(tile("Total (30d)", fmtMoney(total30), "net amount"));
-        tiles.push(tile("Top Merchant", topMerchant, merchants30[topMerchant] + " transactions"));
-        tiles.push(tile("All Time", FIN_CACHE.rows.length.toLocaleString(), "total transactions"));
-      } else if (FIN_CACHE.err) {
-        tiles.push(tile("Finance", "!", FIN_CACHE.err, "watch"));
-      } else {
-        tiles.push(tile("Transactions", "…", "loading"));
-      }
-      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
-
-      /* Recent Transactions module */
-      var txBody;
-      if (FIN_CACHE.rows && FIN_CACHE.rows.length) {
-        var thdr = FIN_CACHE.header;
-        var iD = col(thdr, "date"), iA = col(thdr, "amount"), iM = col(thdr, "merchant");
-        var rows = FIN_CACHE.rows.slice(-14).reverse();
-        txBody = h("div", {class: "cat-feed"}, rows.map(function (r) {
-          var amt = iA != null ? numAt(r, iA) : null;
-          return h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-user"}, iM != null ? fmtCell(r[iM]) : "—"),
-            h("span", {class: "cat-feed-name"}, amt != null ? fmtMoney(amt) : ""),
-            h("span", {class: "cat-feed-time"}, iD != null ? fmtDate(r[iD]) : ""));
-        }));
-      } else if (FIN_CACHE.err) {
-        txBody = modPlaceholder("Couldn't load transactions", FIN_CACHE.err);
-      } else {
-        txBody = modPlaceholder(readingText("transactions", FIN_CACHE));
-      }
-
-      /* Automation module — Keeper run status, its own clearly-labeled box */
-      var autoBody;
-      if (FIN_KEEPER_CACHE.rows && FIN_KEEPER_CACHE.rows.length) {
-        var khdr = FIN_KEEPER_CACHE.header;
-        var iTime = col(khdr, "run_time"), iNote = col(khdr, "notes");
-        var latest = FIN_KEEPER_CACHE.rows[FIN_KEEPER_CACHE.rows.length - 1];
-        autoBody = h("div", {class: "cat-feed"},
-          h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-user"}, "Keeper run"),
-            h("span", {class: "cat-feed-name"}, iNote != null ? fmtCell(latest[iNote]).slice(0, 60) : ""),
-            h("span", {class: "cat-feed-time"}, iTime != null ? ago(ms(latest[iTime])) : "—")));
-      } else if (FIN_KEEPER_CACHE.err) {
-        autoBody = modPlaceholder("Couldn't load Keeper runs", FIN_KEEPER_CACHE.err);
-      } else {
-        autoBody = modPlaceholder(readingText("Keeper runs", FIN_KEEPER_CACHE));
-      }
-
+      var m = finModel();
+      tilesWrap.innerHTML = "";
+      tilesWrap.appendChild(tileGrid([
+        tile("Net worth", m.ready ? m0(m.net) : "…", "cash + invested − cards", m.ready ? (m.net >= 0 ? "good" : "watch") : ""),
+        tile("Cash", m.ready ? m0(m.cash) : "…", "checking and savings"),
+        tile("Invested", m.ready ? m0(m.inv) : "…", "M1 brokerage + Roth IRA"),
+        tile("Cards owe", m.ready ? m0(m.owe) : "…", m.limit ? Math.round(m.owe / m.limit * 100) + "% of " + m0(m.limit) + " limit" : "", m.limit && m.owe / m.limit > 0.3 ? "watch" : ""),
+        tile("Spent, 30 days", FIN.tx.rows ? m0(m.spend30) : "…", "excludes transfers and card payments"),
+        tile("Income, 30 days", FIN.tx.rows ? m0(m.income30) : "…", "")
+      ]));
       body.innerHTML = "";
-      body.appendChild(mod("Recent Transactions", null, null, txBody));
-      body.appendChild(mod("Automation", null, null, autoBody));
+      /* accounts */
+      var byInst = {}; m.acc.forEach(function (a) { (byInst[a["Institution"]] = byInst[a["Institution"]] || []).push(a); });
+      var mxA = Math.max.apply(null, m.acc.map(function (a) { return num(a["Current"]) || 0; }).concat([1]));
+      var accBody = m.acc.length ? h("div", {class: "fin2-acc"}, Object.keys(byInst).map(function (inst) {
+        return h("div", {class: "fin2-inst"}, h("h4", null, inst), byInst[inst].map(function (a) {
+          var cur = num(a["Current"]) || 0, cr = a["Type"] === "credit";
+          return hbar(String(a["Account"]).toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }) + " ··" + a["Mask"], cur, mxA, (cr && cur ? "−" : "") + m0(cur), cr ? "cr" : a["Type"] === "investment" ? "inv" : "");
+        }));
+      })) : modPlaceholder(FIN.acc.err ? "Couldn't load accounts" : readingText("accounts", FIN.acc), FIN.acc.err || "");
+      body.appendChild(mod("Accounts", null, h("span", {class: "hc-r"}, m.updated ? "Plaid · updated " + ago(m.updated) : ""), accBody, false));
+      /* spending */
+      var mxC = m.cats.length ? m.cats[0].v : 1, mxW = Math.max.apply(null, m.weeks.concat([1]));
+      var spBody = FIN.tx.rows ? h("div", {class: "fin2-sp"},
+        h("div", {class: "fin2-weeks", title: "Spending per week, last 8 weeks"}, m.weeks.map(function (v, i) { return h("div", {class: "fin2-wk"}, h("u", {style: "height:" + (v ? Math.max(3, v / mxW * 100) : 0) + "%"}), h("i", null, i === 7 ? "this wk" : (7 - i) + "w")); })),
+        h("div", {class: "fin2-cats"}, m.cats.slice(0, 7).map(function (c) { return hbar(c.k, c.v, mxC, m0(c.v)); })))
+        : modPlaceholder(readingText("transactions", FIN.tx));
+      body.appendChild(mod("Spending", null, h("span", {class: "hc-r"}, "30 days by category · 8 weeks"), spBody, false));
+      /* bills */
+      var billBody = (FIN.rec.rows || FIN.liab.rows) ? (m.bills.length ? h("div", {class: "fin2-bills"}, m.bills.slice(0, 8).map(function (b) {
+        var d = new Date(b.t), dd = Math.round((new Date(b.t).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
+        return h("div", {class: "fin2-bill"}, h("span", {class: "w4-calpage"}, h("i", null, d.toLocaleDateString("en-US", {month: "short"}).toUpperCase()), h("b", null, String(d.getDate()))),
+          h("div", {class: "fin2-bm"}, h("b", null, b.name), h("small", null, b.kind + (b.bal ? " · balance " + m0(b.bal) : ""))),
+          h("div", {class: "fin2-br"}, h("b", null, b.amt ? m0(b.amt) : "—"), h("small", {class: dd <= 3 ? "soon" : ""}, dd <= 0 ? "today" : dd === 1 ? "tomorrow" : "in " + dd + " days")));
+      })) : modPlaceholder("No bills coming up")) : modPlaceholder(readingText("recurring bills", FIN.rec));
+      body.appendChild(mod("Upcoming bills", null, null, billBody, false));
+      /* holdings + trend */
+      var totH = m.hold.reduce(function (a, x) { return a + x.v; }, 0), PAL = ["#5b9bd5", "#6bbf59", "#e0b23e", "#d583c9", "#4fbfb0", "#d98c5f", "#8d6fd1"];
+      var holdBody = m.hold.length ? h("div", {class: "fin2-hold"},
+        h("div", {class: "fin2-alloc"}, m.hold.map(function (x, i) { return h("i", {style: "flex:" + x.v + ";background:" + PAL[i % PAL.length], title: x.tk + " " + m0(x.v)}); })),
+        h("div", {class: "fin2-hlist"}, m.hold.map(function (x, i) { return h("div", {class: "fin2-hrow"}, h("i", {style: "background:" + PAL[i % PAL.length]}), h("b", null, x.tk), h("small", null, String(x.acct || "").replace(/ ··\d+$/, "")), h("span", null, m0(x.v) + " · " + Math.round(x.v / totH * 100) + "%")); })),
+        h("div", {class: "fin2-trend"}, m.trend.length > 1 ? sparkLine(m.trend.map(function (x) { return x.v; })) : h("small", null, "Net worth trend builds one point per day from the Balances tab (" + m.trend.length + " so far).")))
+        : modPlaceholder(readingText("holdings", FIN.hold));
+      body.appendChild(mod("Investments", null, h("span", {class: "hc-r"}, totH ? m0(totH) + " in " + m.hold.length + " funds" : ""), holdBody, false));
 
-      if (CC.setCatSummary) {
-        var line = total30 != null ? fmtMoney(total30) + " over " + count30 + " transaction" + (count30 === 1 ? "" : "s") + " (30d)" : "Loading transactions…";
+      /* Wall card */
+      if (m.ready) {
+        var nb = m.bills[0];
         answers("Finance", [
-          {w: "stat", icon: "bank", q: "Bank accounts", a: "Connecting through Plaid", sub: "About 10 accounts, set up by Luna", k: "off"},
-          {w: "stat", span: 1, icon: "cash", q: "Transactions, 30 days", a: count30 != null ? String(count30) : "—", sub: "from the current ledger"},
-          {w: "stat", span: 1, icon: "file", q: "All time", a: FIN_CACHE.rows ? FIN_CACHE.rows.length.toLocaleString() : "—", sub: "transactions logged"}
-        ]);
-        CC.setCatSummary("Finance", line, false, [
-          {value: count30 != null ? String(count30) : "—", label: "Transactions (30d)"},
-          {value: total30 != null ? fmtMoney(total30) : "—", label: "Total (30d)"},
-          {value: FIN_CACHE.rows ? FIN_CACHE.rows.length.toLocaleString() : "—", label: "All time"}
-        ]);
+          {w: "stat", icon: "bank", q: "Net worth", a: m0(m.net), sub: "cash " + m0(m.cash) + " · invested " + m0(m.inv) + " · cards " + m0(m.owe), k: m.net >= 0 ? "good" : "bad"},
+          {w: "stat", span: 1, icon: "cash", q: "Spent, 30 days", a: FIN.tx.rows ? m0(m.spend30) : "…", sub: "no transfers"},
+          {w: "stat", span: 1, icon: "trend", q: "Income, 30 days", a: FIN.tx.rows ? m0(m.income30) : "…", sub: m.cats[0] ? "top spend: " + m.cats[0].k : ""},
+          {w: "cal", q: "Next bill", t: nb ? nb.t : null, a: nb ? nb.name + (nb.amt ? " · " + m0(nb.amt) : "") : "None coming up"},
+          {w: "bars", q: "Spending per week", values: m.weeks.map(Math.round), labels: m.weeks.map(function (v, i) { return i === 7 ? "now" : ""; }), a: m0(m.weeks.reduce(function (a, b) { return a + b; }, 0)) + " in 8 weeks"}
+        ], CC.feedHealth(m.updated, 12, FIN.acc.err));
       }
+      if (CC.setCatSummary && m.ready) CC.setCatSummary("Finance", m0(m.net) + " net worth", false, [{value: m0(m.cash), label: "Cash"}, {value: m0(m.inv), label: "Invested"}, {value: m0(m.owe), label: "Cards owe"}]);
+    }
+    function sparkLine(vals) {
+      var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), W = 300, H = 50, rng = mx - mn || 1;
+      var pts = vals.map(function (v, i) { return (i / (vals.length - 1) * W).toFixed(1) + "," + (H - (v - mn) / rng * (H - 6) - 3).toFixed(1); }).join(" ");
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("class", "fin2-spark");
+      var pl = document.createElementNS("http://www.w3.org/2000/svg", "polyline"); pl.setAttribute("points", pts); pl.setAttribute("fill", "none"); pl.setAttribute("stroke", "currentColor"); pl.setAttribute("stroke-width", "2");
+      svg.appendChild(pl); return svg;
     }
     paint();
-
-    if (!FIN_CACHE.rows && !FIN_CACHE.err)
-      loadSheet(FIN_DATA, "1743978522", api, FIN_CACHE, paint, 3000, "Finance");
-    if (!FIN_KEEPER_CACHE.rows && !FIN_KEEPER_CACHE.err)
-      loadSheet(FIN_DATA, "1919467528", api, FIN_KEEPER_CACHE, paint, 500, "Keeper Runs");
-
+    Object.keys(FIN_TABS).forEach(function (k) {
+      if (!FIN[k].rows && !FIN[k].loading && !FIN[k].err) loadSheet(FIN_DATA, FIN_TABS[k], api, FIN[k], paint, k === "tx" ? 5000 : k === "bal" ? 5000 : 200, "Finance " + k);
+    });
     return page;
   };
-
   CC.views.FinanceData = infoPage(FIN_DATA, [
-    {id: "finance", label: "Transactions", gid: "1743978522", cols: function (hdr) {
-      return ["date", "amount", "merchant", "source_file"].map(function (name) {
-        var i = col(hdr, name);
-        return {label: name.replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); }),
-          sortVal: name === "date" ? function (r) { return i != null ? ms(r[i]) : null; } : name === "amount" ? function (r) { return numAt(r, i); } : function (r) { return i != null ? r[i] : ""; },
-          render: name === "date" ? function (r) { return i != null ? fmtDate(r[i]) : ""; } : name === "amount" ? function (r) { var v = numAt(r, i); return v != null ? fmtMoney(v) : ""; } : function (r) { return i != null ? fmtCell(r[i]) : ""; }};
-      });
-    }},
-    {id: "keeper-runs", label: "Keeper Runs", gid: "1919467528"},
-    {id: "keeper-daily", label: "Keeper Daily", gid: "1029881691"}
+    {id: "accounts", label: "Accounts", gid: "717880774"},
+    {id: "balances", label: "Balances", gid: "1698478831"},
+    {id: "transactions", label: "Transactions", gid: "1882002263", cap: 5000},
+    {id: "recurring", label: "Recurring", gid: "2042122858"},
+    {id: "liabilities", label: "Liabilities", gid: "2005722675"},
+    {id: "holdings", label: "Holdings", gid: "179835261"}
   ], "FinanceData");
 
 
@@ -1053,7 +1091,7 @@
         var b3 = lastD && iB3 != null ? numAt(lastD, iB3) : null, t3 = lastD && iS3 != null ? ms(lastD[iS3]) : null;
         var rh3 = PC.reminders.header || [], iO3 = col(rh3, "open_reminders"), rem = reminderRows.length && iO3 != null ? reminderRows[reminderRows.length - 1][iO3] : null;
         var wk = [], wl = [];
-        for (var wi = 6; wi >= 0; wi--) { var wt = Date.now() - wi * 86400000; wk.push(byDay[dayKey2(wt)] || 0); wl.push(new Date(wt).toLocaleDateString("en-US", {weekday: "narrow"})); }
+        for (var wi = 6; wi >= 0; wi--) { var wt = Date.now() - wi * 86400000; wk.push(byDay ? byDay[dayKey2(wt)] || 0 : 0); wl.push(new Date(wt).toLocaleDateString("en-US", {weekday: "narrow"})); }
         answers("Personal", [
           {w: "cal", q: "Next on the calendar", t: nextE ? nextE.t : null, a: nextE ? nextE.ti.slice(0, 60) : "Nothing coming up", sub: nextE ? whenTxt(nextE.t) : ""},
           {w: "stat", span: 1, icon: "msg", q: "Messages today", a: PC.messages.rows ? String(byDay[today] || 0) : "—", sub: PC.messages.rows ? (byDay[dayKey2(Date.now() - 86400000)] || 0) + " yesterday" : ""},
@@ -1509,8 +1547,8 @@
         var okN = R.filter(function (x) { return x.h.cls === "good"; }).length;
         var openT = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; }).length;
         answers("Hub Core / Admin", [
-          {w: "stat", span: 1, icon: "check", q: "Routines healthy", a: okN + " / " + R.length, sub: Math.round(okN / R.length * 100) + "% on schedule", k: okN / R.length >= 0.85 ? "good" : "warn"},
-          {w: "stat", span: 1, icon: "alert", q: "Need attention", a: String(R.length - okN), sub: openT + " open tasks in the queue", k: R.length - okN ? "warn" : "good"},
+          {w: "stat", span: 1, icon: "check", q: "Healthy", a: okN + " / " + R.length, sub: Math.round(okN / R.length * 100) + "% on schedule", k: okN / R.length >= 0.85 ? "good" : "warn"},
+          {w: "stat", span: 1, icon: "alert", q: "Need attention", a: String(R.length - okN), sub: openT + " open tasks", k: R.length - okN ? "warn" : "good"},
           {w: "list", rows: 2, q: "Last routines run", list: recent.map(function (x) {
             return {a: x.name, sub: ago(x.t) + (x.status ? " · " + x.status : ""), k: /fail|error/i.test(x.status) ? "bad" : x.h.cls === "good" ? "good" : "warn"};
           })}
@@ -1715,8 +1753,8 @@
         var line = invCount != null ? invCount.toLocaleString() + " items tracked" : "Loading inventory…";
         answers("Records & Files", [
           {w: "stat", icon: "file", q: "Items tracked", a: invCount != null ? invCount.toLocaleString() : "—", sub: "in the records inventory"},
-          {w: "stat", span: 1, icon: "check", q: "Room inventory", a: "Not wired", sub: "coming soon", k: "off"},
-          {w: "stat", span: 1, icon: "check", q: "File registry", a: "Not wired", sub: "coming soon", k: "off"}
+          {w: "stat", span: 1, icon: "check", q: "Room inventory", a: "Soon", sub: "not wired yet", k: "off"},
+          {w: "stat", span: 1, icon: "check", q: "File registry", a: "Soon", sub: "not wired yet", k: "off"}
         ], REC_INV_CACHE.err ? CC.feedHealth(null, 24, REC_INV_CACHE.err) : REC_INV_CACHE.rows ? {pct: 100, k: "good", note: "inventory read OK"} : null);
         CC.setCatSummary("Records & Files", line, false, [
           {value: invCount != null ? invCount.toLocaleString() : "—", label: "Inventory items"},

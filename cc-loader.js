@@ -25,9 +25,9 @@
     "#ccl .wm{font-size:12px;font-weight:700;letter-spacing:.34em;color:rgba(255,255,255,.55)}" +
     "#ccl .icons{display:grid;grid-template-columns:repeat(10,1fr);gap:10px}" +
     "#ccl .ic{display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.22);transition:color .3s ease}" +
-    "#ccl .ic b{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);transition:background .3s ease,border-color .3s ease,color .3s ease}" +
+    "#ccl .ic .sq{flex:none;box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;line-height:0;border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1);transition:background .3s ease,border-color .3s ease,color .3s ease}#ccl .ic .sq svg{display:block}" +
     "#ccl .ic i{font-style:normal;font-size:10px;letter-spacing:.08em;text-transform:uppercase}" +
-    "#ccl .ic.on{color:#e9ecf2}#ccl .ic.on b{background:var(--c);border-color:var(--c);color:#0b0d12}" +
+    "#ccl .ic.on{color:#e9ecf2}#ccl .ic.on .sq{background:var(--c);border-color:var(--c);color:#0b0d12}" +
     "#ccl .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}" +
     "#ccl .bar u{display:block;height:100%;width:0;background:#e9ecf2;transition:width .3s linear}" +
     "#ccl .row{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:rgba(255,255,255,.7)}" +
@@ -43,7 +43,7 @@
   var iconsEl = root.querySelector(".icons"), barEl = root.querySelector(".bar u"), nowEl = root.querySelector(".now"), leftEl = root.querySelector(".left");
   var cells = CATS.map(function (c) {
     var d = document.createElement("div"); d.className = "ic"; d.style.setProperty("--c", c[2]);
-    d.innerHTML = "<b></b><i>" + c[1] + "</i>"; iconsEl.appendChild(d); return d;
+    d.innerHTML = "<span class=\"sq\"></span><i>" + c[1] + "</i>"; iconsEl.appendChild(d); return d;
   });
   (function mount() { if (document.body) document.body.appendChild(root); else setTimeout(mount, 10); })();
 
