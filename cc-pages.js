@@ -281,15 +281,120 @@
       onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } }}, s);
   }
 
-  function answerRow(r) {
-    var kc = r.k && STATE_COL[r.k] ? "color:" + STATE_COL[r.k] : null;
-    if (r.chips) return h("div", {class: "wv3-row"}, h("span", {class: "wv3-q"}, r.q),
-      h("div", {class: "wv3-chips"}, r.chips.map(function (c) { return h("span", {class: "wv3-chip"}, h("i", null, c.l), h("b", {style: c.k && STATE_COL[c.k] ? "color:" + STATE_COL[c.k] : null}, c.v)); })));
-    if (r.list) return h("div", {class: "wv3-row"}, h("span", {class: "wv3-q"}, r.q),
-      h("ol", {class: "wv3-list"}, r.list.length ? r.list.map(function (it) { return h("li", null, h("b", {style: it.k && STATE_COL[it.k] ? "color:" + STATE_COL[it.k] : null}, it.a), it.sub ? h("small", null, it.sub) : null); }) : h("li", null, h("small", null, "Nothing yet"))));
-    return h("div", {class: "wv3-row"}, h("span", {class: "wv3-q"}, r.q),
-      h("b", {class: "wv3-a", style: kc}, r.a == null ? "—" : String(r.a)), r.sub ? h("small", {class: "wv3-sub"}, r.sub) : null);
+  /* Wall v4 widgets (Nov 28, JD: "show, don't tell", fill the card top to bottom, no emojis).
+     A card body is a 2-column grid whose rows share the card height. Widget spec:
+       {w:"stat", q, a, sub, k, icon, span}       number or short fact in a box
+       {w:"cal", q, t, a, sub, k, span}           calendar-page date + countdown ("in 2 days", "in 5 h")
+       {w:"ago", q, t, a, sub, k, icon, span}     time-since badge for the last event
+       {w:"meter", q, a, pct, sub, k, span}       labelled bar 0-100
+       {w:"bars", q, values, labels, a, sub, k, span, rows}  mini column chart
+       {w:"chips", q, chips:[{l, v, pct, k}]}     row of small gauges
+       {w:"list", q, list:[{a, sub, k}], rows}    numbered list
+     Old rows ({q,a,sub} / {chips} / {list}) still render. */
+  var WI = {
+    cal: "M4 6.5h16v13.5H4z M4 10.5h16 M8.5 4v4 M15.5 4v4",
+    clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7.5V12l3 2",
+    pin: "M12 21s7-7.6 7-12.4A7 7 0 0 0 5 8.6C5 13.4 12 21 12 21z M12 11.3a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2z",
+    users: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5 M16 4.3a3.5 3.5 0 0 1 0 6.4 M18 14.8c1.8.7 3 2.4 3.5 5.2",
+    inbox: "M3 13l3-8h12l3 8v6H3z M3 13h5l1.5 2.5h5L16 13h5",
+    send: "M21 3L10 14 M21 3l-7 18-4-7-7-4z",
+    car: "M5 16.5h14 M6.5 16.5V19 M17.5 16.5V19 M4 16.5v-4l2-5.5h12l2 5.5v4 M4.5 12h15",
+    cash: "M3 7h18v10H3z M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M6 10v4 M18 10v4",
+    lift: "M3 12h18 M6 8v8 M18 8v8 M3.5 10v4 M20.5 10v4",
+    run: "M13.5 5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M7 21l3-6 3 2v5 M10 15l1-6 4 3 3 1 M11 9L7 10l-2 3",
+    moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z",
+    msg: "M4 5h16v11H9l-5 4z",
+    bell: "M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z M10 20.5h4",
+    battery: "M3 8h15v8H3z M20 10.5v3",
+    radio: "M5 9h14v11H5z M8 6l9-3 M12 14.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M8 17.5h8",
+    alert: "M12 3l9.5 17h-19z M12 10v4.5 M12 17.5v.5",
+    shift: "M4 7h16v13H4z M9 7V4.5h6V7 M4 12h16",
+    user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4.5 21c1-4 3.8-6 7.5-6s6.5 2 7.5 6",
+    heart: "M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z",
+    trend: "M3 17l6-6 4 4 8-8 M15 7h6v6",
+    file: "M6 3h8l4 4v14H6z M14 3v4h4",
+    check: "M5 12.5l4.5 4.5L19 7.5",
+    bank: "M3 9.5L12 4l9 5.5 M5 10v8 M9.5 10v8 M14.5 10v8 M19 10v8 M3 20h18",
+    down: "M12 4v15 M6 13l6 6 6-6"
+  };
+  function wIcon(name, size) {
+    var d = WI[name]; if (!d) return null;
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("width", size || 16); s.setAttribute("height", size || 16); s.setAttribute("aria-hidden", "true");
+    var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d); p.setAttribute("fill", "none"); p.setAttribute("stroke", "currentColor"); p.setAttribute("stroke-width", "1.8"); p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round");
+    s.appendChild(p); return s;
   }
+  var EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu;
+  function clean(v) { return v == null ? "" : String(v).replace(EMOJI_RE, "").replace(/\s{2,}/g, " ").trim(); }
+  CC.noEmoji = clean;
+  function kStyle(k) { return k && STATE_COL[k] ? "color:" + STATE_COL[k] : null; }
+  var MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  function countdown(t) {
+    var ms = t - Date.now(), hrs = ms / 3600000;
+    if (ms < 0) { var ag = -hrs; return ag < 1 ? "just now" : ag < 24 ? Math.round(ag) + " h ago" : Math.round(ag / 24) + " days ago"; }
+    if (hrs < 1) return "in " + Math.max(1, Math.round(ms / 60000)) + " min";
+    if (hrs < 24) return "in " + Math.round(hrs) + " h";
+    var d0 = new Date(); d0.setHours(0, 0, 0, 0); var dd = Math.round((new Date(t).setHours(0, 0, 0, 0) - d0) / 86400000);
+    return dd === 1 ? "tomorrow" : "in " + dd + " days";
+  }
+  function agoTxt(t) {
+    var m = (Date.now() - t) / 60000;
+    if (m < 60) return Math.max(1, Math.round(m)) + "m"; if (m < 2880) return Math.round(m / 60) + "h"; return Math.round(m / 1440) + "d";
+  }
+  function head(r) { return h("div", {class: "w4-q"}, r.icon ? wIcon(r.icon, 13) : null, h("span", null, clean(r.q))); }
+  function widget(r) {
+    var w = r.w || (r.list ? "list" : r.chips ? "chips" : "stat");
+    var span = r.span || (w === "list" || w === "chips" || w === "bars" ? 2 : 2);
+    var cls = "w4 w4-" + w + (span === 1 ? " w4-s1" : " w4-s2") + (r.rows === 2 ? " w4-r2" : "");
+    var el;
+    if (w === "cal") {
+      var d = r.t ? new Date(r.t) : null;
+      el = h("div", {class: cls},
+        h("div", {class: "w4-calpage" + (d ? "" : " off")}, h("i", null, d ? MON[d.getMonth()] : "—"), h("b", null, d ? String(d.getDate()) : "?")),
+        h("div", {class: "w4-cal-txt"}, head(r),
+          h("b", {class: "w4-big", style: kStyle(r.k)}, d ? countdown(r.t) : clean(r.a || "Nothing booked")),
+          r.a && d ? h("span", {class: "w4-line"}, clean(r.a)) : null,
+          r.sub ? h("small", null, clean(r.sub)) : null));
+    } else if (w === "ago") {
+      el = h("div", {class: cls},
+        h("div", {class: "w4-agoring", style: kStyle(r.k)}, wIcon(r.icon || "clock", 15), h("b", null, r.t ? agoTxt(r.t) : "—")),
+        h("div", {class: "w4-cal-txt"}, h("div", {class: "w4-q"}, h("span", null, clean(r.q))),
+          h("b", {class: "w4-line strong"}, clean(r.a || "—")), r.sub ? h("small", null, clean(r.sub)) : null));
+    } else if (w === "meter") {
+      var pct = Math.max(0, Math.min(100, r.pct || 0));
+      el = h("div", {class: cls}, head(r),
+        h("b", {class: "w4-big", style: kStyle(r.k)}, clean(r.a)),
+        h("div", {class: "w4-meter"}, h("u", {style: "width:" + pct + "%;" + (r.k && STATE_COL[r.k] ? "background:" + STATE_COL[r.k] : "")})),
+        r.sub ? h("small", null, clean(r.sub)) : null);
+    } else if (w === "bars") {
+      var vals = r.values || [], mx = Math.max.apply(null, vals.concat([1]));
+      el = h("div", {class: cls}, h("div", {class: "w4-barhead"}, head(r), r.a != null ? h("b", {class: "w4-mid", style: kStyle(r.k)}, clean(r.a)) : null),
+        h("div", {class: "w4-cols"}, vals.map(function (v, i) {
+          return h("div", {class: "w4-col", title: (r.labels && r.labels[i] ? r.labels[i] + ": " : "") + v},
+            h("u", {style: "height:" + (v ? Math.max(4, v / mx * 100) : 0) + "%"}), r.labels && r.labels[i] != null ? h("i", null, r.labels[i]) : null);
+        })),
+        r.sub ? h("small", null, clean(r.sub)) : null);
+    } else if (w === "chips") {
+      el = h("div", {class: cls}, head(r), h("div", {class: "w4-gauges"}, r.chips.map(function (c) {
+        var pc = c.pct != null ? c.pct : 0;
+        return h("div", {class: "w4-gauge"}, h("i", null, clean(c.l)), h("b", {style: kStyle(c.k)}, clean(c.v)),
+          h("div", {class: "w4-meter thin"}, h("u", {style: "width:" + pc + "%;" + (c.k && STATE_COL[c.k] ? "background:" + STATE_COL[c.k] : "")})));
+      })));
+    } else if (w === "list") {
+      el = h("div", {class: cls}, head(r), h("ol", {class: "w4-list"}, r.list.length ? r.list.map(function (it) {
+        return h("li", null, h("b", {style: kStyle(it.k)}, clean(it.a)), it.sub ? h("small", null, clean(it.sub)) : null);
+      }) : h("li", null, h("small", null, "Nothing yet"))));
+    } else {
+      el = h("div", {class: cls + (r.icon ? " w4-hasicon" : "")},
+        r.icon ? h("div", {class: "w4-ibadge", style: kStyle(r.k)}, wIcon(r.icon, 18)) : null,
+        h("div", {class: "w4-stat-txt"}, h("div", {class: "w4-q"}, h("span", null, clean(r.q))),
+          h("b", {class: span === 1 ? "w4-big" : "w4-line strong", style: kStyle(r.k)}, r.a == null ? "—" : clean(r.a)),
+          r.sub ? h("small", null, clean(r.sub)) : null));
+    }
+    return el;
+  }
+  function answerRow(r) { return widget(r); }
   function dataHealth(name, ans) {
     var parts = [], rh = CC.routineHealth ? CC.routineHealth(name) : null, ah = ans && ans.health;
     if (rh) parts.push(rh); if (ah && ah.pct != null) parts.push(ah);
@@ -323,7 +428,7 @@
            The meter is DATA health: is the workflow reporting this category fresh and working. */
         var ans = CC.catAnswers && CC.catAnswers[g.name];
         var meter = dataHealth(g.name, ans);
-        var body = h("div", {class: "wv3-body"});
+        var body = h("div", {class: "wv3-body w4-grid"});
         if (ans && ans.answers && ans.answers.length) ans.answers.forEach(function (r) { body.appendChild(answerRow(r)); });
         else {
           var rows = summary && summary.stats && summary.stats.length ? summary.stats : null;

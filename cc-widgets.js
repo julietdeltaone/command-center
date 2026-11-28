@@ -238,7 +238,7 @@
       strip.appendChild(h("div", {class: "td" + (d === 0 ? " today" : "") + (ev.length ? "" : " idle"), style: "--h:" + Math.round(ev.length / mx * 100)},
         h("div", {class: "td-h"}, h("div", null, h("span", {class: "td-d"}, d === 0 ? "Today" : d === 1 ? "Tomorrow" : DAYS[dt.getDay()]), h("span", {class: "td-n"}, (dt.getMonth() + 1) + "/" + dt.getDate())), h("span", {class: "td-c"}, String(ev.length))),
         h("div", {class: "td-heat"}, h("i", {style: "width:" + Math.round(ev.length / mx * 100) + "%"})),
-        dl ? h("div", {class: "td-sun"}, "☀ " + fmtHr(dl.rise) + " – " + fmtHr(dl.set) + " · " + Math.floor(dl.hrs) + "h " + Math.round((dl.hrs % 1) * 60) + "m light") : null, list));
+        dl ? h("div", {class: "td-sun"}, "Sun " + fmtHr(dl.rise) + " – " + fmtHr(dl.set) + " · " + Math.floor(dl.hrs) + "h " + Math.round((dl.hrs % 1) * 60) + "m light") : null, list));
     })(d2);
     flushGap();
     var scan = api.moduleStatus ? api.moduleStatus("Events") : null;

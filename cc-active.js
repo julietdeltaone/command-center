@@ -66,13 +66,13 @@
   /* ---------- ledger counts (unchanged logic from v5; nothing here renders a client's name) ---------- */
   function counts(api) {
     var now = nowOf(api), led = CC.crm.list(api), leads = CC.nurture.list(api);
-    var you = 0, client = 0, sched = 0, owed = 0, toCollect = 0, nextD = null, done = 0;
+    var you = 0, client = 0, sched = 0, owed = 0, toCollect = 0, nextD = null, nextT = null, done = 0;
     led.forEach(function (p) {
       if (p.cancelled) return;
       if (p.fulfilled) { if (!p.delivered) owed++; else done++; return; }
       toCollect += p.balance > 0 ? p.balance : 0;
       var d = p.dateMs != null ? dayDelta(p.dateMs, now) : null;
-      if (d != null && (nextD == null || d < nextD) && d >= 0) nextD = d;
+      if (d != null && (nextD == null || d < nextD) && d >= 0) { nextD = d; nextT = p.dateMs; }
       if (d != null && d <= 0) you++;
       else if (/not started|negotiat|contract sent|inquiry|unsigned|preparing contract/i.test(String(p.status || "") + " " + String(p.payment || ""))) client++;
       else if (p.balance > 0 && d != null && d <= 14) you++;
@@ -82,7 +82,7 @@
       var open = n.next.concat(n.need), w = String(n.waiting || "");
       if (/^you/i.test(w) || (!/^client/i.test(w) && open.length)) you++; else client++;
     });
-    return {you: you, client: client, sched: sched, owed: owed, done: done, toCollect: toCollect, nextD: nextD, open: you + client + sched};
+    return {you: you, client: client, sched: sched, owed: owed, done: done, toCollect: toCollect, nextD: nextD, nextT: nextT, open: you + client + sched};
   }
 
   function ledgerTiles(api) {
@@ -200,6 +200,7 @@
   var MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function dshort(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? MONS[+m[2] - 1] + " " + (+m[3]) : ""; }
   function cleanName(s) { return String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, "").replace(/\s+/g, " ").trim(); }
+  CC.pulse = {load: function (cb) { loadPulse(cb); }, me: function (api) { var pm = pulseModel(api); return pm ? pm.list.filter(function (b) { return b.me; })[0] || null : null; }};
   function pulseModel(api) {
     var D = PULSE.data; if (!D) return null;
     var asof = dnum(etIso(nowOf(api))), age = function (s) { var n = dnum(s); return n == null ? null : asof - n; };
@@ -385,11 +386,13 @@
         if (pm) pm.list.forEach(function (b) { if (b.me || !b.lastPost) return; if (!lastC || b.lastPost > lastC.d) lastC = {d: b.lastPost, n: b.name}; });
         var short = {"LinkedIn": "LinkedIn", "Instagram": "Instagram", "Facebook": "Facebook", "Google Business Profile": "Google"};
         var nd = L.c.nextD;
+        var lastT = null; if (lastC) { var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(lastC.d); if (mm) lastT = new Date(+mm[1], +mm[2] - 1, +mm[3], 12).getTime(); }
         CC.setCatAnswers("Business", {answers: [
-          {q: "Last competitor post", a: lastC ? lastC.n : (PULSE.err ? "Couldn't read" : "Reading…"), sub: lastC ? dshort(lastC.d) + " · " + (function (a) { return a <= 0 ? "today" : a === 1 ? "yesterday" : a + " days ago"; })(pm.asof - dnum(lastC.d)) : "", k: "n"},
-          {q: "Clients waiting on you", a: String(L.c.you), sub: L.c.client + " waiting on the client", k: L.c.you ? "bad" : "good"},
-          {q: "Since your last post", chips: sw.model.channels.map(function (r) { return {l: short[r.name] || r.name, v: r.d == null ? "—" : r.d + "d", k: r.k}; })},
-          {q: "Next shoot", a: nd == null ? "None booked" : nd === 0 ? "Today" : nd === 1 ? "Tomorrow" : "in " + nd + " days", k: nd != null && nd <= 2 ? "warn" : "n"}
+          {w: "stat", span: 1, icon: "inbox", q: "Waiting on you", a: String(L.c.you), sub: L.c.you === 1 ? "client" : "clients", k: L.c.you ? "bad" : "good"},
+          {w: "stat", span: 1, icon: "send", q: "Waiting on clients", a: String(L.c.client), sub: L.c.client === 1 ? "client" : "clients", k: "n"},
+          {w: "cal", q: "Next shoot", t: L.c.nextT, a: L.c.nextT ? new Date(L.c.nextT).toLocaleDateString([], {weekday: "long", month: "long", day: "numeric", year: "numeric"}) : "None booked", k: L.c.nextD != null && L.c.nextD <= 2 ? "warn" : null},
+          {w: "chips", q: "Days since your last post", chips: sw.model.channels.map(function (r) { return {l: short[r.name] || r.name, v: r.d == null ? "—" : r.d + "d", k: r.k, pct: r.d == null ? 0 : Math.min(100, r.d / ((r.target || 7) * 3) * 100)}; })},
+          {w: "ago", q: "Last competitor post", icon: "trend", t: lastT, a: lastC ? lastC.n : (PULSE.err ? "Couldn't read Pulse" : "Reading…"), sub: lastC ? "on Instagram · " + dshort(lastC.d) : ""}
         ]});
       })();
       if (CC.setCatSummary) {

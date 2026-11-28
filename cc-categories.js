@@ -246,100 +246,83 @@
   var SOC_UNFOLLOWERS_CACHE = {rows: null, header: null, err: null, loading: false};
   var SOC_EXPORTS_CACHE = {rows: null, header: null, err: null, loading: false};
 
+  /* Social v2 (Nov 28, JD): Instagram on the left, Facebook on the right, newest first.
+     Source of truth for unfollows = Social Data > Social (Luna's watch: 3 Instagram accounts + Facebook
+     friends). Follower count comes from Business Pulse's live Instagram pull for @jdmeyersproductions,
+     because the IG Exports tab only holds partial monthly export files (its follower column is not
+     reliable: 97, 10, 9, 2, 25, 2). */
+  function socModel() {
+    var hd = SOC_UNFOLLOWERS_CACHE.header || [], iD = col(hd, "date_detected"), iP = col(hd, "platform"), iA = col(hd, "account"), iU = col(hd, "username"), iN = col(hd, "name"), iNo = col(hd, "note");
+    var rows = (SOC_UNFOLLOWERS_CACHE.rows || []).map(function (r) {
+      return {t: iD != null ? ms(r[iD]) : null, p: iP != null ? String(r[iP] || "") : "", acct: iA != null ? String(r[iA] || "") : "", u: iU != null ? String(r[iU] || "") : "", n: iN != null ? String(r[iN] || "") : "", note: iNo != null ? String(r[iNo] || "") : ""};
+    }).filter(function (x) { return x.t; }).sort(function (a, b) { return b.t - a.t; });
+    var ig = rows.filter(function (x) { return /insta/i.test(x.p); }), fb = rows.filter(function (x) { return /face/i.test(x.p); });
+    function within(list, days) { return list.filter(function (x) { return Date.now() - x.t < days * 86400000; }); }
+    function weeks(list, n) { var out = [], d0 = Date.now(); for (var i = n - 1; i >= 0; i--) { var a = d0 - (i + 1) * 7 * 86400000, b = d0 - i * 7 * 86400000; out.push(list.filter(function (x) { return x.t > a && x.t <= b; }).length); } return out; }
+    var accts = {}; ig.forEach(function (x) { if (x.acct) accts[x.acct] = (accts[x.acct] || 0) + 1; });
+    return {rows: rows, ig: ig, fb: fb, within: within, weeks: weeks, accts: accts, back: fb.filter(function (x) { return /return|back on/i.test(x.note); })};
+  }
+  function who(x) { return x.u ? "@" + x.u : x.n || "Someone"; }
+
   CC.views.Social = function (api) {
-    var page = h("div", {class: "hp-wrap hp-canvas"});
+    var page = h("div", {class: "hp-wrap hp-canvas so2"});
     page.appendChild(catHead("Social", "social", api));
     var tilesWrap = h("div", {class: "hp-tilesbar"});
     page.appendChild(tilesWrap);
-    var body = canvasBody("1.3fr 1fr", "1fr", []);
+    var body = canvasBody("1fr 1fr", "1fr", []);
     page.appendChild(body);
 
+    function lane(title, list, kind, m) {
+      var n30 = m.within(list, 30).length, wk = m.weeks(list, 8), mx = Math.max.apply(null, wk.concat([1]));
+      var spark = h("div", {class: "so2-spark", title: "Per week, last 8 weeks (oldest to newest)"}, wk.map(function (v) { return h("i", {style: "height:" + (v ? Math.max(10, v / mx * 100) : 4) + "%;" + (v ? "" : "opacity:.25")}); }));
+      var right = h("div", {class: "so2-lh"}, h("b", null, String(n30)), h("span", null, kind === "ig" ? "unfollows · 30 days" : "unfriends · 30 days"), spark);
+      var feed = list.length ? h("div", {class: "so2-feed"}, list.slice(0, 40).map(function (x) {
+        var link = kind === "ig" && x.u ? "https://www.instagram.com/" + encodeURIComponent(x.u) + "/" : null;
+        var nm = h("span", {class: "so2-who"}, h("b", null, who(x)), x.u && x.n ? h("small", null, CC.noEmoji ? CC.noEmoji(x.n) : x.n) : null);
+        return h("div", {class: "so2-item" + (/return|back on/i.test(x.note) ? " back" : "")},
+          h("span", {class: "so2-date"}, h("b", null, new Date(x.t).getDate()), h("i", null, new Date(x.t).toLocaleDateString("en-US", {month: "short"}))),
+          link ? h("a", {href: link, target: "_blank", rel: "noopener", class: "so2-main"}, nm) : h("span", {class: "so2-main"}, nm),
+          h("span", {class: "so2-meta"}, kind === "ig" ? h("span", {class: "so2-acct"}, x.acct) : null, x.note ? h("small", null, x.note) : null, h("small", null, ago(x.t))));
+      })) : modPlaceholder(SOC_UNFOLLOWERS_CACHE.err ? "Couldn't load the watch list" : readingText("unfollow watch", SOC_UNFOLLOWERS_CACHE), SOC_UNFOLLOWERS_CACHE.err || "");
+      return mod(title, null, right, feed);
+    }
+
     function paint() {
-      var tiles = [];
-      var followers = null, unfRecent = null;
-
-      if (SOC_EXPORTS_CACHE.rows && SOC_EXPORTS_CACHE.rows.length) {
-        var hdr = SOC_EXPORTS_CACHE.header;
-        var iFollow = col(hdr, "Followers"), iFollowing = col(hdr, "Following"), iUnf = col(hdr, "Recently unfollowed");
-        var latest = SOC_EXPORTS_CACHE.rows[SOC_EXPORTS_CACHE.rows.length - 1];
-        var prev = SOC_EXPORTS_CACHE.rows.length > 1 ? SOC_EXPORTS_CACHE.rows[SOC_EXPORTS_CACHE.rows.length - 2] : null;
-        followers = iFollow != null ? numAt(latest, iFollow) : null;
-        var following = iFollowing != null ? numAt(latest, iFollowing) : null;
-        var unfollowed = iUnf != null ? numAt(latest, iUnf) : null;
-        var prevFollowers = prev && iFollow != null ? numAt(prev, iFollow) : null;
-        var delta = followers != null && prevFollowers != null ? followers - prevFollowers : null;
-        tiles.push(tile("IG Followers", followers != null ? followers.toLocaleString() : "—", delta != null ? (delta >= 0 ? "+" : "") + delta + " since last export" : "latest export", delta != null && delta >= 0 ? "good" : delta != null ? "watch" : ""));
-        tiles.push(tile("IG Following", following != null ? following.toLocaleString() : "—", ""));
-        tiles.push(tile("Recently Unfollowed", unfollowed != null ? unfollowed : "—", "from latest export", unfollowed && unfollowed > 5 ? "watch" : ""));
-      } else {
-        tiles.push(tile("IG Followers", "…", "loading"));
-      }
-
-      /* Unfollower alerts from Social Data sheet */
-      if (SOC_UNFOLLOWERS_CACHE.rows) {
-        var uhdr = SOC_UNFOLLOWERS_CACHE.header;
-        var iDate2 = col(uhdr, "date_detected");
-        var recent = SOC_UNFOLLOWERS_CACHE.rows.filter(function (r) {
-          var t = iDate2 != null ? ms(r[iDate2]) : null;
-          return t && (Date.now() - t) < 7 * 86400000;
-        });
-        unfRecent = recent.length;
-        tiles.push(tile("Unfollows (7d)", recent.length, recent.length === 1 ? "account" : "accounts", recent.length > 3 ? "watch" : ""));
-      }
-
+      var m = socModel(), me = CC.pulse ? CC.pulse.me(api) : null;
+      var lastIg = m.ig[0], lastFb = m.fb[0];
+      var tiles = [
+        tile("Instagram followers", me && me.followers != null ? me.followers.toLocaleString() : "…", me && me.g30 != null ? (me.g30 >= 0 ? "+" : "") + me.g30 + " in 30 days · @" + me.handle : "live pull via Business Pulse", me && me.g30 != null ? (me.g30 >= 0 ? "good" : "watch") : ""),
+        tile("Instagram unfollows (7d)", m.within(m.ig, 7).length, Object.keys(m.accts).length + " accounts watched", m.within(m.ig, 7).length > 3 ? "watch" : ""),
+        tile("Facebook unfriends (30d)", m.within(m.fb, 30).length, m.back.length + " came back", ""),
+        tile("Last unfollow", m.rows[0] ? ago(m.rows[0].t) : "—", m.rows[0] ? who(m.rows[0]) + " · " + m.rows[0].p : "", "")
+      ];
       tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
-
-      /* Recent unfollowers list */
-      var feedBody;
-      if (SOC_UNFOLLOWERS_CACHE.rows && SOC_UNFOLLOWERS_CACHE.rows.length) {
-        var uhdr2 = SOC_UNFOLLOWERS_CACHE.header;
-        var iDate3 = col(uhdr2, "date_detected"), iUser2 = col(uhdr2, "username"), iPlat2 = col(uhdr2, "platform"), iName = col(uhdr2, "name");
-        var recents = SOC_UNFOLLOWERS_CACHE.rows.slice(-15).reverse();
-        feedBody = h("div", {class: "cat-feed"}, recents.map(function (r) {
-          return h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-user"}, iUser2 != null ? "@" + r[iUser2] : "?"),
-            h("span", {class: "cat-feed-platform"}, iPlat2 != null ? r[iPlat2] : ""),
-            iName != null && r[iName] ? h("span", {class: "cat-feed-name"}, r[iName]) : null,
-            h("span", {class: "cat-feed-time"}, iDate3 != null ? ago(ms(r[iDate3])) : ""));
-        }));
-      } else if (SOC_UNFOLLOWERS_CACHE.err) {
-        feedBody = modPlaceholder("Couldn't load unfollower alerts", SOC_UNFOLLOWERS_CACHE.err);
-      } else {
-        feedBody = modPlaceholder(readingText("unfollower alerts", SOC_UNFOLLOWERS_CACHE));
-      }
-
       body.innerHTML = "";
-      body.appendChild(mod("Recent Activity", null, null, feedBody));
-      body.appendChild(mod("Platform Mix", null, null,
-        modPlaceholder("Single-platform for now", "Instagram only. TikTok, Facebook and X breakdowns land here once those exports are wired in.")));
+      body.appendChild(lane("Instagram", m.ig, "ig", m));
+      body.appendChild(lane("Facebook", m.fb, "fb", m));
 
-      /* Wall v3: when did someone last unfollow? */
       if (SOC_UNFOLLOWERS_CACHE.rows || SOC_UNFOLLOWERS_CACHE.err) {
-        var uh = SOC_UNFOLLOWERS_CACHE.header || [], iD = col(uh, "date_detected"), iU = col(uh, "username"), iP = col(uh, "platform"), lastU = null;
-        (SOC_UNFOLLOWERS_CACHE.rows || []).forEach(function (r) { var t = iD != null ? ms(r[iD]) : null; if (t && (!lastU || t > lastU.t)) lastU = {t: t, u: iU != null ? r[iU] : "", p: iP != null ? r[iP] : ""}; });
+        var wkAll = m.weeks(m.rows, 8), lastAll = m.rows[0];
         answers("Social", [
-          {q: "Last unfollow", a: lastU ? "@" + lastU.u : "None on file", sub: lastU ? (lastU.p ? lastU.p + " · " : "") + whenTxt(lastU.t) + " · " + relDays(lastU.t) : "", k: "n"},
-          {q: "Unfollows this week", a: unfRecent != null ? String(unfRecent) : "—", k: unfRecent > 3 ? "warn" : "n"},
-          {q: "Instagram followers", a: followers != null ? followers.toLocaleString() : "—", k: "n"}
-        ], SOC_UNFOLLOWERS_CACHE.err ? CC.feedHealth(null, 6, SOC_UNFOLLOWERS_CACHE.err) : null);
+          {w: "ago", q: "Last unfollow", icon: "down", t: lastAll ? lastAll.t : null, a: lastAll ? who(lastAll) : "None on file", sub: lastAll ? lastAll.p + (lastAll.acct && lastAll.acct !== "friends" ? " · left " + lastAll.acct : "") : ""},
+          {w: "stat", span: 1, icon: "users", q: "Instagram, 30 days", a: String(m.within(m.ig, 30).length), sub: lastIg ? "last " + ago(lastIg.t) : "unfollows", k: m.within(m.ig, 7).length > 3 ? "warn" : null},
+          {w: "stat", span: 1, icon: "users", q: "Facebook, 30 days", a: String(m.within(m.fb, 30).length), sub: lastFb ? "last " + ago(lastFb.t) : "unfriends"},
+          {w: "bars", q: "Unfollows per week", values: wkAll, labels: wkAll.map(function (v, i) { return i === 7 ? "now" : ""; }), a: wkAll.reduce(function (x, y) { return x + y; }, 0) + " in 8 weeks"},
+          {w: "stat", icon: "trend", q: "Instagram followers", a: me && me.followers != null ? me.followers.toLocaleString() : "Reading…", sub: me && me.g30 != null ? (me.g30 >= 0 ? "+" : "") + me.g30 + " in the last 30 days" : "", k: me && me.g30 != null ? (me.g30 >= 0 ? "good" : "warn") : null}
+        ], SOC_UNFOLLOWERS_CACHE.err ? CC.feedHealth(null, 6, SOC_UNFOLLOWERS_CACHE.err) : CC.feedHealth(m.rows[0] ? m.rows[0].t : null, 72));
       }
-
       if (CC.setCatSummary) {
-        var line = followers != null ? followers.toLocaleString() + " IG followers" + (unfRecent != null ? " · " + unfRecent + " unfollow" + (unfRecent === 1 ? "" : "s") + " this week" : "") : "Loading Instagram export…";
-        CC.setCatSummary("Social", line, false, [
-          {value: followers != null ? followers.toLocaleString() : "—", label: "IG followers"},
-          {value: typeof following !== "undefined" && following != null ? following.toLocaleString() : "—", label: "Following"},
-          {value: unfRecent != null ? String(unfRecent) : "—", label: "Unfollows (7d)"}
+        CC.setCatSummary("Social", (me && me.followers != null ? me.followers.toLocaleString() + " IG followers · " : "") + m.within(m.ig, 7).length + " IG unfollows this week", false, [
+          {value: String(m.within(m.ig, 7).length), label: "IG unfollows (7d)"},
+          {value: String(m.within(m.fb, 30).length), label: "FB unfriends (30d)"},
+          {value: m.rows[0] ? ago(m.rows[0].t) : "—", label: "Last unfollow"}
         ]);
       }
     }
     paint();
-
-    if (!SOC_EXPORTS_CACHE.rows && !SOC_EXPORTS_CACHE.err)
-      loadSheet(SOC_TRACKER, "1243149427", api, SOC_EXPORTS_CACHE, paint, 500, "IG Exports");
-    if (!SOC_UNFOLLOWERS_CACHE.rows && !SOC_UNFOLLOWERS_CACHE.err)
+    if (!SOC_UNFOLLOWERS_CACHE.rows && !SOC_UNFOLLOWERS_CACHE.loading && !SOC_UNFOLLOWERS_CACHE.err)
       loadSheet(SOC_DATA, "1388035126", api, SOC_UNFOLLOWERS_CACHE, paint, 2000, "Social");
-
+    if (CC.pulse) CC.pulse.load(paint);
     return page;
   };
 
@@ -444,7 +427,11 @@
 
       if (CC.setCatSummary) {
         var line = total30 != null ? fmtMoney(total30) + " over " + count30 + " transaction" + (count30 === 1 ? "" : "s") + " (30d)" : "Loading transactions…";
-        answers("Finance", [{q: "Not set up yet", a: "Waiting on a plan", sub: "Tell me what you want this card to answer", k: "off"}]);
+        answers("Finance", [
+          {w: "stat", icon: "bank", q: "Bank accounts", a: "Connecting through Plaid", sub: "About 10 accounts, set up by Luna", k: "off"},
+          {w: "stat", span: 1, icon: "cash", q: "Transactions, 30 days", a: count30 != null ? String(count30) : "—", sub: "from the current ledger"},
+          {w: "stat", span: 1, icon: "file", q: "All time", a: FIN_CACHE.rows ? FIN_CACHE.rows.length.toLocaleString() : "—", sub: "transactions logged"}
+        ]);
         CC.setCatSummary("Finance", line, false, [
           {value: count30 != null ? String(count30) : "—", label: "Transactions (30d)"},
           {value: total30 != null ? fmtMoney(total30) : "—", label: "Total (30d)"},
@@ -675,11 +662,17 @@
         if (ns && ns.note) notes.push(ns.note);
         if (m.overdue) notes.push(m.overdue + " overdue item" + (m.overdue === 1 ? "" : "s"));
         if (m.waiting && m.waiting.length) notes.push(m.waiting.length + " waiting on you");
-        answers("Clarkson", [
-          {q: "Next up", a: nx ? (nx.kind === "shift" ? "Shift · " + nx.title : nx.title) : "Nothing on the calendar", sub: nx ? (nx.kind === "shift" ? whenTxt(nx.t) : new Date(nx.day + 3600000).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"}) + (nx.time ? " · " + nx.time : "")) : "", k: "n"},
-          {q: "Next shift", a: shiftA, sub: ns ? whenTxt(ns.t) + (ns.time ? " · " + ns.time : "") : "", k: hrsTo != null && hrsTo < 24 ? "warn" : "n"},
-          {q: "Notes", a: notes.length ? notes.join(" · ") : "Nothing special", k: m.overdue ? "bad" : notes.length ? "warn" : "good"}
-        ]);
+        var ev = (m.agenda || []).filter(function (a) { return a.kind !== "shift" && a.day >= m.today; });
+        var nextEv = ev[0], evT = nextEv ? nextEv.t || (nextEv.day + 12 * 3600000) : null;
+        var up = (m.agenda || []).filter(function (a) { return a.kind === "shift" ? a.t > now : a.day >= m.today; }).slice(0, 4);
+        var rowsC = [
+          {w: "cal", q: "Next shift", t: ns ? ns.t : null, a: ns ? (ns.title || "Shift") + (ns.time ? " · " + ns.time : "") : (m.nextShiftText || "None on file"), sub: ns && ns.note ? "Note: " + ns.note : "", k: hrsTo != null && hrsTo < 24 ? "warn" : null},
+          {w: "stat", span: 1, icon: "alert", q: "Overdue", a: String(m.overdue || 0), sub: "items", k: m.overdue ? "bad" : "good"},
+          {w: "stat", span: 1, icon: "inbox", q: "Waiting on you", a: String((m.waiting || []).length), sub: "people", k: (m.waiting || []).length ? "warn" : "good"},
+          {w: "cal", q: "Next event", t: evT, a: nextEv ? nextEv.title + (nextEv.time ? " · " + nextEv.time : "") : "Nothing on the calendar"},
+          {w: "list", q: "Coming up", list: up.map(function (a) { var t = a.kind === "shift" ? a.t : a.day + 12 * 3600000; return {a: (a.kind === "shift" ? "Shift · " : "") + a.title, sub: new Date(t).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"})}; })}
+        ];
+        answers("Clarkson", rowsC);
       })();
       if (CC.setCatSummary) {
         var line = m.open != null ? m.open + " open · " + (m.overdue || 0) + " overdue" + (m.waiting ? " · " + m.waiting.length + " waiting on you" : "") : "Loading Clarkson…";
@@ -839,10 +832,14 @@
         ? h("div", {class: "cat-feed"}, m.uber.slice(-6).reverse().map(function (x) { return h("div", {class: "cat-feed-item"}, h("span", {class: "cat-feed-user"}, new Date(x.t).toLocaleDateString("en-US", {month: "short", day: "numeric"})), h("span", {class: "cat-feed-name"}, fmtMoney(x.amt)), h("span", {class: "cat-feed-time"}, ago(x.t))); }))
         : modPlaceholder("No Uber trip data yet", m.uberMarks.length + " weekly statement emails seen" + (lastMark ? ", latest " + new Date(lastMark).toLocaleDateString("en-US", {month: "short", day: "numeric"}) : "") + ". The amounts live in the Uber driver app, so trips show here once a statement export is captured.")));
 
+      var yNow = m.years.filter(function (y) { return y.y === String(m.yr); })[0] || {orders: 0, sales: 0};
+      var lastPay = m.last && m.last.det ? (/Credit|Debit|Cash/.exec(m.last.det) || [""])[0].toLowerCase() : "";
       answers("Uber / Taxi", [
-        {q: "Last ride", a: m.last ? fmtMoney(m.last.amt) : "None on file", sub: m.last ? whenTxt(m.last.t) + " · " + relDays(m.last.t) : "", k: "n"},
-        {q: "Rides this year", a: String((m.years.filter(function (y) { return y.y === String(m.yr); })[0] || {orders: 0}).orders), sub: "Taxi One + Zero", k: "n"},
-        {q: "Uber", a: m.uber.length ? m.uber.length + " rides" : "No trip feed yet", k: m.uber.length ? "n" : "off"}
+        {w: "ago", q: "Last ride", icon: "car", t: m.last ? m.last.t : null, a: m.last ? fmtMoney(m.last.amt) + (lastPay ? " · " + lastPay : "") : "None on file", sub: m.last ? whenTxt(m.last.t) : ""},
+        {w: "stat", span: 1, icon: "car", q: "Rides " + m.yr, a: String(yNow.orders), sub: "Taxi One + Zero"},
+        {w: "stat", span: 1, icon: "cash", q: "Collected " + m.yr, a: yNow.sales ? money0(yNow.sales) : "—", sub: "taxi fares"},
+        {w: "bars", q: m.yr + " rides by month", values: m.months.map(function (x) { return x.n; }), labels: MON.map(function (x) { return x.charAt(0); }), a: (m.months.filter(function (x) { return x.n; }).length) + " active months"},
+        {w: "stat", icon: "car", q: "Uber", a: m.uber.length ? m.uber.length + " rides" : "No trip feed yet", sub: m.uber.length ? "" : m.uberMarks.length + " weekly statements seen, amounts not captured", k: m.uber.length ? null : "off"}
       ]);
       if (CC.setCatSummary) {
         var y0 = m.years.filter(function (y) { return y.y === String(m.yr); })[0];
@@ -1055,11 +1052,14 @@
         var dh3 = PC.device.header || [], iB3 = col(dh3, "battery_level"), iS3 = col(dh3, "slot_time"), lastD = deviceRows.length ? deviceRows[deviceRows.length - 1] : null;
         var b3 = lastD && iB3 != null ? numAt(lastD, iB3) : null, t3 = lastD && iS3 != null ? ms(lastD[iS3]) : null;
         var rh3 = PC.reminders.header || [], iO3 = col(rh3, "open_reminders"), rem = reminderRows.length && iO3 != null ? reminderRows[reminderRows.length - 1][iO3] : null;
+        var wk = [], wl = [];
+        for (var wi = 6; wi >= 0; wi--) { var wt = Date.now() - wi * 86400000; wk.push(byDay[dayKey2(wt)] || 0); wl.push(new Date(wt).toLocaleDateString("en-US", {weekday: "narrow"})); }
         answers("Personal", [
-          {q: "Next on the calendar", a: nextE ? nextE.ti.slice(0, 60) : "Nothing coming up", sub: nextE ? whenTxt(nextE.t) + " · " + relDays(nextE.t) : "", k: "n"},
-          {q: "Messages today", a: PC.messages.rows ? String(byDay[today] || 0) : "—", sub: PC.messages.rows ? (byDay[dayKey2(Date.now() - 86400000)] || 0) + " yesterday" : "", k: "n"},
-          {q: "Open reminders", a: rem != null && rem !== "" ? String(rem) : "—", k: "n"},
-          {q: "Phone battery", a: b3 != null ? b3 + "%" : "—", sub: t3 ? "read " + ago(t3) : "", k: b3 != null && b3 < 20 ? "warn" : "n"}
+          {w: "cal", q: "Next on the calendar", t: nextE ? nextE.t : null, a: nextE ? nextE.ti.slice(0, 60) : "Nothing coming up", sub: nextE ? whenTxt(nextE.t) : ""},
+          {w: "stat", span: 1, icon: "msg", q: "Messages today", a: PC.messages.rows ? String(byDay[today] || 0) : "—", sub: PC.messages.rows ? (byDay[dayKey2(Date.now() - 86400000)] || 0) + " yesterday" : ""},
+          {w: "stat", span: 1, icon: "bell", q: "Open reminders", a: rem != null && rem !== "" ? String(rem) : "—", sub: "reminders"},
+          {w: "bars", q: "Messages, last 7 days", values: PC.messages.rows ? wk : [], labels: wl, a: PC.messages.rows ? wk.reduce(function (x, y) { return x + y; }, 0) + " total" : "—"},
+          {w: "meter", q: "Phone battery", a: b3 != null ? b3 + "%" : "—", pct: b3 || 0, sub: t3 ? "read " + ago(t3) : "", k: b3 == null ? null : b3 < 20 ? "bad" : b3 < 40 ? "warn" : "good"}
         ], CC.feedHealth(t3, 1, PC.device.err));
       })();
       if (CC.setCatSummary) {
@@ -1371,22 +1371,37 @@
       landing.innerHTML = "";
       var R = admRoutines(), T = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; });
       reportAdmin(R);
-      var rAttn = R.filter(function (x) { return x.h.cls !== "good"; }).length;
-      var tNow = T.filter(function (o) { return tqPriBand(o.pri) === "now"; }).length;
-      function folder(title, count, sub, badge, onclick) {
-        return h("button", {type: "button", class: "adm-folder", onclick: onclick},
-          h("div", {class: "adm-folder-top"}, h("b", null, title), badge ? h("span", {class: "adm-folder-badge " + badge[1]}, badge[0]) : null),
-          h("div", {class: "adm-folder-count"}, count == null ? "…" : count),
-          h("div", {class: "adm-folder-sub"}, sub));
-      }
-      landing.appendChild(folder("Routines", R.length || null,
-        R.length ? R.length + " routines" : (ROUT_CACHE.err ? ROUT_CACHE.err : "Loading…"),
-        rAttn ? [rAttn + " need attention", "warn"] : (R.length ? ["All healthy", "good"] : null),
-        function () { showSection("routines"); }));
-      landing.appendChild(folder("Task Queue", T.length || (TQ_CACHE.rows ? 0 : null),
-        TQ_CACHE.rows ? T.length + " open" : (TQ_CACHE.err ? TQ_CACHE.err : "Loading…"),
-        tNow ? [tNow + " priority 1", "warn"] : (TQ_CACHE.rows ? ["Nothing urgent", "good"] : null),
-        function () { showSection("queue"); }));
+      /* Admin v2 (Nov 28, JD): open straight to one dashboard with the most important facts of both
+         layers. Routines on the left, Task Queue on the right; each has a link into its full list. */
+      var good = R.filter(function (x) { return x.h.cls === "good"; }), warn = R.filter(function (x) { return x.h.cls === "warn"; }), bad = R.filter(function (x) { return x.h.cls === "bad"; });
+      var attn = bad.concat(warn).sort(function (x, y) { return (x.t || 0) - (y.t || 0); });
+      var recent = R.filter(function (x) { return x.t; }).sort(function (x, y) { return y.t - x.t; });
+      var day = R.filter(function (x) { return x.t && Date.now() - x.t < 86400000; }).length;
+      function seg(n, cls, label) { return n ? h("i", {class: "adm2-seg " + cls, style: "flex:" + n, title: n + " " + label}) : null; }
+      function kpi(v, l, cls) { return h("div", {class: "adm2-kpi" + (cls ? " " + cls : "")}, h("b", null, v), h("span", null, l)); }
+      function row(main, sub, right, cls) { return h("div", {class: "adm2-row" + (cls ? " " + cls : "")}, h("i", {class: "adm2-dot"}), h("div", {class: "adm2-rm"}, h("b", null, main), sub ? h("small", null, sub) : null), right ? h("span", {class: "adm2-rr"}, right) : null); }
+      var rPanel = h("section", {class: "adm2-panel"},
+        h("div", {class: "adm2-ph"}, h("h3", null, "Routines"), h("button", {type: "button", class: "hp-next", onclick: function () { showSection("routines"); }}, "All " + (R.length || "") + " routines →")),
+        R.length ? h("div", {class: "adm2-body"},
+          h("div", {class: "adm2-kpis"}, kpi(good.length + " / " + R.length, "healthy", "good"), kpi(String(warn.length), "overdue", warn.length ? "warn" : ""), kpi(String(bad.length), "failed", bad.length ? "bad" : ""), kpi(String(day), "ran in 24 h")),
+          h("div", {class: "adm2-bar"}, seg(good.length, "good", "healthy"), seg(warn.length, "warn", "overdue"), seg(bad.length, "bad", "failed")),
+          h("div", {class: "adm2-cols"},
+            h("div", {class: "adm2-list"}, h("h4", null, "Needs attention"), attn.length ? attn.slice(0, 7).map(function (x) { return row(x.name, x.h.text, x.cat, x.h.cls); }) : h("div", {class: "adm2-empty"}, "Everything is on schedule.")),
+            h("div", {class: "adm2-list"}, h("h4", null, "Last runs"), recent.slice(0, 7).map(function (x) { return row(x.name, x.cat + (x.status ? " · " + x.status : ""), ago(x.t), x.h.cls); }))))
+          : h("div", {class: "hp-mod-ph"}, h("b", null, ROUT_CACHE.err ? "Couldn't load routines" : "Loading routines…"), ROUT_CACHE.err ? h("span", null, ROUT_CACHE.err) : null));
+      var bands = {now: [], next: [], later: []}; T.forEach(function (o) { bands[tqPriBand(o.pri)].push(o); });
+      var blocked = T.filter(function (o) { return tqStatusCls(o.status) === "bad"; }), awaiting = T.filter(function (o) { return tqStatusCls(o.status) === "warn"; });
+      var tPanel = h("section", {class: "adm2-panel"},
+        h("div", {class: "adm2-ph"}, h("h3", null, "Task Queue"), h("button", {type: "button", class: "hp-next", onclick: function () { showSection("queue"); }}, "Full queue →")),
+        TQ_CACHE.rows ? h("div", {class: "adm2-body"},
+          h("div", {class: "adm2-kpis"}, kpi(String(T.length), "open"), kpi(String(bands.now.length), "priority 1", bands.now.length ? "warn" : ""), kpi(String(awaiting.length), "awaiting you", awaiting.length ? "warn" : ""), kpi(String(blocked.length), "blocked", blocked.length ? "bad" : "")),
+          h("div", {class: "adm2-bar"}, seg(bands.now.length, "bad", "priority 1"), seg(bands.next.length, "warn", "priority 2"), seg(bands.later.length, "muted", "later")),
+          h("div", {class: "adm2-cols"},
+            h("div", {class: "adm2-list"}, h("h4", null, "Up next"), bands.now.concat(bands.next).slice(0, 7).map(function (o) { return row(o.task, [o.area, o.owner, o.status].filter(Boolean).join(" · "), o.pri ? "P" + String(o.pri).charAt(0) : "", tqStatusCls(o.status)); })),
+            h("div", {class: "adm2-list"}, h("h4", null, "Blocked or waiting on you"), blocked.concat(awaiting).length ? blocked.concat(awaiting).slice(0, 7).map(function (o) { return row(o.task, o.blockedBy ? "blocked by " + o.blockedBy : o.next || o.status, o.owner, tqStatusCls(o.status)); }) : h("div", {class: "adm2-empty"}, "Nothing blocked."))))
+          : h("div", {class: "hp-mod-ph"}, h("b", null, TQ_CACHE.err ? "Couldn't load the task queue" : "Loading the task queue…"), TQ_CACHE.err ? h("span", null, TQ_CACHE.err) : null));
+      landing.className = "adm2";
+      landing.appendChild(rPanel); landing.appendChild(tPanel);
     }
 
     function paintBar(R) {
@@ -1492,9 +1507,14 @@
       if (R.length) {
         var recent = R.filter(function (x) { return x.t; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 5);
         var okN = R.filter(function (x) { return x.h.cls === "good"; }).length;
-        answers("Hub Core / Admin", [{q: "Last routines", list: recent.map(function (x) {
-          return {a: x.name, sub: ago(x.t) + (x.status ? " · " + x.status : ""), k: /fail|error/i.test(x.status) ? "bad" : x.h.cls === "good" ? "good" : "warn"};
-        })}], {pct: Math.round(okN / R.length * 100), k: okN / R.length >= 0.85 ? "good" : okN / R.length >= 0.6 ? "warn" : "bad", note: okN + " of " + R.length + " routines healthy"});
+        var openT = tqTasks().filter(function (o) { return tqStatusCls(o.status) !== "good"; }).length;
+        answers("Hub Core / Admin", [
+          {w: "stat", span: 1, icon: "check", q: "Routines healthy", a: okN + " / " + R.length, sub: Math.round(okN / R.length * 100) + "% on schedule", k: okN / R.length >= 0.85 ? "good" : "warn"},
+          {w: "stat", span: 1, icon: "alert", q: "Need attention", a: String(R.length - okN), sub: openT + " open tasks in the queue", k: R.length - okN ? "warn" : "good"},
+          {w: "list", rows: 2, q: "Last routines run", list: recent.map(function (x) {
+            return {a: x.name, sub: ago(x.t) + (x.status ? " · " + x.status : ""), k: /fail|error/i.test(x.status) ? "bad" : x.h.cls === "good" ? "good" : "warn"};
+          })}
+        ], {pct: Math.round(okN / R.length * 100), k: okN / R.length >= 0.85 ? "good" : okN / R.length >= 0.6 ? "warn" : "bad", note: okN + " of " + R.length + " routines healthy"});
       }
     }
     function paint() {
@@ -1668,9 +1688,9 @@
       } else {
         tiles.push(tile("Inventory", "…", "loading"));
       }
-      tiles.push(tile("Room Inventory", "📦", "tracked rooms & items"));
-      tiles.push(tile("File Inventory", "📁", "digital file registry"));
-      tiles.push(tile("Records Registry", "📋", "master records index"));
+      tiles.push(tile("Room Inventory", "—", "tracked rooms & items"));
+      tiles.push(tile("File Inventory", "—", "digital file registry"));
+      tiles.push(tile("Records Registry", "—", "master records index"));
       tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
 
       var invBody;
@@ -1694,8 +1714,9 @@
       if (CC.setCatSummary) {
         var line = invCount != null ? invCount.toLocaleString() + " items tracked" : "Loading inventory…";
         answers("Records & Files", [
-          {q: "Items tracked", a: invCount != null ? invCount.toLocaleString() : "—", sub: "Records inventory", k: "n"},
-          {q: "Room and file registries", a: "Not wired yet", k: "off"}
+          {w: "stat", icon: "file", q: "Items tracked", a: invCount != null ? invCount.toLocaleString() : "—", sub: "in the records inventory"},
+          {w: "stat", span: 1, icon: "check", q: "Room inventory", a: "Not wired", sub: "coming soon", k: "off"},
+          {w: "stat", span: 1, icon: "check", q: "File registry", a: "Not wired", sub: "coming soon", k: "off"}
         ], REC_INV_CACHE.err ? CC.feedHealth(null, 24, REC_INV_CACHE.err) : REC_INV_CACHE.rows ? {pct: 100, k: "good", note: "inventory read OK"} : null);
         CC.setCatSummary("Records & Files", line, false, [
           {value: invCount != null ? invCount.toLocaleString() : "—", label: "Inventory items"},
@@ -1948,12 +1969,21 @@
           if (t <= nowT && t > nowT - 30 * 86400000 && (!last || t > last.t)) last = {t: t, r: r};
           if (t > nowT && t < nowT + 60 * 86400000 && (!next || t < next.t)) next = {t: t, r: r};
         });
-        function row(q, x) { return {q: q, a: x ? shortTitle(fmtCell(x.r[iTi])) : "Nothing on file", sub: x ? fmtWhen(x.r[iWh]) + (iPl != null && x.r[iPl] ? " · " + fmtCell(x.r[iPl]) : "") : "", k: "n"}; }
-        var rows = [row("Last reported", last), row("Next up", next)];
+        function place(x) { return x && iPl != null && x.r[iPl] ? fmtCell(x.r[iPl]) : ""; }
+        var rows = [
+          {w: "ago", q: "Last reported", icon: "pin", t: last ? last.t : null, a: last ? shortTitle(fmtCell(last.r[iTi])) : "Nothing in 30 days", sub: last ? [fmtWhen(last.r[iWh]), place(last)].filter(Boolean).join(" · ") : ""},
+          {w: "cal", q: "Next up", t: next ? next.t : null, a: next ? shortTitle(fmtCell(next.r[iTi])) : "Nothing on the calendar", sub: next ? [fmtWhen(next.r[iWh]), place(next)].filter(Boolean).join(" · ") : ""}
+        ];
         if (CENTCOM_SCANNER_CACHE.rows && CENTCOM_SCANNER_CACHE.rows.length) {
-          var sh = CENTCOM_SCANNER_CACHE.header, iX = col(sh, "text"), iC = col(sh, "captured_at"), ls = null;
-          CENTCOM_SCANNER_CACHE.rows.forEach(function (r) { var t = iC != null ? ms(r[iC]) : null; if (t && (!ls || t > ls.t)) ls = {t: t, x: iX != null ? fmtCell(r[iX]) : ""}; });
-          if (ls) rows.push({q: "Last scanner call", a: ls.x.slice(0, 70), sub: ago(ls.t), k: "n"});
+          var sh = CENTCOM_SCANNER_CACHE.header, iX = col(sh, "text"), iC = col(sh, "captured_at"), ls = null, days = [], lbl = [], d0 = new Date(); d0.setHours(0, 0, 0, 0);
+          for (var di = 13; di >= 0; di--) { days.push(0); var dd = new Date(d0.getTime() - di * 86400000); lbl.push(di % 2 ? "" : String(dd.getDate())); }
+          CENTCOM_SCANNER_CACHE.rows.forEach(function (r) {
+            var t = iC != null ? ms(r[iC]) : null; if (!t) return;
+            if (!ls || t > ls.t) ls = {t: t, x: iX != null ? fmtCell(r[iX]) : ""};
+            var idx = 13 - Math.floor((d0.getTime() + 86400000 - 1 - t) / 86400000); if (idx >= 0 && idx < 14) days[idx]++;
+          });
+          rows.push({w: "bars", q: "Scanner calls, last 14 days", values: days, labels: lbl, a: days.reduce(function (a, b) { return a + b; }, 0) + " calls"});
+          if (ls) rows.push({w: "ago", q: "Last scanner call", icon: "radio", t: ls.t, a: ls.x.slice(0, 90), sub: dispatchKind(ls.x).label});
         }
         answers("Local / CENTCOM", rows);
       })();

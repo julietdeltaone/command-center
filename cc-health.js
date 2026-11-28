@@ -909,10 +909,10 @@
         var e = w * (1 + rp / 30); if (!best || e > best.e) best = {e: e, w: w, rp: rp, ex: r[iE], t: t};
       });
     }
-    rows.push({q: "Best 1-rep max, last week", a: best ? Math.round(best.e) + " lb · " + best.ex : PW.rows ? "No lifting last week" : "Reading…", sub: best ? best.w + " lb × " + best.rp + " on " + fmtDay(best.t) : "", k: "n"});
+    rows.push({w: "stat", span: 1, icon: "lift", q: "Best 1RM, last week", a: best ? Math.round(best.e) + " lb" : PW.rows ? "No lifting" : "Reading…", sub: best ? best.ex + " · " + best.w + "×" + best.rp : ""});
     var bc = null;
     if (m) Object.keys(m.days).forEach(function (k) { var o = m.days[k]; if (o.t >= wkStart && o.t < wkEnd && o.cardioMin && (!bc || o.cardioMin > bc.cardioMin)) bc = o; });
-    rows.push({q: "Best cardio, last week", a: bc ? Math.round(bc.cardioMin) + " min · " + Object.keys(bc.cardioEx).join(", ") : m ? "No cardio last week" : "Reading…", sub: bc ? fmtDay(bc.t) : "", k: bc ? "good" : "warn"});
+    rows.push({w: "stat", span: 1, icon: "run", q: "Best cardio, last week", a: bc ? Math.round(bc.cardioMin) + " min" : m ? "None" : "Reading…", sub: bc ? Object.keys(bc.cardioEx).join(", ") + " · " + fmtDay(bc.t) : "", k: bc ? "good" : "warn"});
     var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel(21) : null, avgS = null, nS = 0, newestS = null;
     if (sm) {
       var byDate = {};
@@ -920,10 +920,13 @@
       var vals = Object.keys(byDate).map(function (k) { return byDate[k]; }); nS = vals.length;
       if (nS) avgS = vals.reduce(function (a, b) { return a + b; }, 0) / nS;
     }
-    rows.push({q: "Average sleep, last week", a: avgS != null ? hrs(avgS) : sm ? "No full nights logged" : "Reading…", sub: avgS != null ? nS + " nights logged" : "", k: avgS == null ? "off" : avgS >= SLEEP_GOOD ? "good" : avgS >= SLEEP_LOW ? "warn" : "bad"});
+    rows.push({w: "meter", icon: "moon", q: "Average sleep, last week", a: avgS != null ? hrs(avgS) : sm ? "No full nights logged" : "Reading…", pct: avgS != null ? Math.min(100, avgS / 480 * 100) : 0, sub: avgS != null ? nS + " nights · goal 8h" : "", k: avgS == null ? null : avgS >= SLEEP_GOOD ? "good" : avgS >= SLEEP_LOW ? "warn" : "bad"});
     if (m) {
-      var last = Object.keys(m.days).sort().reverse().slice(0, 3).map(function (k) { return m.days[k]; });
-      rows.push({q: "Last workouts", list: last.map(function (o) { return {a: o.top + " · " + o.sets + " sets", sub: fmtDay(o.t) + " · " + daysAgoTxt(o.t), k: "n"}; })});
+      var dk = Object.keys(m.days).sort(), sets14 = [], lb14 = [];
+      for (var di = 13; di >= 0; di--) { var dd = addDays(new Date(), -di); dd.setHours(0, 0, 0, 0); var kk = Object.keys(m.days).filter(function (k) { return m.days[k].t >= dd.getTime() && m.days[k].t < dd.getTime() + 86400000; })[0]; sets14.push(kk ? m.days[kk].sets : 0); lb14.push(di % 2 ? "" : String(dd.getDate())); }
+      rows.push({w: "bars", q: "Sets per day, last 14 days", values: sets14, labels: lb14, a: sets14.filter(Boolean).length + " training days"});
+      var last = dk.slice().reverse().slice(0, 3).map(function (k) { return m.days[k]; });
+      rows.push({w: "list", q: "Last workouts", list: last.map(function (o) { var cardioOnly = o.top === "Cardio"; return {a: o.top + " · " + (cardioOnly && o.cardioMin ? Math.round(o.cardioMin) + " min" : o.sets + " sets"), sub: fmtDay(o.t) + " · " + daysAgoTxt(o.t)}; })});
     }
     var fh = CC.feedHealth(newestS, 36, CC.body && CC.body.sleepErr && CC.body.sleepErr());
     CC.setCatAnswers("Health", {answers: rows, health: newestS ? {pct: fh.pct, k: fh.k, note: "sleep " + fh.note.replace("newest data ", "")} : null});
