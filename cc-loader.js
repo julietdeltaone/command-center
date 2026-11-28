@@ -90,9 +90,10 @@
     var left = p > 0.05 ? el / p - el : lastMs - el;
     left = Math.max(left, lastMs * (1 - p) * 0.6);
     left = Math.max(0, Math.min(left, 60000));
-    etaEl.innerHTML = p >= 0.995 ? "Ready" : Math.max(1, Math.ceil(left / 1000)) + "<small>sec left</small>";
+    var slow = !api && el > lastMs * 0.8;
+    etaEl.innerHTML = p >= 0.995 ? "Ready" : slow ? "Almost<small>there</small>" : Math.max(1, Math.ceil(left / 1000)) + "<small>sec left</small>";
     var now;
-    if (!api) now = "Connecting to the hub";
+    if (!api) now = slow ? "The hub is answering slower than usual" : "Connecting to the hub";
     else if (LS.started && LS.done + LS.failed < LS.started) now = "Reading " + (LS.label || "the sheets") + (working ? " for " + working : "");
     else if (working) now = "Building the " + working + " card";
     else now = "All set";
