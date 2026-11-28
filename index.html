@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <!-- ════════════════════════════════════════════════════════════════════════
-     BUILD VERSION — single source of truth: 20261127.8
-     Bump this (date.N, +1 each push) AND find/replace every "?v=20261125.19"
+     BUILD VERSION — single source of truth: 20261128.1
+     Bump this (date.N, +1 each push) AND find/replace every "?v=20261128.1"
      below AND the BUILD constant near the top of the main script, together,
      in the same commit, whenever index.html or any cc-*/views/* file changes.
      Browsers and GitHub Pages' CDN cache by the exact URL including the
@@ -299,12 +299,13 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
      Loaded after the shell's own <style> above so these win the cascade for
      shared :root tokens, then the per-module stylesheets each builder's view
      relies on. -->
-<link rel="stylesheet" href="cc-design.css?v=20261125.19">
-<link rel="stylesheet" href="cc-skin.css?v=20261126.15">
-<link rel="stylesheet" href="cc-widgets.css?v=20261125.19">
-<link rel="stylesheet" href="cc-pages.css?v=20261127.3">
-<link rel="stylesheet" href="cc-sources2.css?v=20261125.19">
-<link rel="stylesheet" href="views/views.css?v=20261125.19">
+<link rel="stylesheet" href="cc-design.css?v=20261128.1">
+<link rel="stylesheet" href="cc-skin.css?v=20261128.1">
+<link rel="stylesheet" href="cc-widgets.css?v=20261128.1">
+<link rel="stylesheet" href="cc-pages.css?v=20261128.1">
+<link rel="stylesheet" href="cc-sources2.css?v=20261128.1">
+<link rel="stylesheet" href="views/views.css?v=20261128.1">
+<link rel="stylesheet" href="cc-v2.css?v=20261128.1">
 <!-- 2026-11-24 audit: cc-biz.css and cc-systems.css stopped loading, not deleted — see the matching
      note by the script tags below. -->
 
@@ -315,6 +316,10 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 <nav class="rail" id="rail"></nav>
 <div class="main" id="main">
   <div class="topbar">
+    <div class="tb-nav" id="tbnav">
+      <button type="button" class="tb-navbtn" id="navback" title="Back" disabled><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span id="navback-l">Back</span></button>
+      <button type="button" class="tb-navbtn" id="navhome" title="Home: all categories"><svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+    </div>
     <div class="tb-brand">
       <span class="tb-mark"><svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/></svg></span>
       <h1>Command Center</h1>
@@ -341,8 +346,11 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 "use strict";
 
 /* ══════════ GLOBAL CC NAMESPACE (for external view scripts) ══════════ */
-var BUILD="20261127.8"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
-try{var bv=document.getElementById("bver");if(bv)bv.textContent="v"+BUILD}catch(e){}
+var BUILD="20261128.1"; // keep in sync with every ?v= query string in this file — see the note at the top of <head>
+try{var bv=document.getElementById("bver");if(bv){var bm=/^(\d{4})(\d\d)(\d\d)\.(\d+)$/.exec(BUILD),MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  /* 2026-11-28, JD's call: "make the version number easier to read". Same number, readable form:
+     20261128.1 shows as "Build Nov 28 · 1"; the raw string stays in the tooltip. */
+  bv.innerHTML="";bv.appendChild(document.createTextNode(bm?"Build "+MON[+bm[2]-1]+" "+(+bm[3])+" · ":"Build "));var bn=document.createElement("b");bn.textContent=bm?bm[4]:BUILD;bv.appendChild(bn);bv.title="Build "+BUILD+" loaded in this browser"}}catch(e){}
 window.CC = window.CC || {};
 CC.views = CC.views || {};
 CC.subviews = CC.subviews || {};
@@ -1069,10 +1077,14 @@ function render(){
     var back=CRUMB_BACK[TAB]||{id:"wall",l:"Overview"};
     function crumbIcon(d){return svgEl("svg",{viewBox:"0 0 24 24"},[svgEl("path",{d:d})])}
     var CHEVRON="M15 18l-6-6 6-6", HOUSE="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 21v-8h6v8";
-    var crumbBtns=[h("button",{type:"button",class:"crumb-back",onclick:function(){go(back.id)}},crumbIcon(CHEVRON),back.l)];
-    if(back.id!=="wall")crumbBtns.push(h("button",{type:"button",class:"crumb-home",onclick:function(){go("wall")}},crumbIcon(HOUSE),"Overview"));
-    crumbBtns.push(h("span",{class:"crumb-t"},CRUMB_TITLES[TAB]||TAB));
-    app.appendChild(h("div",{class:"crumb"},crumbBtns));
+    /* 2026-11-28: Back/Home moved to the topbar (persistent on every page), so this row is now the
+       page title plus a right-hand actions slot. Each view's own .hp-head buttons (Information →,
+       ← Personal, etc.) are moved up into that slot after the view renders — they used to take a
+       whole empty row of their own between this bar and the content. */
+    var crumbT=CRUMB_TITLES[TAB]||TAB, crumbParts=String(crumbT).split(" — ");
+    app.appendChild(h("div",{class:"crumb crumb-v2"},
+      h("h2",{class:"crumb-title"},crumbParts[0],crumbParts[1]?h("span",{class:"crumb-sub"}," / "+crumbParts[1]):null),
+      h("div",{class:"crumb-acts",id:"crumb-acts"})));
   }
 
   /* Check for external view overrides (CC.views.Business etc.) */
@@ -1094,7 +1106,7 @@ function render(){
         crew:crewTuples(), tab:tabName
       };
       var result=CC.views[tabName](CCAPI);
-      if(result){app.appendChild(result);_restoreScroll();return}
+      if(result){app.appendChild(result);hoistHeadActions(app);_restoreScroll();return}
       console.warn("CC.views."+tabName+" returned nothing, falling back to built-in");
     }catch(e){
       console.error("CC.views."+tabName+" error, falling back to built-in:",e);
@@ -1106,6 +1118,17 @@ function render(){
   _restoreScroll();
 }
 
+/* Move a view's .hp-head buttons up into the crumb row's actions slot (see render()). Views that
+   repaint their own head later (Personal's Faith sub-page) are caught by the MutationObserver
+   below calling this again. */
+function hoistHeadActions(app){
+  var slot=document.getElementById("crumb-acts");if(!slot)return;
+  app.querySelectorAll(".hp-head").forEach(function(hd){
+    if(!hd.children.length)return;
+    Array.prototype.slice.call(hd.children).forEach(function(c){slot.appendChild(c)});
+    hd.classList.add("hp-head-hoisted");
+  });
+}
 /* 2026-11-27: .hp-mod cards are allowed to scroll internally rather than clip (see the
    .hp-mod-scroll contract above), but a thin native scrollbar gives no hint there's more below —
    that read as the page being broken/truncated rather than "scroll this card." Tag any card
@@ -1122,7 +1145,8 @@ function markOverflowingMods(){
 }
 function scheduleMarkOverflow(){
   if(_markOverflowRAF)return;
-  _markOverflowRAF=requestAnimationFrame(function(){_markOverflowRAF=null;markOverflowingMods()});
+  _markOverflowRAF=requestAnimationFrame(function(){_markOverflowRAF=null;markOverflowingMods();
+    var a=document.getElementById("app");if(a){hoistHeadActions(a);if(CC.viz)CC.viz.upgradeTiles(a)}});
 }
 (function(){
   var appEl=document.getElementById("app");
@@ -1271,8 +1295,40 @@ function go(id){
   TABS.forEach(function(t){allowed[t.id]=1});
   if(CC.catPages)Object.keys(CC.catPages).forEach(function(k){var v=CC.catPages[k];allowed[v]=1;allowed[v+"-data"]=1});
   if(!allowed[id]){console.warn('[nav] blocked go("'+id+'") — that page is retired, not reachable; returning to Overview');id="wall"}
-  TAB=id;buildNav();render();window.scrollTo(0,0)
+  /* 2026-11-28, JD's call: persistent Home + Back on every page. Back walks a real history stack
+     (not a fixed parent), mirrored into the browser's own history via the URL hash so the
+     trackpad / browser Back button does the same thing as ours. opts.fromPop = this navigation
+     came from the browser itself, so don't push it again. */
+  var opts=arguments[1]||{};
+  if(id!==TAB){
+    if(opts.back){NAV_STACK.pop()}
+    else{NAV_STACK.push(TAB);if(NAV_STACK.length>40)NAV_STACK.shift();if(!opts.fromPop){try{history.pushState({cc:id},"","#/"+id)}catch(e){}}}
+  }
+  TAB=id;buildNav();render();updateNavBtns();window.scrollTo(0,0)
 }
+var NAV_STACK=[];
+function pageLabel(id){
+  if(id==="wall")return"Home";
+  if(CC.catPages){var ks=Object.keys(CC.catPages);for(var i=0;i<ks.length;i++){var v=CC.catPages[ks[i]];if(v===id)return ks[i];if(v+"-data"===id)return ks[i]+" info"}}
+  var T={build:"Update",Sources:"Sources",Records:"Records",Sheets:"Connected Sheets"};return T[id]||id;
+}
+function updateNavBtns(){
+  var b=document.getElementById("navback"),l=document.getElementById("navback-l"),hm=document.getElementById("navhome");
+  if(!b)return;
+  var prev=NAV_STACK.length?NAV_STACK[NAV_STACK.length-1]:(TAB!=="wall"?parentOf(TAB):null);
+  b.disabled=!prev;l.textContent="Back";b.title=prev?"Back to "+pageLabel(prev):"Nothing to go back to";
+  hm.classList.toggle("on",TAB==="wall");
+}
+function parentOf(id){if(/-data$/.test(id))return id.replace(/-data$/,"");return"wall"}
+function goBack(){
+  if(NAV_STACK.length){try{history.back();return}catch(e){} go(NAV_STACK[NAV_STACK.length-1],{back:true});return}
+  if(TAB!=="wall")go(parentOf(TAB));
+}
+window.addEventListener("popstate",function(e){
+  var id=(e.state&&e.state.cc)||(location.hash.replace(/^#\/?/,"")||"wall");
+  if(NAV_STACK.length&&NAV_STACK[NAV_STACK.length-1]===id)go(id,{back:true});else go(id,{fromPop:true});
+});
+CC.go=go;
 
 /* ══════════ THEME ══════════ */
 function toggleTheme(){
@@ -1376,6 +1432,10 @@ function loadData(){
   document.getElementById("tbtn").addEventListener("click",toggleTheme);
   document.getElementById("rbtn").addEventListener("click",function(){D=null;render();loadData()});
   document.getElementById("dbtn").addEventListener("click",disconnect);
+  document.getElementById("navback").addEventListener("click",goBack);
+  document.getElementById("navhome").addEventListener("click",function(){if(TAB!=="wall")go("wall")});
+  try{history.replaceState({cc:"wall"},"","#/wall")}catch(e){}
+  updateNavBtns();
   initQuickLinkDnd();
   buildNav();render();loadData();
 
@@ -1403,37 +1463,38 @@ function loadData(){
      before any of them touch the page) but lets the browser fetch all 18 files in parallel
      instead of one at a time, which used to be a big chunk of the time before the page became
      interactive. -->
-<script defer src="cc-sheetfetch.js?v=20261127.6" onerror="void 0"></script>
-<script defer src="cc-fresh.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-inbox.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-motion.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-sheetfetch.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-fresh.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-inbox.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-motion.js?v=20261128.1" onerror="void 0"></script>
 <!-- 2026-11-24 audit: views/business.js, views/bizcharts.js, views/bizleads.js and cc-biz.js stopped
      loading here. Each one set CC.views.Business in turn, and every one of them was then silently
      overwritten by the next script in this list — the last word was always cc-active.js, so none of
      this work ever reached the live page (see Messages, 2026-11-24, for the full trace). Files are
      untouched on disk; nobody edited another builder's file to fix this, only index.html's load list.
      cc-active.js now owns Business outright and only needs CC.crm/CC.nurture (loaded below) to count. -->
-<script defer src="views/timeline.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="views/system.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="views/shooting.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-widgets.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-nurture.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-crm.js?v=20261126.14" onerror="void 0"></script>
-<script defer src="cc-active.js?v=20261127.3" onerror="void 0"></script>
-<script defer src="cc-sources2.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-map.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-records.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-sheets.js?v=20261125.19" onerror="void 0"></script>
-<script defer src="cc-build.js?v=20261127.1" onerror="void 0"></script>
+<script defer src="views/timeline.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="views/system.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="views/shooting.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-widgets.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-nurture.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-crm.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-active.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-sources2.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-map.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-records.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-sheets.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-build.js?v=20261128.1" onerror="void 0"></script>
 <!-- cc-systems.js stopped loading too: it registers CC.views.Systems (trailing "s"), but the router
      only ever looks up CC.views.System (views/system.js, Argus) for the System tab — the key never
      matched, so this file has been dead code since it was added. Archived, not deleted. -->
-<script defer src="cc-body-fig.js?v=20261126.7" onerror="void 0"></script>
-<script defer src="cc-body3d.js?v=20261126.7" onerror="void 0"></script>
-<script defer src="cc-body.js?v=20261126.1" onerror="void 0"></script>
-<script defer src="cc-health.js?v=20261127.8" onerror="void 0"></script>
-<script defer src="cc-categories.js?v=20261127.8" onerror="void 0"></script>
-<script defer src="cc-pages.js?v=20261127.3" onerror="void 0"></script>
-<script defer src="cc-know.js?v=20261125.19" onerror="void 0"></script>
+<script defer src="cc-body-fig.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-body3d.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-body.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-viz.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-health.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-categories.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-pages.js?v=20261128.1" onerror="void 0"></script>
+<script defer src="cc-know.js?v=20261128.1" onerror="void 0"></script>
 </body>
 </html>

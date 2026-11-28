@@ -47,7 +47,7 @@
     return e;
   }
   function dtext(d) { return d == null ? "no data" : d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days"; }
-  function hrs(min) { if (min == null) return "—"; var h2 = Math.floor(min / 60), m2 = Math.round(min % 60); return h2 + "h " + m2 + "m"; }
+  function hrs(min) { if (min == null) return "—"; min = Math.round(min); var h2 = Math.floor(min / 60), m2 = min % 60; return h2 + "h " + (m2 < 10 ? "0" : "") + m2 + "m"; }
   function sv(tag, props) { var e = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.keys(props || {}).forEach(function (k) { e.setAttribute(k, props[k]); }); return e; }
   /* Small inline legend row — a line-style swatch (or a row of intensity swatches) plus a label,
      so a chart's encoding is spelled out in plain words right under it rather than assumed.
@@ -236,311 +236,518 @@
   // JD's call — trajectories and projections over per-muscle sparklines); left defined, unused,
   // in case the per-muscle breakdown is wanted back on the Information layer later.
 
-  /* ---------- Hero: Last Workout. The date of the most recent logged set, off the same Workouts
-     pull everything else here already loads, plus when the routine that syncs it last swept (JD's
-     ask, 2026-11-27 — plumbing now, polish later). ---------- */
-  function heroLastWorkout(api) {
-    var wrap = h("section", {class: "wt"}), body = h("div", null);
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Last Workout")));
-    wrap.appendChild(body);
+  /* ════════════════════════════════════════════════════════════════════════════════════════
+     2026-11-28, JD's Nov 27 round on Health (screenshot review). What changed and why:
+       - Training heatmap: was a fixed 12px-square grid hugging the left of a full-width card, no
+         labels, one colour. Now fills the card edge to edge, with month labels across the top,
+         weekday labels down the side, each day coloured by the muscle group trained most that
+         day (darker = more sets), a category legend, and a stats column on the right.
+         Also fixes a real bug: day cells were stepped by +86,400,000 ms from the grid start, so
+         every day between the March and November clock changes landed an hour off the
+         midnight keys and drew as empty — the "blank middle" of the old heatmap was data that
+         was there all along.
+       - Cardio: no more full-width "heart and lungs, separate from lifting" banner. A compact
+         card read straight from the Workouts tab's Cardio rows: days since, minutes this week
+         against a 150-minute ring, and the last 6 weeks as bars.
+       - Volume trend: was one wiggly line, truncated. Now weekly bars with a 4-week average
+         line, a dashed 3-week projection, a labelled axis, and a one-line read on top.
+       - Sleep: colour-coded. 7h+ green, 6–7h amber, under 6h red with an alarm line, and any
+         record under 3h flagged as a partial record (likely a nap or a sync gap — check the
+         data) and left out of the average. Also fixes the card sitting on "Reading…" forever
+         (cc-body.js's loader dropped every caller after the first).
+       - Category breakdown: was full-width bars. Now a compact share-of-volume list, last 4
+         weeks against the 4 before, with an up/down change per group.
+       - Every card is a single surface (the old ones nested a bordered .wt card inside the
+         bordered .hp-mod card), titles are readable, and nothing truncates: cards size to their
+         content in a 12-column grid with different widths per card.
+     Every figure is plain arithmetic off the sheets, never AI text. */
+
+  var DAY = 86400000;
+  function ymd(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function startOfDay(t) { var d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function daysBetween(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / DAY); }
+  function fmtK(n) { return n >= 10000 ? Math.round(n / 1000) + "k" : n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(Math.round(n)); }
+  function fmtDay(t) { return new Date(t).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"}); }
+  function V() { return CC.viz; }
+  function card(title, right, body, cls) {
+    return h("section", {class: "hc" + (cls ? " " + cls : "")},
+      h("div", {class: "hc-h"}, h("h3", null, title), right ? h("span", {class: "hc-r"}, right) : null),
+      h("div", {class: "hc-b"}, body));
+  }
+  function loading(cache, label) { return h("div", {class: "hc-empty"}, cache.err ? cache.err : readingText(label, cache)); }
+
+  /* One pass over the Workouts rows → everything the Knowledge cards need, cached per rows array. */
+  var WM = {src: null, m: null};
+  function minutesOf(s) {
+    var m = /^(\d+):(\d\d)(?::(\d\d))?$/.exec(String(s || "").trim());
+    if (!m) return 0;
+    return m[3] != null ? Number(m[1]) * 60 + Number(m[2]) + Number(m[3]) / 60 : Number(m[1]) + Number(m[2]) / 60;
+  }
+  function workoutModel() {
+    if (!PW.rows) return null;
+    if (WM.src === PW.rows) return WM.m;
+    var hd = PW.header, iDate = col(hd, "Date"), iCat = col(hd, "Category"), iEx = col(hd, "Exercise"),
+      iWt = col(hd, "Weight (lb)"), iRep = col(hd, "Reps"), iTime = col(hd, "Time (min:sec)"), iDist = col(hd, "Distance"), iUnit = col(hd, "Unit");
+    var days = {}, earliest = null, latest = null;
+    PW.rows.forEach(function (r) {
+      var t = iDate != null ? ms(r[iDate]) : null; if (t == null) return;
+      var d = startOfDay(t), k = ymd(d);
+      var o = days[k] || (days[k] = {k: k, t: d.getTime(), sets: 0, cats: {}, ex: {}, vol: 0, cardioMin: 0, cardioEx: {}, dist: 0, unit: ""});
+      o.sets++;
+      var cat = iCat != null ? String(r[iCat] || "") : "";
+      o.cats[cat] = (o.cats[cat] || 0) + 1;
+      if (iEx != null && r[iEx]) o.ex[r[iEx]] = 1;
+      if (cat === "Cardio") {
+        o.cardioMin += minutesOf(iTime != null ? r[iTime] : "");
+        if (iEx != null && r[iEx]) o.cardioEx[r[iEx]] = 1;
+        var dv = numAt(r, iDist); if (dv) { o.dist += dv; o.unit = iUnit != null ? r[iUnit] : ""; }
+      } else {
+        var w = numAt(r, iWt), rp = numAt(r, iRep);
+        if (w != null && rp != null) o.vol += w * rp;
+      }
+      if (earliest == null || d < earliest) earliest = d;
+      if (latest == null || d > latest) latest = d;
+    });
+    Object.keys(days).forEach(function (k) {
+      var o = days[k], best = null;
+      Object.keys(o.cats).forEach(function (c) { if (c !== "Cardio" && c !== "Abs" && (!best || o.cats[c] > o.cats[best])) best = c; });
+      o.top = best || (o.cats.Cardio ? "Cardio" : Object.keys(o.cats)[0]);
+    });
+    WM.src = PW.rows; WM.m = {days: days, earliest: earliest, latest: latest};
+    return WM.m;
+  }
+
+  /* ---------- Heatmap ---------- */
+  function heatmapCard(api) {
+    var body = h("div", {class: "hmx"});
+    var right = h("span", null);
+    var el = card("Training calendar", right, body, "hc-heat");
     function paint() {
       body.innerHTML = "";
-      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
-      var iDate = col(PW.header, "Date"), lastT = null;
-      PW.rows.forEach(function (r) { var t = iDate != null ? ms(r[iDate]) : null; if (t != null && (lastT == null || t > lastT)) lastT = t; });
-      var days = lastT != null ? Math.floor((Date.now() - lastT) / 86400000) : null;
-      body.appendChild(h("div", {class: "cd-big"}, days == null ? "No data" : days <= 0 ? "Today" : days === 1 ? "Yesterday" : days + " days ago"));
-      if (lastT != null) body.appendChild(h("div", {class: "rh-sub"}, new Date(lastT).toLocaleDateString("en-US", {weekday: "long", month: "short", day: "numeric"})));
+      var m = workoutModel();
+      if (!m) { body.appendChild(loading(PW, "Workouts history")); return; }
+      var today = startOfDay(Date.now());
+      var weeks = Math.max(8, Math.min(52, Math.ceil(daysBetween(m.earliest, today) / 7) + 1));
+      var dow = (today.getDay() + 6) % 7; // Mon=0
+      var start = addDays(today, -dow - (weeks - 1) * 7); // Monday of the first column
+      var mx = 1; Object.keys(m.days).forEach(function (k) { if (m.days[k].sets > mx) mx = m.days[k].sets; });
+      var grid = h("div", {class: "hmx-grid", style: "grid-template-columns:30px repeat(" + weeks + ",minmax(0,1fr))"});
+      grid.appendChild(h("span", {class: "hmx-corner"}));
+      var lastMon = -1, lastMonCol = -1;
+      for (var w = 0; w < weeks; w++) {
+        var wd = addDays(start, w * 7), mo = wd.getMonth();
+        var showMon = mo !== lastMon && (w - lastMonCol >= 3 || lastMonCol < 0) && !(w === 0 && addDays(wd, 14).getMonth() !== mo);
+        grid.appendChild(h("span", {class: "hmx-mon"}, showMon ? wd.toLocaleDateString("en-US", {month: "short"}) : ""));
+        if (mo !== lastMon) { lastMon = mo; if (showMon) lastMonCol = w; }
+      }
+      var DOWS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
+      var trainDays = 0, sets = 0, catCount = {};
+      for (var d = 0; d < 7; d++) {
+        grid.appendChild(h("span", {class: "hmx-dow"}, DOWS[d]));
+        for (var w2 = 0; w2 < weeks; w2++) {
+          var day = addDays(start, w2 * 7 + d), k = ymd(day), o = m.days[k], fut = day > today;
+          var cell;
+          if (fut) cell = h("i", {class: "hmx-c fut"});
+          else if (!o) cell = h("i", {class: "hmx-c rest", title: fmtDay(day) + ": rest"});
+          else {
+            trainDays++; sets += o.sets; catCount[o.top] = (catCount[o.top] || 0) + 1;
+            var cats = Object.keys(o.cats).sort(function (a, b) { return o.cats[b] - o.cats[a]; }).map(function (c) { return c + " " + o.cats[c]; }).join(", ");
+            cell = h("i", {class: "hmx-c", style: "background:" + catColor(o.top) + ";opacity:" + (0.38 + 0.62 * Math.min(1, o.sets / mx)).toFixed(2),
+              title: fmtDay(day) + ": " + o.sets + " sets (" + cats + ")"});
+          }
+          if (+day === +today) cell.classList.add("today");
+          grid.appendChild(cell);
+        }
+      }
+      /* longest break between training days in the window */
+      var keys = Object.keys(m.days).map(function (k) { return m.days[k].t; }).filter(function (t) { return t >= +start; }).sort(function (a, b) { return a - b; });
+      var gap = 0, gapEnd = null;
+      for (var i = 1; i < keys.length; i++) { var g = daysBetween(keys[i - 1], keys[i]) - 1; if (g > gap) { gap = g; gapEnd = keys[i]; } }
+      var since = keys.length ? daysBetween(keys[keys.length - 1], today) : null;
+      if (since != null && since > gap) { gap = since; gapEnd = null; }
+      var topCat = Object.keys(catCount).sort(function (a, b) { return catCount[b] - catCount[a]; })[0];
+      var perWk = trainDays / weeks;
+      right.textContent = weeks + " weeks · " + new Date(+start).toLocaleDateString("en-US", {month: "short", day: "numeric"}) + " to today";
+      var stats = h("div", {class: "hmx-stats"},
+        stat("Training days", String(trainDays), perWk.toFixed(1) + " a week", perWk >= 3.5 ? "good" : perWk >= 2.5 ? "n" : "warn"),
+        stat("Sets logged", sets.toLocaleString("en-US"), Math.round(sets / Math.max(1, trainDays)) + " per session", "n"),
+        stat("Longest break", gap + (gap === 1 ? " day" : " days"), gapEnd ? "ended " + new Date(gapEnd).toLocaleDateString("en-US", {month: "short", day: "numeric"}) : "ongoing", gap >= 7 ? "warn" : "good"),
+        stat("Most trained", topCat || "—", topCat ? catCount[topCat] + " days led" : "", null, topCat ? catColor(topCat) : null));
+      var legend = h("div", {class: "hmx-leg"},
+        ["Chest", "Back", "Shoulders", "Biceps", "Triceps", "Legs", "Cardio"].map(function (c) { return h("span", null, h("i", {style: "background:" + catColor(c)}), c); }),
+        h("span", {class: "hmx-leg-n"}, "colour = group trained most that day · darker = more sets · hover a day for detail"));
+      body.appendChild(h("div", {class: "hmx-main"}, h("div", {class: "hmx-left"}, grid, legend), stats));
+    }
+    function stat(l, v, s, k, c) {
+      return h("div", {class: "hmx-st"}, h("span", null, l), h("b", {style: c ? "color:" + c : (k ? "color:" + V().col(k) : "")}, v), h("small", null, s));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return el;
+  }
+
+  /* ---------- Last workout ---------- */
+  function lastWorkoutCard(api) {
+    var body = h("div", {class: "lw"});
+    var el = card("Last workout", null, body);
+    function paint() {
+      body.innerHTML = "";
+      var m = workoutModel();
+      if (!m || !m.latest) { body.appendChild(loading(PW, "Workouts history")); return; }
+      var o = m.days[ymd(m.latest)], days = daysBetween(m.latest, Date.now());
+      var st = days <= 2 ? "good" : days <= 4 ? "warn" : "bad";
+      var ex = Object.keys(o.ex).length;
+      body.appendChild(h("div", {class: "lw-top"},
+        V().ring(Math.max(0, 100 - days / 7 * 100), st, {label: String(days), sub: days === 1 ? "day" : "days", size: 64, title: "Days since last logged set (ring empties over a week)"}),
+        h("div", null,
+          h("div", {class: "lw-big", style: "color:" + V().col(st)}, days <= 0 ? "Today" : days === 1 ? "Yesterday" : days + " days ago"),
+          h("div", {class: "lw-sub"}, new Date(m.latest).toLocaleDateString("en-US", {weekday: "long", month: "short", day: "numeric"})),
+          h("div", {class: "lw-sub"}, o.sets + " sets · " + ex + " exercise" + (ex === 1 ? "" : "s") + (o.cardioMin ? " · " + Math.round(o.cardioMin) + " cardio min" : "")))));
+      body.appendChild(h("div", {class: "lw-chips"}, Object.keys(o.cats).sort(function (a, b) { return o.cats[b] - o.cats[a]; }).map(function (c) {
+        return h("span", {class: "lw-chip", style: "--c:" + catColor(c)}, h("i"), c, h("b", null, String(o.cats[c])));
+      })));
+      /* the few sessions before it, so the card answers "what's the pattern lately", not just one date */
+      var prev = Object.keys(m.days).sort().reverse().slice(1, 6).map(function (k) { return m.days[k]; });
+      if (prev.length) body.appendChild(h("div", {class: "lw-prev"}, prev.map(function (p) {
+        var d2 = daysBetween(p.t, Date.now());
+        return h("div", {class: "lw-prow", title: Object.keys(p.cats).map(function (c) { return c + " " + p.cats[c]; }).join(", ")},
+          h("span", null, new Date(p.t).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"})),
+          h("span", {class: "lw-pcats"}, Object.keys(p.cats).sort(function (a, b) { return p.cats[b] - p.cats[a]; }).slice(0, 3).map(function (c) { return h("i", {style: "background:" + catColor(c), title: c}); }), h("em", null, p.top)),
+          h("b", null, p.sets + " sets"));
+      })));
       var rr = fitnotesRoutineRow();
-      var cadTxt = rr && rr.cadence ? (rr.cadence < 60 ? "every " + rr.cadence + " min" : rr.cadence === 60 ? "hourly" : "every " + Math.round(rr.cadence / 60) + "h") : "";
-      var syncLine = !rr ? (FN_ROUTINE.err ? "Routine sync: " + FN_ROUTINE.err : "Reading the FitNotes backup watch routine…")
-        : "FitNotes backup watch " + (rr.status === "ok" ? "✓" : "⚠ " + (rr.status || "")) + (rr.last ? " · last swept " + agoShort(rr.last) : "") + (cadTxt ? " · " + cadTxt : "");
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:8px"}, syncLine));
+      var cad = rr && rr.cadence ? (rr.cadence < 60 ? "every " + rr.cadence + " min" : "every " + Math.round(rr.cadence / 60) + "h") : "";
+      var ok = rr && rr.status === "ok";
+      body.appendChild(h("div", {class: "lw-sync " + (rr ? (ok ? "good" : "warn") : "")}, h("i"),
+        !rr ? (FN_ROUTINE.err ? "Sync status unavailable" : "Reading sync status…") : "FitNotes sync " + (ok ? "OK" : (rr.status || "check")) + (rr.last ? " · " + agoShort(rr.last) : "") + (cad ? " · " + cad : "")));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
     if (!FN_ROUTINE.rows && !FN_ROUTINE.err) loadFitnotesRoutine(api, paint);
-    return wrap;
+    return el;
   }
 
-  /* 2026-11-27, JD's call: the full Workouts pull already holds the whole FitNotes history (every
-     row back to the first logged set — nothing is trimmed on the way in, see loadAllWorkouts'
-     cap:4000, comfortably above the real row count), but the heatmap and volume trend below used
-     to hardcode a 16-week / 12-week window regardless of how much history was actually loaded —
-     "I don't think you made any adjustments" was fair: the data was all there, the views just
-     never looked past a fixed recent slice of it. This reads the real first-logged date and sizes
-     both views to the ACTUAL span of history (capped at a year so the heatmap doesn't run off the
-     screen on a multi-year sheet), so "how far back can you see" is answered by the chart itself. */
-  function historySpanWeeks(rows, header) {
-    var iDate = col(header, "Date"), earliest = null;
-    (rows || []).forEach(function (r) { var t = iDate != null ? ms(r[iDate]) : null; if (t != null && (earliest == null || t < earliest)) earliest = t; });
-    if (earliest == null) return {weeks: 16, earliest: null};
-    var weeks = Math.ceil((Date.now() - earliest) / (7 * 86400000)) + 1;
-    return {weeks: Math.max(4, Math.min(weeks, 52)), earliest: earliest};
+  /* ---------- Cardio (compact) ---------- */
+  var CARDIO_TARGET = 150;
+  function cardioModel2() {
+    var m = workoutModel(); if (!m) return null;
+    var today = startOfDay(Date.now()), dow = (today.getDay() + 6) % 7, mon = addDays(today, -dow);
+    var last = null, weeks = [0, 0, 0, 0, 0, 0], sess = [0, 0, 0, 0, 0, 0], labels = [];
+    for (var i = 0; i < 6; i++) labels.push(i === 5 ? "now" : addDays(mon, -(5 - i) * 7).toLocaleDateString("en-US", {month: "numeric", day: "numeric"}));
+    Object.keys(m.days).forEach(function (k) {
+      var o = m.days[k]; if (!o.cats.Cardio) return;
+      if (!last || o.t > last.t) last = o;
+      var wi = o.t >= +mon ? 5 : 5 - Math.ceil(daysBetween(o.t, +mon) / 7);
+      if (wi >= 0 && wi < 6) { weeks[wi] += o.cardioMin; sess[wi]++; }
+    });
+    return {last: last, days: last ? daysBetween(last.t, today) : null, weeks: weeks, sess: sess, labels: labels, week: weeks[5]};
   }
-
-  /* ---------- Training heatmap: calendar-style, full logged history (see historySpanWeeks above),
-     darker = more sets that day. One of JD's favorite kinds of view, straight off the same
-     Workouts pull, grouped by day. ---------- */
-  function workoutHeatmap(api) {
-    var wrap = h("section", {class: "wt"}), body = h("div", null);
-    var subEl = h("span", {class: "bd-sub"}, "sets logged per day, full history");
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Training heatmap"), subEl));
-    wrap.appendChild(body);
+  function cardioCard(api) {
+    var body = h("div", {class: "cd2"});
+    var el = card("Cardio", null, body);
     function paint() {
       body.innerHTML = "";
-      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
-      var iDate = col(PW.header, "Date"), byDay = {};
-      PW.rows.forEach(function (r) {
-        var t = iDate != null ? ms(r[iDate]) : null; if (t == null) return;
-        var d = new Date(t); d.setHours(0, 0, 0, 0);
-        var k = d.getTime(); byDay[k] = (byDay[k] || 0) + 1;
+      var c = cardioModel2();
+      if (!c) { body.appendChild(loading(PW, "Workouts history")); return; }
+      if (!c.last) { body.appendChild(h("div", {class: "hc-empty"}, "No cardio logged yet.")); return; }
+      var st = c.days <= 2 ? "good" : c.days <= 4 ? "warn" : "bad";
+      var pct = Math.min(100, c.week / CARDIO_TARGET * 100), wst = pct >= 100 ? "good" : pct >= 50 ? "n" : "warn";
+      var exs = Object.keys(c.last.cardioEx).join(", ");
+      body.appendChild(h("div", {class: "cd2-top"},
+        h("div", null,
+          h("div", {class: "lw-big", style: "color:" + V().col(st)}, c.days <= 0 ? "Today" : c.days === 1 ? "Yesterday" : c.days + " days ago"),
+          h("div", {class: "lw-sub"}, (c.last.cardioMin ? Math.round(c.last.cardioMin) + " min" : "session") + (exs ? " · " + exs : "")),
+          h("div", {class: "lw-sub"}, c.sess[5] + " session" + (c.sess[5] === 1 ? "" : "s") + " this week")),
+        V().ring(pct, wst, {label: Math.round(c.week), sub: "/ " + CARDIO_TARGET, size: 64, title: Math.round(c.week) + " of " + CARDIO_TARGET + " cardio minutes this week"})));
+      body.appendChild(V().bars(c.weeks.map(Math.round), {labels: c.labels, target: CARDIO_TARGET, targetLabel: CARDIO_TARGET + " min target",
+        states: c.weeks.map(function (v) { return v >= CARDIO_TARGET ? "good" : v >= CARDIO_TARGET / 2 ? "n" : "warn"; }),
+        titles: c.weeks.map(function (v, i) { return "Week of " + c.labels[i] + ": " + Math.round(v) + " min, " + c.sess[i] + " sessions"; }), height: 56, aria: "Cardio minutes per week, last 6 weeks"}));
+      body.appendChild(h("div", {class: "hc-foot"}, "minutes per week · line = " + CARDIO_TARGET + " min target"));
+    }
+    paint();
+    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
+    return el;
+  }
+
+  /* ---------- Volume trend ---------- */
+  function volumeModel() {
+    if (!PW.rows) return null;
+    var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog);
+    if (complete.length < 3) return {short: true};
+    function tot(w) { return PROG_CATS.reduce(function (s, cat) { return s + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0); }
+    var wk = complete.slice(-16), vals = wk.map(tot);
+    var all = complete.map(tot), avg4 = [];
+    var off = complete.length - wk.length;
+    for (var i = 0; i < wk.length; i++) { var j = off + i, s = all.slice(Math.max(0, j - 3), j + 1); avg4.push(s.reduce(function (a, b) { return a + b; }, 0) / s.length); }
+    var fit = all.slice(-8), n = fit.length, sx = 0, sy = 0, sxy = 0, sxx = 0;
+    fit.forEach(function (y, k) { sx += k; sy += y; sxy += k * y; sxx += k * k; });
+    var den = n * sxx - sx * sx, slope = den ? (n * sxy - sx * sy) / den : 0, icpt = (sy - slope * sx) / n;
+    var proj = [0, 1, 2].map(function (p) { return Math.max(0, icpt + slope * (n + p)); });
+    var cur = prog.weeks[prog.weeks.length - 1] === weekKey(Date.now()) ? tot(weekKey(Date.now())) : 0;
+    return {weeks: wk, vals: vals, avg4: avg4, proj: proj, cur: cur, last: vals[vals.length - 1], lastAvg: avg4[avg4.length - 2] || avg4[avg4.length - 1], slope: slope, all: all};
+  }
+  function volumeCard(api) {
+    var body = h("div", {class: "vt2"});
+    var right = h("span", null);
+    var el = card("Lifting volume", right, body, "hc-vol");
+    function paint() {
+      body.innerHTML = "";
+      var m = volumeModel();
+      if (!m) { body.appendChild(loading(PW, "Workouts history")); return; }
+      if (m.short) { body.appendChild(h("div", {class: "hc-empty"}, "Not enough weekly history yet.")); return; }
+      var d = m.lastAvg ? (m.last - m.lastAvg) / m.lastAvg : 0, st = d >= 0.05 ? "good" : d <= -0.15 ? "warn" : "n";
+      right.textContent = "weekly weight × reps, last " + m.weeks.length + " weeks";
+      body.appendChild(h("div", {class: "vt2-read"},
+        h("div", null, h("b", null, fmtK(m.last)), h("span", null, "last full week")),
+        h("div", null, h("b", null, fmtK(m.lastAvg)), h("span", null, "4-week average")),
+        h("div", null, h("b", {style: "color:" + V().col(st)}, (d >= 0 ? "+" : "") + Math.round(d * 100) + "%"), h("span", null, "vs average")),
+        h("div", null, h("b", {style: "color:var(--muted)"}, fmtK(m.proj[2])), h("span", null, "projected in 3 wks"))));
+      /* chart: bars + avg line + projection, drawn in one SVG with a real axis, at the box's real
+         pixel size (a stretched viewBox squashes the axis text) — redrawn when the box resizes. */
+      var chartBox = h("div", {class: "vt2-chart"});
+      body.appendChild(chartBox);
+      function draw() {
+      chartBox.innerHTML = "";
+      var n = m.vals.length + 3, W = Math.max(200, chartBox.clientWidth || 600), Hh = Math.max(60, chartBox.clientHeight || 120), PL = 34, PB = 16, PT = 6;
+      var mx = Math.max.apply(null, m.vals.concat(m.proj, m.avg4, [1])) * 1.08;
+      var bw = (W - PL) / n;
+      function y(v) { return PT + (Hh - PT - PB) * (1 - v / mx); }
+      var kids = [];
+      [0, 0.5, 1].forEach(function (f) {
+        var v = mx * f, yy = y(v);
+        kids.push(V().sv("line", {x1: PL, x2: W, y1: yy, y2: yy, stroke: "var(--line)", "stroke-width": 1}));
+        var t = V().sv("text", {x: PL - 6, y: yy + 3, "text-anchor": "end", class: "vt2-ax"}); t.textContent = fmtK(v); kids.push(t);
       });
-      var WEEKS = historySpanWeeks(PW.rows, PW.header).weeks;
-      subEl.textContent = "sets logged per day, last " + WEEKS + " weeks (full logged history)";
-      var today = new Date(); today.setHours(0, 0, 0, 0);
-      var startDow = (today.getDay() + 6) % 7;
-      var gridStart = today.getTime() - ((WEEKS * 7 - 1 - startDow) * 86400000);
-      var mx = Math.max.apply(null, Object.keys(byDay).map(function (k) { return byDay[k]; }).concat([1]));
-      var cols = [];
-      for (var w = 0; w < WEEKS; w++) {
-        var colEl = h("div", {style: "display:flex;flex-direction:column;gap:3px"});
-        for (var d2 = 0; d2 < 7; d2++) {
-          var dayT = gridStart + (w * 7 + d2) * 86400000;
-          var v = byDay[dayT] || 0, future = dayT > today.getTime();
-          var op = future ? 0 : (v ? 0.15 + (v / mx) * 0.85 : 0.08);
-          colEl.appendChild(h("div", {
-            title: future ? "" : new Date(dayT).toLocaleDateString("en-US", {month: "short", day: "numeric"}) + ": " + v + (v === 1 ? " set" : " sets"),
-            style: "width:12px;height:12px;border-radius:2px;background:var(--accent);opacity:" + op
-          }));
-        }
-        cols.push(colEl);
+      m.vals.forEach(function (v, i) {
+        var below = m.avg4[i] && v < m.avg4[i] * 0.75;
+        var r = V().sv("rect", {x: PL + i * bw + bw * 0.18, y: y(v), width: bw * 0.64, height: Math.max(1, y(0) - y(v)), rx: 2, fill: below ? "var(--amber)" : "var(--accent)", opacity: below ? 0.85 : 0.7});
+        var tt = V().sv("title", {}); tt.textContent = "Week of " + fmtWeek(m.weeks[i]) + ": " + Math.round(v).toLocaleString("en-US") + " lb·reps"; r.appendChild(tt);
+        kids.push(r);
+      });
+      m.proj.forEach(function (v, i) {
+        kids.push(V().sv("rect", {x: PL + (m.vals.length + i) * bw + bw * 0.18, y: y(v), width: bw * 0.64, height: Math.max(1, y(0) - y(v)), rx: 2, fill: "none", stroke: "var(--muted)", "stroke-dasharray": "3 3"}));
+      });
+      kids.push(V().sv("polyline", {points: m.avg4.map(function (v, i) { return (PL + i * bw + bw / 2).toFixed(1) + "," + y(v).toFixed(1); }).join(" "), fill: "none", stroke: "var(--text)", "stroke-width": 1.6, opacity: 0.8}));
+      var lastMo = -1;
+      m.weeks.concat([0, 1, 2].map(function (k) { return m.weeks[m.weeks.length - 1] + (k + 1) * 7 * DAY; })).forEach(function (w, i) {
+        var mo = new Date(w).getMonth();
+        if (mo !== lastMo) { var t = V().sv("text", {x: PL + i * bw + 2, y: Hh - 4, class: "vt2-ax"}); t.textContent = new Date(w).toLocaleDateString("en-US", {month: "short"}); kids.push(t); lastMo = mo; }
+      });
+      chartBox.appendChild(V().sv("svg", {viewBox: "0 0 " + W + " " + Hh, width: W, height: Hh, role: "img", "aria-label": "Weekly lifting volume, 4-week average and projection"}, kids));
       }
-      body.appendChild(h("div", {style: "display:flex;gap:3px;overflow-x:auto"}, cols));
-      var inWin = Object.keys(byDay).filter(function (k) { return Number(k) >= gridStart; });
-      var totalSets = inWin.reduce(function (a, k) { return a + byDay[k]; }, 0);
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:8px"},
-        "Each column is one week, oldest on the left, today on the right; each square is one day. " +
-        inWin.length + " training days, " + totalSets.toLocaleString("en-US") + " sets logged in the last " + WEEKS + " weeks."));
-      body.appendChild(chartLegend([{swatches: [0.08, 0.35, 0.6, 0.85, 1], loLabel: "No sets", hiLabel: "Most sets in a day"}]));
+      draw();
+      if (window.ResizeObserver) { var lastW = 0, lastH = 0; new ResizeObserver(function () { if (Math.abs(chartBox.clientWidth - lastW) > 2 || Math.abs(chartBox.clientHeight - lastH) > 2) { lastW = chartBox.clientWidth; lastH = chartBox.clientHeight; draw(); } }).observe(chartBox); }
+      body.appendChild(h("div", {class: "hc-legend"},
+        h("span", null, h("i", {class: "sw", style: "background:var(--accent);opacity:.7"}), "week"),
+        h("span", null, h("i", {class: "sw", style: "background:var(--amber)"}), "under 75% of average"),
+        h("span", null, h("i", {class: "ln"}), "4-week average"),
+        h("span", null, h("i", {class: "sw dash"}), "projection"),
+        m.cur ? h("span", {class: "hc-legend-r"}, "this week so far " + fmtK(m.cur)) : null));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
-    return wrap;
+    return el;
   }
 
-  /* ---------- Volume trend + projection: weekly total volume (lb·reps, tracked lifting groups),
-     last 12 complete weeks, with a short linear-regression projection forward 3 weeks. Supersedes
-     the per-muscle sparkline Progress widget above — JD's call, 2026-11-27: a real trajectory line
-     over bars, since trajectories and projections are what he actually wants more of here. ---------- */
-  function volumeTrendWidget(api) {
-    var wrap = h("section", {class: "wt"}), body = h("div", null);
-    var subEl = h("span", {class: "bd-sub"}, "weekly total, full history + 3-week projection");
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Volume trend"), subEl));
-    wrap.appendChild(body);
+  /* ---------- Category mix (condensed breakdown) ---------- */
+  function mixCard(api) {
+    var body = h("div", {class: "mx2"});
+    var el = card("Where the volume went", h("span", null, "last 4 wks vs 4 before"), body);
     function paint() {
       body.innerHTML = "";
-      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
-      /* 2026-11-27, JD's call: this used to hard-slice to the last 12 complete weeks no matter how
-         much history was loaded. Every complete week now plots — the real question he asked
-         ("how far back can you see") answered directly by the chart's own x-axis. */
-      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog);
-      if (complete.length < 3) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough weekly history yet.")); return; }
-      subEl.textContent = "weekly total, all " + complete.length + " logged weeks + 3-week projection";
-      var totals = complete.map(function (w) { return PROG_CATS.reduce(function (s, cat) { return s + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0); });
-      var n = totals.length, sx = 0, sy = 0, sxy = 0, sxx = 0;
-      totals.forEach(function (y, i) { sx += i; sy += y; sxy += i * y; sxx += i * i; });
-      var denom = (n * sxx - sx * sx), slope = denom ? (n * sxy - sx * sy) / denom : 0, intercept = (sy - slope * sx) / n;
-      var PROJ = 3, projTotals = [];
-      for (var p = 0; p < PROJ; p++) projTotals.push(Math.max(0, intercept + slope * (n + p)));
-      var allVals = totals.concat(projTotals), mx = Math.max.apply(null, allVals.concat([1]));
-      var W = Math.max(600, n * 14), H2 = 108, stepX = W / (allVals.length - 1);
-      function pt(i, v) { return [i * stepX, H2 - (v / mx) * (H2 - 16) - 8]; }
-      var solidPts = totals.map(function (v, i) { return pt(i, v); });
-      var dashPts = [pt(n - 1, totals[n - 1])].concat(projTotals.map(function (v, i) { return pt(n + i, v); }));
-      var svg = sv("svg", {viewBox: "0 0 " + W + " " + H2, width: "100%", height: H2, role: "img", "aria-label": "Weekly training volume with projection"});
-      svg.appendChild(sv("polyline", {points: solidPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": "2.5"}));
-      svg.appendChild(sv("polyline", {points: dashPts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: "none", stroke: "var(--muted)", "stroke-width": "2", "stroke-dasharray": "5,5"}));
-      /* Markers clutter a long multi-month line — only dot the points once there are few enough
-         (≤16 weeks) to read as individual values rather than a dense trajectory. */
-      if (solidPts.length <= 16) solidPts.forEach(function (p) { svg.appendChild(sv("circle", {cx: p[0], cy: p[1], r: "3", fill: "var(--accent)"})); });
-      body.appendChild(h("div", {style: "overflow-x:auto"}, svg));
-      body.appendChild(chartLegend([{line: "solid", label: "Actual"}, {line: "dashed", label: "Projected"}]));
-      var dir = slope > totals[0] * 0.02 ? "trending up" : slope < -totals[0] * 0.02 ? "trending down" : "steady";
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:2px"}, "Total weight × reps lifted each week, across all tracked lifts, " + complete.length + " weeks back to " + fmtWeek(complete[0]) + " — " + dir + ", projected to reach " + Math.round(projTotals[projTotals.length - 1]).toLocaleString("en-US") + " in " + PROJ + " more weeks."));
-    }
-    paint();
-    if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
-    return wrap;
-  }
-
-  /* ---------- Category breakdown: total volume by muscle group, full logged history. New
-     2026-11-27, JD's call — "we have so much to go on" / "much more complicated graphs": this is
-     the same volByWeekCat data the Volume trend chart already computes, just summed across every
-     week instead of plotted per week, so it costs nothing extra to fetch. Horizontal bars, direct
-     value labels (6 categories reads fine without a separate legend per the dataviz rule), sorted
-     by volume so the most-trained group is immediately obvious. Cardio and Abs have no weight×reps
-     figure (bodyweight / time-based), so they're out of scope for this one. ---------- */
-  function categoryBreakdownWidget(api) {
-    var wrap = h("section", {class: "wt"}), body = h("div", null);
-    wrap.appendChild(h("div", {class: "wh"}, h("span", {class: "mono"}, "Category breakdown"), h("span", {class: "bd-sub"}, "total volume by muscle group, full history")));
-    wrap.appendChild(body);
-    function paint() {
-      body.innerHTML = "";
-      if (PW.err) { body.appendChild(h("div", {class: "ov-empty"}, PW.err)); return; }
-      if (!PW.rows) { body.appendChild(h("div", {class: "ov-empty"}, readingText("Workouts history", PW))); return; }
-      var prog = buildProgress(PW.rows, PW.header), complete = completeWeeks(prog);
-      if (!complete.length) { body.appendChild(h("div", {class: "ov-empty"}, "Not enough history yet.")); return; }
-      var totalsByCat = PROG_CATS.map(function (cat) {
-        var v = complete.reduce(function (s, w) { return s + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0);
-        return {cat: cat, v: v};
-      }).filter(function (x) { return x.v > 0; }).sort(function (a, b) { return b.v - a.v; });
-      if (!totalsByCat.length) { body.appendChild(h("div", {class: "ov-empty"}, "No tracked lifting volume yet.")); return; }
-      var mx = Math.max.apply(null, totalsByCat.map(function (x) { return x.v; }));
-      var rows = h("div", {style: "display:flex;flex-direction:column;gap:9px"});
-      totalsByCat.forEach(function (x) {
-        var pct = Math.max(2, (x.v / mx) * 100);
-        rows.appendChild(h("div", null,
-          h("div", {style: "display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:3px"},
-            h("span", {style: "color:var(--text);font-weight:600"}, x.cat),
-            h("span", {style: "color:var(--muted)"}, Math.round(x.v).toLocaleString("en-US") + " lb·reps")),
-          h("div", {style: "height:9px;border-radius:5px;background:var(--line);overflow:hidden"},
-            h("div", {style: "height:100%;width:" + pct + "%;border-radius:5px;background:" + catColor(x.cat)}))));
+      if (!PW.rows) { body.appendChild(loading(PW, "Workouts history")); return; }
+      var prog = buildProgress(PW.rows, PW.header), cw = completeWeeks(prog);
+      if (cw.length < 2) { body.appendChild(h("div", {class: "hc-empty"}, "Not enough history yet.")); return; }
+      var rec = cw.slice(-4), pri = cw.slice(-8, -4);
+      function sum(ws, cat) { return ws.reduce(function (a, w) { return a + (prog.volByWeekCat[w + "|" + cat] || 0); }, 0); }
+      var rows = PROG_CATS.map(function (c) { return {c: c, r: sum(rec, c), p: sum(pri, c), all: sum(cw, c)}; });
+      var totR = rows.reduce(function (a, x) { return a + x.r; }, 0) || 1;
+      rows.sort(function (a, b) { return b.r - a.r; });
+      var mxShare = Math.max.apply(null, rows.map(function (x) { return x.r / totR; }).concat([0.01]));
+      rows.forEach(function (x) {
+        var share = x.r / totR, d = x.p ? (x.r - x.p) / x.p : null;
+        var dst = d == null ? "off" : d >= 0.1 ? "good" : d <= -0.25 ? "warn" : "off";
+        body.appendChild(h("div", {class: "mx2-row", title: x.c + ": " + Math.round(x.r).toLocaleString("en-US") + " lb·reps in the last 4 weeks, " + Math.round(x.all).toLocaleString("en-US") + " all time"},
+          h("span", {class: "mx2-c"}, h("i", {style: "background:" + catColor(x.c)}), x.c),
+          h("span", {class: "mx2-bar"}, h("i", {style: "width:" + (share / mxShare * 100).toFixed(1) + "%;background:" + catColor(x.c)})),
+          h("b", null, Math.round(share * 100) + "%"),
+          h("small", {style: "color:" + V().col(dst)}, d == null ? "new" : (d >= 0 ? "▲ " : "▼ ") + Math.abs(Math.round(d * 100)) + "%")));
       });
-      body.appendChild(rows);
-      body.appendChild(h("div", {class: "rh-sub", style: "margin-top:10px"},
-        "Weight × reps summed across " + complete.length + " logged weeks, back to " + fmtWeek(complete[0]) + " — bar length and the number are the same measure, so the leader by eye is the leader by the math."));
+      body.appendChild(h("div", {class: "hc-foot"}, "share of lifting volume · ▲▼ change vs the 4 weeks before"));
     }
     paint();
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
-    return wrap;
+    return el;
   }
 
-  /* ---------- Knowledge layer: a fixed board, not a reactive "only if notable" list. JD's call
-     (2026-11-25): six slots, always present when their source has data, so the opener has a
-     stable, scannable shape instead of appearing almost empty on a quiet week. Color still does
-     the "is this fine or not" work (watch/good/neutral) — the fixed slots are WHAT gets asked;
-     the color is the ANSWER. Show-don't-tell throughout: short all-caps titles, one big value,
-     a terse sub-caption, never a sentence, never "worth knowing"/"things to know."
-       1. TEMPO        — sessions this week vs your recent average
-       2. ACTIVE DAYS  — training days in the last 14, off the Workouts pull (replaces the old
-                         muscle-group-gap tile, which depended on the Items tr-* feed retired
-                         2026-11-27 along with the muscle map itself)
-       3. CARDIO       — days since your last cardio session
-       4. [VITAL]       — your biggest vitals move vs your recent average
-       5. SLEEP        — last night vs your 7-night average
-       6. [CATEGORY] VOLUME — your biggest weekly-volume mover, up or down */
-  function knowledgeTiles(api) {
-    var tiles = [];
-    var mm = CC.body && CC.body.model ? CC.body.model(api) : null;
-    var vm = CC.body && CC.body.vitalsModel ? CC.body.vitalsModel() : null;
-    var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel() : null;
-    var prog = PW.rows ? buildProgress(PW.rows, PW.header) : null;
+  /* ---------- Sleep (colour-coded, with alarm) ---------- */
+  var SLEEP_GOOD = 420, SLEEP_LOW = 360, SLEEP_PARTIAL = 180;
+  function sleepState(min) { return min == null ? "off" : min < SLEEP_PARTIAL ? "off" : min < SLEEP_LOW ? "bad" : min < SLEEP_GOOD ? "warn" : "good"; }
+  function sleepCard(api) {
+    var body = h("div", {class: "sl2"});
+    var el = card("Sleep", h("span", {class: "hc-legend"}, h("span", null, h("i", {class: "sw", style: "background:var(--green)"}), "7h+"), h("span", null, h("i", {class: "sw", style: "background:var(--amber)"}), "6–7h"), h("span", null, h("i", {class: "sw", style: "background:var(--red)"}), "under 6h"), h("span", null, h("i", {class: "sw", style: "background:var(--muted)"}), "partial")), body);
+    function paint() {
+      body.innerHTML = "";
+      var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel(14) : null;
+      if (!sm) { body.appendChild(h("div", {class: "hc-empty"}, CC.body && CC.body.sleepErr && CC.body.sleepErr() ? CC.body.sleepErr() : "Reading the Sleep tab…")); return; }
+      /* one value per date: the longest record that date; anything under 3h is a partial record */
+      var byDate = {};
+      sm.nights.forEach(function (n) { if (n.min == null) return; var o = byDate[n.k]; if (!o || n.min > o.min) byDate[n.k] = n; });
+      var nights = Object.keys(byDate).sort().slice(-7).map(function (k) { return byDate[k]; });
+      if (!nights.length) { body.appendChild(h("div", {class: "hc-empty"}, "No nights logged yet.")); return; }
+      var full = nights.filter(function (n) { return n.min >= SLEEP_PARTIAL; });
+      var avg = full.length ? full.reduce(function (a, n) { return a + n.min; }, 0) / full.length : null;
+      var last = nights[nights.length - 1], lst = sleepState(last.min), partial = last.min < SLEEP_PARTIAL;
+      var age = daysBetween(ms(last.k) || Date.now(), Date.now());
+      var alarm = null;
+      if (partial) alarm = {k: "warn", t: "Last record is only " + hrs(last.min) + " — probably a nap or a sync gap. Check Apple Health."};
+      else if (last.min < SLEEP_LOW) alarm = {k: "bad", t: "Under 6 hours last night (" + hrs(last.min) + "). Second short night in a row means check in on it."};
+      else if (avg != null && avg < 390) alarm = {k: "bad", t: "7-night average is " + hrs(avg) + ", under 6½ hours."};
+      if (!partial && last.min < SLEEP_LOW && nights.length > 1 && nights[nights.length - 2].min >= SLEEP_LOW) alarm.t = "Under 6 hours last night (" + hrs(last.min) + ").";
+      if (age > 2) alarm = {k: "warn", t: "No sleep logged for " + age + " days. The Apple Health sync may be stuck."};
+      body.appendChild(h("div", {class: "sl2-top"},
+        h("div", null,
+          h("div", {class: "lw-big", style: "color:" + V().col(lst)}, hrs(last.min)),
+          h("div", {class: "lw-sub"}, (age <= 1 ? "last night" : fmtDay(ms(last.k))) + (last.bed ? " · " + last.bed + " to " + last.wake : ""))),
+        h("div", {class: "sl2-avg"},
+          h("b", {style: "color:" + V().col(sleepState(avg))}, avg != null ? hrs(avg) : "—"),
+          h("span", null, "7-night avg" + (full.length < nights.length ? " (" + (nights.length - full.length) + " partial left out)" : "")))));
+      body.appendChild(V().bars(nights.map(function (n) { return n.min; }), {max: 600, target: SLEEP_GOOD, targetLabel: "7h goal", height: 64,
+        states: nights.map(function (n) { return sleepState(n.min); }),
+        labels: nights.map(function (n) { var t = ms(n.k); return t ? new Date(t).toLocaleDateString("en-US", {weekday: "narrow"}) : ""; }),
+        titles: nights.map(function (n) { return n.k + ": " + hrs(n.min) + (n.min < SLEEP_PARTIAL ? " (partial record)" : ""); }), aria: "Hours asleep, last 7 nights"}));
+      var STAGES = [["deep", "Deep", "var(--cyan)"], ["rem", "REM", "var(--violet)"], ["core", "Core", "var(--accent)"], ["awake", "Awake", "var(--muted)"]];
+      if (STAGES.some(function (s) { return last[s[0]] != null; })) {
+        body.appendChild(h("div", {class: "sl2-stages"},
+          V().stack(STAGES.map(function (s) { return {v: last[s[0]] || 0, c: s[2], l: s[1]}; })),
+          h("div", {class: "hc-legend"}, STAGES.map(function (s) { return last[s[0]] == null ? null : h("span", null, h("i", {class: "sw", style: "background:" + s[2]}), s[1] + " " + hrs(last[s[0]])); }))));
+      }
+      if (alarm) body.appendChild(h("div", {class: "hc-alarm " + alarm.k}, h("i"), alarm.t));
+    }
+    paint();
+    if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
+    return el;
+  }
 
+  /* ---------- Vitals: four, each with its 7-day line ---------- */
+  function vitalsCard(api) {
+    var body = h("div", {class: "vi2"});
+    var right = h("span", null);
+    var el = card("Vitals", right, body);
+    function paint() {
+      body.innerHTML = "";
+      var vm = CC.body && CC.body.vitalsModel ? CC.body.vitalsModel() : null;
+      if (!vm) { body.appendChild(h("div", {class: "hc-empty"}, "Reading the Vitals tab…")); return; }
+      right.textContent = vm.age <= 0 ? "today" : vm.age === 1 ? "yesterday" : vm.age + " days old";
+      var pick = ["hr", "hrv", "steps", "kcal", "spo2", "vo2", "rr"], shown = 0;
+      pick.forEach(function (k) {
+        if (shown >= 4) return;
+        var x = vm.vals.filter(function (v) { return v.f.k === k; })[0]; if (!x) return; shown++;
+        var f = x.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
+        var st = x.state === "good" ? "good" : x.state === "watch" ? "warn" : "n";
+        var ser = x.series.filter(function (v) { return v != null; });
+        body.appendChild(h("div", {class: "vi2-row", title: f.label + " " + fmt(x.v) + (f.unit ? " " + f.unit : "") + (x.diff != null ? ", " + (x.diff >= 0 ? "+" : "") + x.diff.toFixed(1) + " vs the earlier days" : "")},
+          h("span", {class: "vi2-l"}, f.label),
+          h("b", null, fmt(x.v), f.unit ? h("small", null, " " + f.unit) : null),
+          V().spark(ser, st, {zero: false}),
+          h("small", {class: "vi2-d", style: "color:" + V().col(x.state === "steady" || x.state === "n" ? "off" : st === "n" ? "off" : st)}, x.diff == null || x.state === "steady" ? "steady" : (x.diff > 0 ? "▲ " : "▼ ") + fmt(Math.abs(x.diff)))));
+      });
+      body.appendChild(h("div", {class: "hc-foot"}, "line = last 7 days · arrow = vs the days before"));
+    }
+    paint();
+    if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
+    return el;
+  }
+
+  /* ---------- Knowledge tiles: same six questions, each with its own visual ---------- */
+  function knowledgeTiles(api) {
+    var T = [], v = V();
+    var m = workoutModel(), prog = PW.rows ? buildProgress(PW.rows, PW.header) : null;
+    var vm = CC.body && CC.body.vitalsModel ? CC.body.vitalsModel() : null;
+    var sm = CC.body && CC.body.sleepModel ? CC.body.sleepModel(14) : null;
     if (prog) {
       var td = tempoData(prog);
-      if (td) tiles.push({t: "TEMPO", v: td.lastCount + "/wk", s: "vs " + td.avg.toFixed(1) + " avg", k: td.ratio < 0.7 ? "watch" : td.ratio >= 1.05 ? "good" : "n"});
+      if (td) {
+        var k = td.ratio < 0.7 ? "warn" : td.ratio >= 1.05 ? "good" : "n";
+        var cw = completeWeeks(prog).slice(-8);
+        T.push({l: "Sessions / week", v: td.lastCount, s: "avg " + td.avg.toFixed(1) + " (6 wks)", k: k,
+          viz: v.bars(cw.map(function (w) { return prog.sessByWeek[w] || 0; }), {height: 40, states: cw.map(function (w, i) { return i === cw.length - 1 ? k : "off"; }), titles: cw.map(function (w) { return "Week of " + fmtWeek(w) + ": " + (prog.sessByWeek[w] || 0) + " sessions"; })})});
+      }
     }
-    if (PW.rows) {
-      var iDateAD = col(PW.header, "Date"), daysSeen = {}, now14 = Date.now();
-      PW.rows.forEach(function (r) { var t = iDateAD != null ? ms(r[iDateAD]) : null; if (t != null && now14 - t < 14 * 86400000) { var d = new Date(t); d.setHours(0, 0, 0, 0); daysSeen[d.getTime()] = 1; } });
-      var activeDays = Object.keys(daysSeen).length;
-      tiles.push({t: "ACTIVE DAYS", v: activeDays, s: "last 14 days", k: activeDays >= 6 ? "good" : activeDays <= 2 ? "watch" : "n"});
+    if (m) {
+      var today = startOfDay(Date.now()), act = [], n14 = 0;
+      for (var i = 13; i >= 0; i--) { var o = m.days[ymd(addDays(today, -i))]; act.push(o ? o.sets : 0); if (o) n14++; }
+      var ak = n14 >= 6 ? "good" : n14 <= 2 ? "bad" : n14 <= 4 ? "warn" : "n";
+      T.push({l: "Active days", v: n14 + " / 14", s: "trained, last 2 weeks", k: ak, viz: v.ring(n14 / 14 * 100, ak, {label: n14, size: 48})});
+      var c = cardioModel2();
+      if (c && c.last) {
+        var ck = c.days <= 2 ? "good" : c.days <= 4 ? "warn" : "bad";
+        T.push({l: "Cardio", v: c.days <= 0 ? "Today" : c.days + (c.days === 1 ? " day" : " days"), s: Math.round(c.week) + " / " + CARDIO_TARGET + " min this week", k: ck,
+          viz: v.ring(Math.min(100, c.week / CARDIO_TARGET * 100), c.week >= CARDIO_TARGET ? "good" : ck, {label: Math.round(c.week), size: 48, title: "cardio minutes this week vs " + CARDIO_TARGET})});
+      }
     }
-    var cd = mm ? mm.cardio : null;
-    if (cd && cd.days != null) tiles.push({t: "CARDIO", v: dtext(cd.days), s: "since last session", k: cd.days >= 4 ? "watch" : cd.days <= 1 ? "good" : "n"});
     if (vm && vm.vals.length) {
-      var notable = vm.vals.slice().sort(function (a, b) { return Math.abs(b.diff || 0) - Math.abs(a.diff || 0); })[0];
-      var f = notable.f, fmt = function (n) { return f.dp ? n.toFixed(f.dp) : Math.round(n).toLocaleString("en-US"); };
-      var nk = notable.state === "watch" || notable.state === "good" ? notable.state : "n";
-      tiles.push({t: f.label.toUpperCase(), v: fmt(notable.v) + (f.unit ? " " + f.unit : ""), s: notable.diff != null ? (notable.diff >= 0 ? "+" : "") + notable.diff.toFixed(1) + " vs avg" : "no trend yet", k: nk});
+      var st = vm.vals.filter(function (x) { return x.f.k === "steps"; })[0] || vm.vals[0];
+      var f = st.f, ser = st.series.filter(function (x) { return x != null; });
+      var avg = ser.length > 1 ? ser.slice(0, -1).reduce(function (a, b) { return a + b; }, 0) / (ser.length - 1) : null;
+      var sk = st.state === "good" ? "good" : st.state === "watch" ? "warn" : "n";
+      T.push({l: f.label, v: f.dp ? st.v.toFixed(f.dp) : Math.round(st.v).toLocaleString("en-US"), s: avg != null ? "7-day avg " + Math.round(avg).toLocaleString("en-US") : "latest day", k: sk, viz: v.spark(ser, sk, {zero: false})});
     }
-    if (sm && sm.latest.min != null) {
-      var diff = sm.avg != null ? sm.latest.min - sm.avg : null;
-      tiles.push({t: "SLEEP", v: hrs(sm.latest.min), s: diff != null ? (diff >= 0 ? "+" : "-") + hrs(Math.abs(diff)) + " vs avg" : "last night", k: diff == null ? "n" : diff <= -60 ? "watch" : diff >= 60 ? "good" : "n"});
+    if (sm && sm.nights.length) {
+      var byDate = {}; sm.nights.forEach(function (n) { if (n.min == null) return; var o2 = byDate[n.k]; if (!o2 || n.min > o2.min) byDate[n.k] = n; });
+      var ns = Object.keys(byDate).sort().slice(-7).map(function (k2) { return byDate[k2]; });
+      var lastN = ns[ns.length - 1], lk = sleepState(lastN.min), lw = lk === "off" ? "warn" : lk;
+      T.push({l: "Sleep", v: hrs(lastN.min), s: lastN.min < SLEEP_PARTIAL ? "partial record, check data" : lastN.min < SLEEP_LOW ? "under 6h, alarm" : lastN.min < SLEEP_GOOD ? "under the 7h goal" : "at or over 7h", k: lw,
+        viz: v.bars(ns.map(function (n) { return n.min; }), {height: 40, max: 600, states: ns.map(function (n) { return sleepState(n.min); }), titles: ns.map(function (n) { return n.k + ": " + hrs(n.min); })})});
     }
     if (prog) {
       var vd = volumeMoverAlways(prog);
-      if (vd) tiles.push({t: (vd.cat + " VOLUME").toUpperCase(), v: (vd.pct > 0 ? "+" : "") + Math.round(vd.pct * 100) + "%", s: "last 2 wks", k: Math.abs(vd.pct) < 0.15 ? "n" : vd.pct > 0 ? "good" : "watch"});
+      if (vd) {
+        var vk = Math.abs(vd.pct) < 0.15 ? "n" : vd.pct > 0 ? "good" : "warn", cw2 = completeWeeks(prog).slice(-8);
+        T.push({l: vd.cat + " volume", v: (vd.pct > 0 ? "+" : "") + Math.round(vd.pct * 100) + "%", s: "biggest 2-wk change", k: vk,
+          viz: v.spark(cw2.map(function (w) { return prog.volByWeekCat[w + "|" + vd.cat] || 0; }), catColor(vd.cat))});
+      }
     }
-    if (!tiles.length) tiles.push({t: "STATUS", v: "—", s: "waiting on data", k: "n"});
-    return tiles;
-  }
-  function tileGrid(tiles) {
-    return h("div", {class: "kt-grid"}, tiles.map(function (x) {
-      return h("div", {class: "kt " + x.k}, h("div", {class: "kt-l"}, x.t), h("div", {class: "kt-v"}, x.v), h("div", {class: "kt-s"}, x.s));
-    }));
+    if (!T.length) T.push({l: "Status", v: "—", s: "waiting on data", k: "n"});
+    return T;
   }
 
-  /* 2026-11-25: dropped the visible title here — the crumb bar above every off-rail page already
-     names it ("HEALTH"), so a big duplicate <h2> saying "Health" again was two words eating the
-     same vertical space twice for no reason. Kept as an aria-label so the page still announces
-     itself to screen readers; the "next" affordance now sits where that title used to be, right
-     at the top, so content starts higher on the page. */
-  function hpHead(title, nextLabel, onNext) {
-    return h("div", {class: "hp-head", "aria-label": title},
-      onNext ? h("button", {type: "button", class: "hp-next", onclick: onNext}, nextLabel + " →") : null);
-  }
-
-  /* ---------- Health = Knowledge: the merged dashboard. Tiles first (the questions, answered),
-     then the muscle map, cardio, vitals, sleep and progress widgets right below on the same
-     page/scroll — no extra click to see them. One "Information →" affordance takes you down to
-     the full-screen grid. ---------- */
-  /* Wraps an existing widget (cc-body.js's muscle map, cardio, sleep panels; progressWidget
-     above) in the shared .hp-mod canvas box. The widget's own markup/CSS is untouched — this
-     just bounds its height and lets it scroll internally (never the page) if its content runs
-     long for the space it's given. */
-  function modWrap(content, extraClass) {
-    return h("div", {class: "hp-mod" + (extraClass ? " " + extraClass : "")},
-      h("div", {class: "hp-mod-body hp-mod-scroll"}, content));
-  }
-
-  /* 2026-11-27, JD's call: muscle body map retired (no good work ever landed on it, and its data
-     feed — Items tr-* rows — is being retired on Luna's side anyway). Three rows now: Last
-     Workout hero + Cardio on top, the training heatmap spanning full width in the middle, Volume
-     trend + projection and Sleep on the bottom — trajectories and projections over the map. */
   CC.views.Health = function (api) {
-    var page = h("div", {class: "hp-wrap hp-canvas"});
-    page.appendChild(hpHead("Health", "Information", function () { api.go("health-data"); }));
-    var tiles = h("div", {class: "hp-tilesbar"});
+    var page = h("div", {class: "hp-wrap hp-canvas hv2"});
+    page.appendChild(h("div", {class: "hp-head", "aria-label": "Health"},
+      h("button", {type: "button", class: "hp-next", onclick: function () { api.go("health-data"); }}, "Information →")));
+    var tiles = h("div", {class: "kt-grid hv2-tiles"});
     page.appendChild(tiles);
-    function paint() { tiles.innerHTML = ""; tiles.appendChild(tileGrid(knowledgeTiles(api))); reportSummary(); }
+    function paint() {
+      tiles.innerHTML = "";
+      knowledgeTiles(api).forEach(function (t) { tiles.appendChild(V().tile(t)); });
+      reportSummary();
+    }
+    function reportSummary() {
+      if (!CC.setCatSummary) return;
+      var kt = knowledgeTiles(api), t = kt[0];
+      var line = t && t.l !== "Status" ? t.l + ": " + t.v + " · " + t.s : "Reading workout history…";
+      CC.setCatSummary("Health", line, false, kt.slice(0, 3).map(function (x) { return {value: String(x.v), label: x.l, k: x.k}; }),
+        function () { var f = knowledgeTiles(api); return V().heroTiles([f[1], f.filter(function (x) { return x.l === "Sleep"; })[0], f[2]]); });
+    }
     paint();
     if (CC.body && CC.body.ensureHealthData) CC.body.ensureHealthData(api, paint);
     if (!PW.rows && !PW.err) loadAllWorkouts(api, paint);
     if (!FN_ROUTINE.rows && !FN_ROUTINE.err) loadFitnotesRoutine(api, paint);
 
-    function reportSummary() {
-      if (!CC.setCatSummary) return;
-      var kt = knowledgeTiles(api);
-      var t = kt[0];
-      var line = t && t.t !== "STATUS" ? t.t.charAt(0) + t.t.slice(1).toLowerCase() + ": " + t.v + " · " + t.s : "Reading workout history…";
-      var stats = kt.slice(0, 3).map(function (x) { return {value: String(x.v), label: x.t.charAt(0) + x.t.slice(1).toLowerCase()}; });
-      CC.setCatSummary("Health", line, false, stats);
-    }
-
-    /* 2026-11-27, JD's call: added a 4th row (Category Breakdown, full width) to go with the
-       expanded-to-full-history Heatmap and Volume trend above — more depth, not just a wider window
-       on the same two charts. Rows stay even (1fr each); any card that's now too tall for its slot
-       gets .hp-mod-scroll's internal scroll plus the .is-overflowing fade/chevron cue (Task #40,
-       same day) rather than clipping silently. */
-    var body = h("div", {class: "hp-canvas-body", style: "grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr 1fr"});
-    var heat = modWrap(workoutHeatmap(api));
-    heat.style.gridColumn = "1 / span 2";
-    var catBreak = modWrap(categoryBreakdownWidget(api));
-    catBreak.style.gridColumn = "1 / span 2";
-    body.appendChild(modWrap(heroLastWorkout(api)));
-    body.appendChild(modWrap(CC.body && CC.body.cardio ? CC.body.cardio(api, {}) : h("div", {class: "ov-empty"}, "Loading cardio…")));
-    body.appendChild(heat);
-    body.appendChild(modWrap(volumeTrendWidget(api)));
-    body.appendChild(modWrap(CC.body && CC.body.sleep ? CC.body.sleep(api) : h("div", {class: "ov-empty"}, "Loading sleep…")));
-    body.appendChild(catBreak);
+    var body = h("div", {class: "hp-canvas-body hv2-body"});
+    body.appendChild(heatmapCard(api));
+    body.appendChild(lastWorkoutCard(api));
+    body.appendChild(volumeCard(api));
+    body.appendChild(mixCard(api));
+    body.appendChild(cardioCard(api));
+    body.appendChild(sleepCard(api));
+    body.appendChild(vitalsCard(api));
     page.appendChild(body);
     return page;
   };
+
 
   /* ---------- Information: full-screen, edge-to-edge, literal grid of Workouts. Every row, every
      column, straight from the sheet — click a header to sort. Whole rows are tinted by muscle

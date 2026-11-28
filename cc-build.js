@@ -151,6 +151,8 @@
   CC.buildStatus = {
     lanes: GROUPS,
     laneStatus: laneStatus,
+    /* 2026-11-28: per-layer % for the Wall v2 tiles' build gauge (Knowledge / Information / Data). */
+    layerStatus: function (g) { return LAYERS.map(function (L) { var st = idsStatus(layerIds(g, L.key)); return {label: L.label, pct: st.pct, n: st.n}; }); },
     ready: function () { return Object.keys(S.byId).length > 0; },
     error: function () { return S.err; },
     ensureLoaded: function (api) { if (Object.keys(S.byId).length === 0 && !S.loading && !S.err) load(api); },
