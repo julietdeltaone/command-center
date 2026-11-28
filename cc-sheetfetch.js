@@ -212,8 +212,16 @@
   };
 
   CC.catSummary = CC.catSummary || {};
-  CC.setCatSummary = function (name, line, placeholder, stats) {
-    CC.catSummary[name] = {line: line, placeholder: !!placeholder, updatedAt: Date.now(), stats: Array.isArray(stats) ? stats.slice(0, 3) : null};
+  /* 2026-11-28 (Wall v2): two optional extras. hero = function () { return a DOM node } — the big
+     graphic that fills that category's Wall tile (a function, not a node, because the Wall builds
+     a fresh tile on every render and a DOM node can only live in one place). stats items may carry
+     k (good / warn / bad / n) so the Wall can colour them. Every call schedules one debounced Wall
+     repaint, so tiles fill in as each category's data lands instead of waiting for a click. */
+  var _wallT = null;
+  CC.setCatSummary = function (name, line, placeholder, stats, hero) {
+    CC.catSummary[name] = {line: line, placeholder: !!placeholder, updatedAt: Date.now(), stats: Array.isArray(stats) ? stats.slice(0, 3) : null, hero: typeof hero === "function" ? hero : null};
+    if (_wallT) clearTimeout(_wallT);
+    _wallT = setTimeout(function () { _wallT = null; try { if (CC.api && CC.api.tab === "wall" && !document.getElementById("ccsheet")) CC.api.render(); } catch (e) {} }, 500);
   };
   /* Known-placeholder categories as of 2026-11-25, used as a fallback by the stricter Build %
      rule (cc-build.js) before the category's own dashboard has run once this session and

@@ -237,12 +237,57 @@
     return h("div", {class: "ov-cat-ringwrap"}, s, txt);
   }
 
+  /* 2026-11-28, Wall v2 (JD's Nov 27 round: "utilize the space a bit more, come up with a new set
+     of graphics that takes up most of the space"). Each tile is now mostly graphic:
+       - hero: the category's own headline visuals, drawn large (CC.catSummary[name].hero — the same
+         rings/bars/meters as its dashboard tiles, same colours). A category that hasn't reported a
+         hero yet shows its build gauge instead: overall % plus Knowledge / Information / Data
+         meters, read live from the Build Status tab — real data, never a fake number.
+       - stats: up to three colour-coded rows pinned to the bottom.
+     Tiles fill in on their own: the first Wall render warms every category's dashboard off-screen
+     once per session, so their loaders run and report back (CC.setCatSummary schedules one Wall
+     repaint), instead of each tile sitting on "Tap to open" until you'd visited the page. */
+  var STATE_COL = {good: "var(--green)", warn: "var(--amber)", watch: "var(--amber)", bad: "var(--red)"};
+  var warmed = false;
+  function warmAll(api) {
+    if (warmed || !CC.catPages) return; warmed = true;
+    Object.keys(CC.catPages).forEach(function (name, i) {
+      var key = name.replace(/[^A-Za-z0-9]/g, "");
+      if (!CC.views[key]) return;
+      setTimeout(function () { try { CC.views[key](api); } catch (e) { console.warn("[wall] warm " + name + " failed", e); } }, 60 * i);
+    });
+  }
+  function buildGauge(BS, g, color) {
+    var st = BS.laneStatus(g), layers = BS.layerStatus ? BS.layerStatus(g) : [];
+    var V = CC.viz;
+    return h("div", {class: "wg"},
+      V.ring(st.pct, st.pct >= 100 ? "good" : st.pct <= 0 ? "bad" : "warn", {label: (st.pct == null ? "—" : st.pct) + "%", sub: "built", size: 92}),
+      h("div", {class: "wg-layers"}, layers.map(function (L) {
+        return h("div", {class: "wg-l"}, h("span", null, L.label), V.meter(L.pct || 0, 100, L.pct >= 100 ? "good" : L.pct > 0 ? "warn" : "bad"), h("b", null, L.pct == null ? "—" : L.pct + "%"));
+      })),
+      h("div", {class: "wg-note"}, "No live summary yet · build progress shown"));
+  }
+  function extLink(api, g) {
+    var extUrl = g.name === "Business" ? api.cfgVal("ledger_sheet_url") : (CC.catSheetUrl && CC.catSheetUrl[g.name]);
+    if (!extUrl) return null;
+    var pinned = CC.isQuickLinked && CC.isQuickLinked(extUrl);
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24");
+    var p1 = document.createElementNS("http://www.w3.org/2000/svg", "path"); p1.setAttribute("d", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6 M15 3h6v6 M10 14 21 3");
+    s.appendChild(p1);
+    /* 2026-11-27 contract kept: hidden until Shift is held; click opens the sheet, shift+click pins it. */
+    return h("span", {class: "tile-extlink" + (pinned ? " is-pinned" : ""), role: "button", tabindex: "0",
+      title: pinned ? g.name + " — pinned to rail (shift+click to unpin)" : "Open " + g.name + "'s sheet (shift+click to pin to rail)",
+      onclick: function (e) { e.stopPropagation(); if (e.shiftKey) { if (CC.pinQuickLink) CC.pinQuickLink({label: g.name, url: extUrl}); return; } window.open(extUrl, "_blank", "noopener"); },
+      onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } }}, s);
+  }
+
   CC.views.Wall = function (api) {
-    var page = h("div", {class: "ov ov-onlycats"});
-    var cats = h("div", {class: "ov-catgrid", role: "group", "aria-label": "Top categories"});
+    var page = h("div", {class: "ov ov-onlycats wv2"});
+    var cats = h("div", {class: "ov-catgrid wv2-grid", role: "group", "aria-label": "Top categories"});
     var BS = CC.buildStatus;
     if (BS) {
       BS.ensureLoaded(api);
+      if (api.data) warmAll(api);
       BS.lanes.forEach(function (g) {
         function openCat() {
           var realPage = CC.catPages && CC.catPages[g.name];
@@ -250,59 +295,29 @@
           BS.open(g.name); api.go("build");
         }
         var color = (CC.catColor && CC.catColor[g.name]) || "var(--accent)";
-        var icon = CC.catIconSvg ? CC.catIconSvg(g.name, 20) : null;
-        var iconBadge = h("div", {class: "ov-cat-icon", style: "--c:" + color}, icon);
-
-        if (!BS.ready()) {
-          cats.appendChild(h("button", {type: "button", class: "ov-cat", onclick: openCat},
-            h("div", {class: "ov-cat-top"}, iconBadge),
-            h("div", {class: "ov-cat-name"}, g.name),
-            h("div", {class: "ov-cat-sub"}, BS.error() || "Loading…")));
-          return;
-        }
-        var st = BS.laneStatus(g);
+        var icon = CC.catIconSvg ? CC.catIconSvg(g.name, 22) : null;
         var summary = CC.catSummary && CC.catSummary[g.name];
-        var subLine = summary ? summary.line : (st.state === "none" ? "Not started yet" : "Tap to open");
-        if (summary && summary.placeholder) subLine += " · placeholder";
+        var st = BS.ready() ? BS.laneStatus(g) : {pct: null, state: "none"};
 
-        /* Stat rows pin to the tile's bottom (.ov-cat-stats, margin-top:auto) so the card reads as
-           a real glance at the category instead of a name + one sentence floating over blank space.
-           A category whose dashboard hasn't reported stats yet still gets one placeholder row. */
+        var hero = null;
+        if (summary && summary.hero) { try { hero = summary.hero(); } catch (e) { hero = null; } }
+        if (!hero) hero = BS.ready() ? buildGauge(BS, g, color) : h("div", {class: "wg-loading"}, BS.error() || "Loading…");
+
         var rows = summary && summary.stats && summary.stats.length ? summary.stats : null;
-        var statsEl = h("div", {class: "ov-cat-stats"},
-          rows ? rows.map(function (s) { return h("div", {class: "ov-cat-stat" + (s.value === "—" ? " placeholder" : "")}, h("b", null, String(s.value)), h("span", null, s.label)); })
-               : h("div", {class: "ov-cat-stat placeholder"}, h("b", null, "—"), h("span", null, st.state === "none" ? "No data wired up yet" : "More detail coming")));
+        var statsEl = h("div", {class: "ov-cat-stats wv2-stats"},
+          rows ? rows.map(function (s) {
+            return h("div", {class: "ov-cat-stat" + (s.value === "—" ? " placeholder" : "")},
+              h("span", null, s.label), h("b", {style: s.k && STATE_COL[s.k] ? "color:" + STATE_COL[s.k] : null}, String(s.value)));
+          }) : h("div", {class: "ov-cat-stat placeholder"}, h("span", null, summary ? summary.line : (st.state === "none" ? "Not started yet" : "Reading…"))));
 
-        var tile = h("button", {type: "button", class: "ov-cat ov-cat-" + st.state, onclick: openCat},
-          h("div", {class: "ov-cat-top"}, iconBadge, pctRing(st.pct, color)),
-          h("div", {class: "ov-cat-name"}, g.name),
-          h("div", {class: "ov-cat-sub"}, subLine),
+        var tile = h("button", {type: "button", class: "ov-cat wv2-tile ov-cat-" + st.state, style: "--c:" + color, onclick: openCat},
+          h("div", {class: "wv2-top"},
+            h("div", {class: "ov-cat-icon", style: "--c:" + color}, icon),
+            h("div", {class: "wv2-name"}, h("b", null, g.name), h("small", null, summary && summary.line ? summary.line : (BS.ready() ? st.pct + "% built" : ""))),
+            st.pct != null ? h("span", {class: "wv2-pct", title: "Build progress " + st.pct + "% (Build Status tab)"}, st.pct + "%") : null),
+          h("div", {class: "wv2-hero"}, hero),
           statsEl);
-
-        /* 2026-11-27, JD's call: holding Shift reveals a small external-link affordance (hidden by
-           CSS the rest of the time); a plain click opens the category's connected sheet in a new
-           tab, shift+click pins it to the rail instead (index.html's existing Quick Links system).
-           A <span role=button>, not a nested <button> — .ov-cat is already a button, and a button
-           inside a button is invalid HTML browsers silently mis-parse. Business's sheet link is
-           config-driven (ledger_sheet_url), everything else is a static connected-sheet URL. */
-        var extUrl = g.name === "Business" ? api.cfgVal("ledger_sheet_url") : (CC.catSheetUrl && CC.catSheetUrl[g.name]);
-        if (extUrl) {
-          var pinned = CC.isQuickLinked && CC.isQuickLinked(extUrl);
-          var ext = h("span", {class: "tile-extlink" + (pinned ? " is-pinned" : ""), role: "button", tabindex: "0",
-            title: pinned ? g.name + " — pinned to rail (shift+click to unpin)" : "Open " + g.name + "'s sheet (shift+click to pin to rail)",
-            onclick: function (e) {
-              e.stopPropagation();
-              if (e.shiftKey) { if (CC.pinQuickLink) CC.pinQuickLink({label: g.name, url: extUrl}); return; }
-              window.open(extUrl, "_blank", "noopener");
-            },
-            onkeydown: function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); } }
-          }, (function () { var s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", "0 0 24 24");
-            var p1 = document.createElementNS("http://www.w3.org/2000/svg", "path"); p1.setAttribute("d", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6");
-            var p2 = document.createElementNS("http://www.w3.org/2000/svg", "path"); p2.setAttribute("d", "M15 3h6v6 M10 14 21 3");
-            s.appendChild(p1); s.appendChild(p2); return s; })());
-          tile.appendChild(ext);
-        }
-
+        var ext = extLink(api, g); if (ext) tile.appendChild(ext);
         cats.appendChild(tile);
       });
     }

@@ -465,91 +465,209 @@
   CC.catPages.Clarkson = "clarkson";
 
   var CLK_DATA = "1PMQP_FGlHp1GBLDd70P01-seK8tWN7rtIRZbnSXXOAg";
-  var CLK_OVERVIEW_CACHE = {rows: null, header: null, err: null, loading: false};
-  var CLK_EVENTS_CACHE = {rows: null, header: null, err: null, loading: false};
-  var CLK_SCHEDULE_CACHE = {rows: null, header: null, err: null, loading: false};
+  /* Tab gids. Two were labelled the wrong way round on the Information page until Nov 28:
+     1639999683 is the sheet's "Clarkson Waiting" tab (items waiting on JD, with a due date) and
+     1952968140 is "Clarkson Schedule" (next shift, shifts in the next 7 days). */
+  var CLK_GID = {overview: "63113935", waiting: "1639999683", schedule: "1952968140", events: "824966976", raw: "1117855041", email: "1815511294", queue: "814927088", due: "459886470"};
+  var CLK = {};
+  Object.keys(CLK_GID).forEach(function (k) { CLK[k] = {rows: null, header: null, err: null, loading: false}; });
+
+  /* 2026-11-28, JD's Nov 27 round: "add color coding and consolidate the widgets into fewer, more
+     meaningful ones." Was: six raw Overview rows as tiles + an events list + a placeholder card.
+     Now: four tiles that each answer one question (how much is open, what's late, what's on me,
+     when do I work next), and three cards: the work queue (status mix + when things are due), what
+     is waiting on JD, and one agenda that merges shifts and events by day. */
+  function clkObjs(c) {
+    if (!c.rows || !c.header) return null;
+    var hd = c.header.map(function (x) { return String(x || "").trim().toLowerCase(); });
+    return c.rows.map(function (r) { var o = {}; hd.forEach(function (k, i) { o[k] = r[i]; }); return o; });
+  }
+  function clkYmd(t) { var d = new Date(t); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function clkDayMs(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : null; }
+  function clkDays(a, b) { return Math.round((a - b) / 86400000); }
+  var CLK_STATUS = [
+    {re: /in progress/i, l: "In progress", c: "var(--accent)"},
+    {re: /waiting/i, l: "Waiting on info", c: "var(--amber)"},
+    {re: /not started/i, l: "Not started", c: "var(--red)"},
+    {re: /monitor/i, l: "Monitoring", c: "var(--green)"},
+    {re: /future/i, l: "Future", c: "var(--muted)"}];
+
+  function clkModel(api) {
+    var now = api.nowMs ? api.nowMs() : Date.now(), today = clkDayMs(clkYmd(now));
+    var m = {today: today};
+    var ov = clkObjs(CLK.overview) || [], ovv = function (name) { var r = ov.filter(function (x) { return String(x.item || "").toLowerCase() === name; })[0]; return r ? String(r.value || "") : null; };
+    var q = clkObjs(CLK.queue);
+    if (q) {
+      m.status = CLK_STATUS.map(function (s) { var r = q.filter(function (x) { return s.re.test(x.status || ""); })[0]; return {l: s.l, c: s.c, v: r ? Number(r.open) || 0 : 0}; });
+      var tot = q.filter(function (x) { return /total/i.test(x.status || ""); })[0];
+      m.open = tot ? Number(tot.open) || 0 : m.status.reduce(function (a, s) { return a + s.v; }, 0);
+    } else if (ovv("queue open") != null) m.open = Number(ovv("queue open")) || 0;
+    m.urgent = ovv("queue urgent") != null ? Number(ovv("queue urgent")) || 0 : null;
+    var due = clkObjs(CLK.due);
+    if (due) {
+      m.overdue = 0; m.nodl = 0; m.dueToday = 0; m.due7 = 0; m.later = 0; m.byDay = [];
+      for (var i = 0; i < 14; i++) m.byDay.push(0);
+      due.forEach(function (r) {
+        var n = Number(r.count) || 0, k = String(r.due || "");
+        if (/overdue/i.test(k)) { m.overdue += n; return; }
+        if (/no deadline/i.test(k)) { m.nodl += n; return; }
+        var t = clkDayMs(k); if (t == null) return;
+        var d = clkDays(t, today);
+        if (d < 0) m.overdue += n; else if (d < 14) { m.byDay[d] += n; if (d === 0) m.dueToday += n; if (d < 7) m.due7 += n; } else m.later += n;
+      });
+    }
+    var w = clkObjs(CLK.waiting);
+    if (w) m.waiting = w.filter(function (r) { return String(r.item || "").trim(); }).map(function (r) {
+      var t = clkDayMs(r.due), d = t != null ? clkDays(t, today) : null;
+      return {text: String(r.item), d: d, k: d == null ? "n" : d < 0 ? "bad" : d === 0 ? "warn" : "good"};
+    });
+    var sc = clkObjs(CLK.schedule) || [], scv = function (name) { var r = sc.filter(function (x) { return String(x.item || "").toLowerCase() === name; })[0]; return r ? String(r.value || "") : null; };
+    m.nextShiftText = scv("next shift");
+    var s7 = scv("shifts next 7 days") || "", hm = /(\d+)\s*hours?/i.exec(s7), sm = /(\d+)\s*shifts?/i.exec(s7);
+    m.hours7 = hm ? +hm[1] : null; m.shifts7 = sm ? +sm[1] : null;
+    var raw = clkObjs(CLK.raw), agenda = [];
+    if (raw) raw.forEach(function (r) {
+      if (!/shift/i.test(r.kind || "")) return;
+      var st = Date.parse(r.start || ""), en = Date.parse(r.end_or_due || "");
+      if (isNaN(st) || st < today) return;
+      agenda.push({t: st, day: clkDayMs(clkYmd(st)), kind: "shift", title: (r.title || "Shift"), time: new Date(st).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"}) + (isNaN(en) ? "" : "–" + new Date(en).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"})), hrs: isNaN(en) ? null : (en - st) / 3600000});
+    });
+    var ev = clkObjs(CLK.events);
+    if (ev) ev.forEach(function (r) {
+      var day = clkDayMs(r.date); if (day == null || day < today) return;
+      agenda.push({t: day + 1, day: day, kind: "event", title: String(r.event || ""), time: String(r.time || "")});
+    });
+    agenda.sort(function (a, b) { return a.day - b.day || a.t - b.t; });
+    m.agenda = agenda;
+    var nextShift = agenda.filter(function (a) { return a.kind === "shift"; })[0];
+    m.nextShiftIn = nextShift ? clkDays(nextShift.day, today) : null;
+    m.nextShift = nextShift || null;
+    m.eventsN = agenda.filter(function (a) { return a.kind === "event"; }).length;
+    var em = clkObjs(CLK.email);
+    if (em) { var g = function (re) { var r = em.filter(function (x) { return re.test(x.metric || ""); })[0]; return r ? Number(r.count) || 0 : 0; };
+      m.email = {inn: g(/^emails received/i), direct: g(/^received direct/i), sent: g(/^emails sent/i), date: em[0] && em[0].stat_date}; }
+    return m;
+  }
+
+  function clkTiles(m) {
+    var V = CC.viz, T = [];
+    var withDl = (m.overdue || 0) + (m.due7 || 0) + (m.later || 0) + (m.byDay ? m.byDay.slice(7).reduce(function (a, b) { return a + b; }, 0) : 0);
+    T.push({l: "Open work", v: m.open == null ? "…" : m.open, s: m.urgent ? m.urgent + " urgent" : m.urgent === 0 ? "none urgent" : "", k: m.urgent ? "bad" : "n",
+      viz: m.status ? V.stack(m.status.map(function (s) { return {v: s.v, c: s.c, l: s.l}; })) : null, ph: "bars"});
+    T.push({l: "Overdue", v: m.overdue == null ? "…" : m.overdue, s: m.overdue == null ? "" : (m.dueToday || 0) + " due today", k: m.overdue ? "bad" : m.overdue === 0 ? "good" : "n",
+      viz: m.overdue == null ? null : V.ring(withDl ? m.overdue / withDl * 100 : 0, m.overdue ? "bad" : "good", {label: withDl ? Math.round(m.overdue / withDl * 100) + "%" : "0", sub: "late", size: 54})});
+    var wn = m.waiting ? m.waiting.length : null, wl = m.waiting ? m.waiting.filter(function (x) { return x.k === "bad"; }).length : 0;
+    T.push({l: "Waiting on you", v: wn == null ? "…" : wn, s: wn == null ? "" : wl ? wl + " past due" : "none past due", k: wl ? "bad" : wn ? "warn" : "good",
+      viz: wn == null ? null : V.ring(wn ? wl / wn * 100 : 0, wl ? "bad" : "warn", {label: wn, size: 54})});
+    var ns = m.nextShift, nIn = m.nextShiftIn;
+    T.push({l: "Next shift", v: ns ? (nIn === 0 ? "Today" : nIn === 1 ? "Tomorrow" : new Date(ns.t).toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"})) : (m.nextShiftText ? m.nextShiftText.split(",").slice(1, 2).join("").trim() || "—" : "…"),
+      s: m.hours7 != null ? m.hours7 + " h over " + m.shifts7 + " shifts this week" : ns ? ns.time : "", k: m.hours7 != null && m.hours7 > 40 ? "warn" : "n",
+      viz: m.hours7 != null ? V.ring(Math.min(100, m.hours7 / 40 * 100), m.hours7 > 40 ? "warn" : "n", {label: m.hours7, sub: "hrs", size: 54}) : null});
+    return T;
+  }
+
+  function clkCard(title, right, body, cls) {
+    return h("section", {class: "hc " + (cls || "")}, h("div", {class: "hc-h"}, h("h3", null, title), right ? h("div", {class: "hc-r"}, right) : null), h("div", {class: "hc-b"}, body));
+  }
+  function clkLoading(c, what) { return h("div", {class: "hc-empty"}, c.err ? "Couldn't read " + what + ": " + c.err : "Reading " + what + "…"); }
+
+  function clkQueueCard(m) {
+    var V = CC.viz;
+    var top = m.status ? h("div", {class: "ck-blk"},
+      h("div", {class: "ck-eb"}, "Open items by status"),
+      V.stack(m.status, {tall: true}),
+      h("div", {class: "ck-stat"}, m.status.map(function (s) { return h("div", null, h("i", {style: "background:" + s.c}), h("b", null, String(s.v)), h("span", null, s.l)); }))) : clkLoading(CLK.queue, "the queue");
+    var dueB;
+    if (m.byDay) {
+      var labels = ["Late"], vals = [m.overdue], st = ["bad"], titles = [m.overdue + " overdue"];
+      for (var i = 0; i < 14; i++) {
+        var d = new Date(m.today + i * 86400000 + 3600000);
+        labels.push(i === 0 ? "Tod" : i % 2 ? "" : d.toLocaleDateString("en-US", {weekday: "narrow"}) + d.getDate());
+        vals.push(m.byDay[i]); st.push(i === 0 ? "warn" : i < 7 ? "n" : "off");
+        titles.push(m.byDay[i] + " due " + d.toLocaleDateString("en-US", {weekday: "short", month: "short", day: "numeric"}));
+      }
+      labels.push("Later"); vals.push(m.later); st.push("off"); titles.push(m.later + " due later");
+      labels.push("None"); vals.push(m.nodl); st.push("off"); titles.push(m.nodl + " with no deadline");
+      dueB = h("div", {class: "ck-blk ck-due"},
+        h("div", {class: "ck-eb"}, "When things are due"),
+        V.bars(vals, {states: st, labels: labels, titles: titles, aria: "Items due by day"}),
+        h("div", {class: "hc-legend"},
+          h("span", null, h("i", {class: "sw", style: "background:var(--red)"}), m.overdue + " overdue"),
+          h("span", null, h("i", {class: "sw", style: "background:var(--amber)"}), m.dueToday + " today"),
+          h("span", null, h("i", {class: "sw", style: "background:var(--accent)"}), m.due7 - m.dueToday + " in the next 6 days"),
+          h("span", null, h("i", {class: "sw", style: "background:var(--muted)"}), "later or no deadline")));
+    } else dueB = clkLoading(CLK.due, "due dates");
+    var em = m.email ? h("div", {class: "ck-email"},
+      h("span", {class: "ck-eb"}, "Email today"),
+      h("span", null, h("b", null, String(m.email.inn)), " in"),
+      h("span", null, h("b", null, String(m.email.direct)), " direct to you"),
+      h("span", null, h("b", null, String(m.email.sent)), " sent")) : null;
+    return clkCard("Work queue", m.open != null ? m.open + " open" : null, h("div", {class: "ck-q"}, top, dueB, em), "ck-c-q");
+  }
+
+  function clkWaitingCard(m) {
+    var body;
+    if (!m.waiting) body = clkLoading(CLK.waiting, "the waiting list");
+    else if (!m.waiting.length) body = h("div", {class: "hc-empty"}, "Nothing is waiting on you.");
+    else body = h("div", {class: "ck-list"}, m.waiting.slice().sort(function (a, b) { return (a.d == null ? 999 : a.d) - (b.d == null ? 999 : b.d); }).map(function (x) {
+      return h("div", {class: "ck-li " + x.k},
+        h("i", {class: "ck-dot"}),
+        h("div", {class: "ck-li-t"}, x.text),
+        h("span", {class: "ck-li-d"}, x.d == null ? "no date" : x.d < 0 ? -x.d + "d late" : x.d === 0 ? "today" : "in " + x.d + "d"));
+    }));
+    return clkCard("Waiting on you", m.waiting ? m.waiting.length + " items" : null, body, "ck-c-w");
+  }
+
+  function clkAgendaCard(m) {
+    var body;
+    if (!CLK.events.rows && !CLK.raw.rows) body = clkLoading(CLK.events, "the calendar");
+    else if (!m.agenda.length) body = h("div", {class: "hc-empty"}, "Nothing on the calendar.");
+    else {
+      var groups = [], last = null;
+      m.agenda.slice(0, 18).forEach(function (a) { if (!last || last.day !== a.day) { last = {day: a.day, items: []}; groups.push(last); } last.items.push(a); });
+      body = h("div", {class: "ck-ag"}, groups.map(function (g) {
+        var d = clkDays(g.day, m.today), dt = new Date(g.day + 3600000);
+        return h("div", {class: "ck-ag-d" + (d === 0 ? " today" : d === 1 ? " tom" : "")},
+          h("div", {class: "ck-ag-h"}, h("b", null, d === 0 ? "Today" : d === 1 ? "Tomorrow" : dt.toLocaleDateString("en-US", {weekday: "short"})), h("span", null, dt.toLocaleDateString("en-US", {month: "short", day: "numeric"}))),
+          h("div", {class: "ck-ag-i"}, g.items.map(function (a) {
+            return h("div", {class: "ck-ag-e " + a.kind}, h("i"), h("span", {class: "ck-ag-t"}, a.time || ""), h("span", {class: "ck-ag-n"}, a.kind === "shift" ? "Shift · " + a.title : a.title));
+          })));
+      }));
+    }
+    var legend = h("div", {class: "hc-legend"}, h("span", null, h("i", {class: "sw", style: "background:var(--accent)"}), "shift"), h("span", null, h("i", {class: "sw", style: "background:var(--green)"}), "event"));
+    return clkCard("Coming up", legend, body, "ck-c-a");
+  }
 
   CC.views.Clarkson = function (api) {
-    var page = h("div", {class: "hp-wrap hp-canvas"});
+    var page = h("div", {class: "hp-wrap hp-canvas ck2"});
     page.appendChild(catHead("Clarkson", "clarkson", api));
-    var tilesWrap = h("div", {class: "hp-tilesbar"});
-    page.appendChild(tilesWrap);
-    var body = canvasBody("1.2fr 1fr", "1fr", []);
-    page.appendChild(body);
-
+    var tiles = h("div", {class: "kt-grid ck2-tiles"});
+    var body = h("div", {class: "hp-canvas-body ck2-body"});
+    page.appendChild(tiles); page.appendChild(body);
     function paint() {
-      var tiles = [];
-
-      /* Overview items as stat tiles */
-      var ovStats = [];
-      if (CLK_OVERVIEW_CACHE.rows) {
-        var ohdr = CLK_OVERVIEW_CACHE.header;
-        var iItem = col(ohdr, "item"), iVal = col(ohdr, "value"), iSrc = col(ohdr, "source");
-        CLK_OVERVIEW_CACHE.rows.filter(function (r) {
-          var it = iItem != null ? fmtCell(r[iItem]).trim() : "", vl = iVal != null ? fmtCell(r[iVal]).trim() : "";
-          return it || vl;
-        }).slice(0, 6).forEach(function (r) {
-          var itm = iItem != null ? fmtCell(r[iItem]) : "—", val = iVal != null ? fmtCell(r[iVal]) : "—";
-          tiles.push(tile(itm, val, iSrc != null ? fmtCell(r[iSrc]) : ""));
-          ovStats.push({value: val, label: itm});
-        });
-      } else if (CLK_OVERVIEW_CACHE.err) {
-        tiles.push(tile("Clarkson", "!", CLK_OVERVIEW_CACHE.err, "watch"));
-      } else {
-        tiles.push(tile("Clarkson", "…", "loading overview"));
-      }
-      tilesWrap.innerHTML = ""; tilesWrap.appendChild(tileGrid(tiles));
-
-      /* Upcoming events module */
-      var evBody, upcomingN = null;
-      if (CLK_EVENTS_CACHE.rows) {
-        var ehdr = CLK_EVENTS_CACHE.header;
-        var iEvDate = col(ehdr, "date"), iEvTime = col(ehdr, "time"), iEvName = col(ehdr, "event");
-        var now = Date.now();
-        var upcoming = CLK_EVENTS_CACHE.rows.filter(function (r) {
-          var t = iEvDate != null ? ms(r[iEvDate]) : null;
-          return t && t >= now - 86400000;
-        }).slice(0, 10);
-        upcomingN = upcoming.length;
-        evBody = upcoming.length ? h("div", {class: "cat-feed"}, upcoming.map(function (r) {
-          return h("div", {class: "cat-feed-item"},
-            h("span", {class: "cat-feed-user"}, iEvDate != null ? fmtDate(r[iEvDate]) : ""),
-            h("span", {class: "cat-feed-platform"}, iEvTime != null ? fmtCell(r[iEvTime]) : ""),
-            h("span", {class: "cat-feed-name"}, iEvName != null ? fmtCell(r[iEvName]) : ""));
-        })) : modPlaceholder("Nothing on the calendar", "Upcoming Clarkson events will show here.");
-      } else if (CLK_EVENTS_CACHE.err) {
-        evBody = modPlaceholder("Couldn't load events", CLK_EVENTS_CACHE.err);
-      } else {
-        evBody = modPlaceholder(readingText("events", CLK_EVENTS_CACHE));
-      }
-
+      var m = clkModel(api), T = clkTiles(m);
+      tiles.innerHTML = ""; T.forEach(function (t) { tiles.appendChild(CC.viz.tile(t)); });
       body.innerHTML = "";
-      body.appendChild(mod("Upcoming Events", null, null, evBody));
-      body.appendChild(mod("Faculty Tasks", null, null,
-        modPlaceholder("Queue, Due and Waiting not surfaced here yet", "Those tabs are already in Information → — a live snapshot of open items lands here next.")));
-
+      body.appendChild(clkQueueCard(m)); body.appendChild(clkWaitingCard(m)); body.appendChild(clkAgendaCard(m));
       if (CC.setCatSummary) {
-        var stats = ovStats.slice(0, 2);
-        stats.push({value: upcomingN != null ? String(upcomingN) : "—", label: "Upcoming events"});
-        CC.setCatSummary("Clarkson", upcomingN != null ? upcomingN + " upcoming event" + (upcomingN === 1 ? "" : "s") : "Loading overview…", false, stats);
+        var line = m.open != null ? m.open + " open · " + (m.overdue || 0) + " overdue" + (m.waiting ? " · " + m.waiting.length + " waiting on you" : "") : "Loading Clarkson…";
+        CC.setCatSummary("Clarkson", line, false, T.map(function (t) { return {value: String(t.v), label: t.l, k: t.k}; }).slice(0, 3).concat([{value: String(m.eventsN), label: "Upcoming events"}]).slice(0, 3),
+          function () { var t2 = clkTiles(clkModel(api)); return CC.viz.heroTiles([t2[1], t2[2], t2[3]]); });
       }
     }
     paint();
-
-    if (!CLK_OVERVIEW_CACHE.rows && !CLK_OVERVIEW_CACHE.err)
-      loadSheet(CLK_DATA, "63113935", api, CLK_OVERVIEW_CACHE, paint, 500, "Clarkson Overview");
-    if (!CLK_EVENTS_CACHE.rows && !CLK_EVENTS_CACHE.err)
-      loadSheet(CLK_DATA, "824966976", api, CLK_EVENTS_CACHE, paint, 500, "Clarkson Events");
-
+    Object.keys(CLK_GID).forEach(function (k) {
+      if (!CLK[k].rows && !CLK[k].err) loadSheet(CLK_DATA, CLK_GID[k], api, CLK[k], paint, 500, "Clarkson " + k);
+    });
     return page;
   };
 
   CC.views.ClarksonData = infoPage(CLK_DATA, [
     {id: "overview", label: "Overview", gid: "63113935"},
-    {id: "schedule", label: "Schedule", gid: "1639999683"},
+    {id: "waiting", label: "Waiting", gid: "1639999683"},
+    {id: "schedule", label: "Schedule", gid: "1952968140"},
     {id: "events", label: "Events", gid: "824966976"},
     {id: "raw", label: "Raw Data", gid: "1117855041"},
-    {id: "waiting", label: "Waiting", gid: "1952968140"},
     {id: "email", label: "Email", gid: "1815511294"},
     {id: "queue", label: "Queue", gid: "814927088"},
     {id: "due", label: "Due", gid: "459886470"},

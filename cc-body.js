@@ -148,13 +148,19 @@
   function numAt(row, i) { if (i == null) return null; var v = row[i]; if (v == null || v === "") return null; var n = Number(String(v).replace(/,/g, "")); return isNaN(n) ? null : n; }
 
   var VS = {rows: null, header: null, err: null, loading: false};
+  /* 2026-11-28 fix: a second caller while a read was in flight got onDone() immediately (still
+     empty) and was never called again — that's why the Health page's Sleep card sat on
+     "Reading…" forever. In-flight callers now queue and all get called when the read lands. */
   function loadVitals(api, onDone) {
-    if (VS.loading || VS.rows || VS.err) { onDone(); return; }
+    if (VS.rows || VS.err) { onDone(); return; }
+    (VS.waiters = VS.waiters || []).push(onDone);
+    if (VS.loading) return;
     VS.loading = true;
-    fetchTab(api, VITALS_GID, 60, function (err, j) {
+    fetchTab(api, VITALS_GID, 1000, function /* whole tab: it is oldest-first, so n=60 used to return the OLDEST 60 days */ (err, j) {
       VS.loading = false;
-      if (err) { VS.err = "Could not read the Vitals tab from Health Data."; onDone(); return; }
-      VS.header = j.header || []; VS.rows = j.rows || []; onDone();
+      if (err) VS.err = "Could not read the Vitals tab from Health Data.";
+      else { VS.header = j.header || []; VS.rows = j.rows || []; }
+      var w = VS.waiters; VS.waiters = []; w.forEach(function (f) { try { f(); } catch (e) {} });
     });
   }
   function vitalsModel() {
@@ -212,15 +218,21 @@
   /* ---------- Sleep: new widget, reads the Sleep tab of Health Data directly ---------- */
   var SL = {rows: null, header: null, err: null, loading: false};
   function loadSleep(api, onDone) {
-    if (SL.loading || SL.rows || SL.err) { onDone(); return; }
+    if (SL.rows || SL.err) { onDone(); return; }
+    (SL.waiters = SL.waiters || []).push(onDone);
+    if (SL.loading) return;
     SL.loading = true;
-    fetchTab(api, SLEEP_GID, 30, function (err, j) {
+    /* 2026-11-28: was n=30 from the top of the tab, i.e. the 30 OLDEST nights (the tab is oldest
+       first), so "last 7 nights" was really mid-September. Read the whole tab (it's one row a
+       night) and let sleepModel() take the newest. */
+    fetchTab(api, SLEEP_GID, 1000, function (err, j) {
       SL.loading = false;
-      if (err) { SL.err = "Could not read the Sleep tab from Health Data."; onDone(); return; }
-      SL.header = j.header || []; SL.rows = j.rows || []; onDone();
+      if (err) SL.err = "Could not read the Sleep tab from Health Data.";
+      else { SL.header = j.header || []; SL.rows = j.rows || []; }
+      var w = SL.waiters; SL.waiters = []; w.forEach(function (f) { try { f(); } catch (e) {} });
     });
   }
-  function sleepModel() {
+  function sleepModel(nLast) {
     if (!SL.rows || !SL.rows.length) return null;
     var hdr = SL.header, iDate = colOf(hdr, "Date"), iBed = colOf(hdr, "Bedtime"), iWake = colOf(hdr, "Wake Time"),
       iMin = colOf(hdr, "Minutes Asleep"), iNote = colOf(hdr, "Notes"),
@@ -229,7 +241,7 @@
     var nights = SL.rows.filter(function (r) { return iDate != null && r[iDate]; }).map(function (r) {
       return {k: r[iDate], t: ms(r[iDate]), bed: iBed != null ? r[iBed] : "", wake: iWake != null ? r[iWake] : "", min: numAt(r, iMin), note: iNote != null ? r[iNote] : "",
         deep: numAt(r, iDeep), rem: numAt(r, iRem), core: numAt(r, iCore), awake: numAt(r, iAwake)};
-    }).filter(function (d) { return d.t != null; }).sort(function (a, b) { return a.t - b.t; }).slice(-7);
+    }).filter(function (d) { return d.t != null; }).sort(function (a, b) { return a.t - b.t; }).slice(-(nLast || 7));
     if (!nights.length) return null;
     var latest = nights[nights.length - 1];
     var withMin = nights.filter(function (d) { return d.min != null; }), avg = withMin.length ? withMin.reduce(function (a, b) { return a + b.min; }, 0) / withMin.length : null;
@@ -429,6 +441,7 @@
     insights: insights,
     vitalsModel: vitalsModel,
     sleepModel: sleepModel,
+    sleepErr: function () { return SL.err; },
     ensureHealthData: function (api, onDone) {
       var n = 0, done = function () { n--; if (n <= 0) onDone(); };
       if (!VS.rows && !VS.err) { n++; loadVitals(api, done); }
