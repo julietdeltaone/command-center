@@ -437,7 +437,7 @@
       });
       var groups = GROUPS.filter(function (c) { return seen[c]; }).concat(Object.keys(seen).filter(function (c) { return GROUPS.indexOf(c) < 0; }).sort());
       if (!groups.length) { body.appendChild(h("div", {class: "hc-empty"}, "No sets in the last " + nW + " weeks.")); return; }
-      var grid = h("div", {class: "hmw-grid", style: "grid-template-columns:76px repeat(" + nW + ",minmax(0,1fr));grid-template-rows:14px repeat(" + (groups.length + 1) + ",15px)"});
+      var grid = h("div", {class: "hmw-grid", style: "grid-template-columns:76px repeat(" + nW + ",minmax(0,1fr));grid-template-rows:14px repeat(" + (groups.length + 1) + ",14px)"});
       grid.appendChild(h("span"));
       wks.forEach(function (w, j) {
         grid.appendChild(h("span", {class: "hmx-mon hmw-wk"}, w === cur ? "now" : (nW - 1 - j) % 2 === 1 ? "" : fmtWeek(w)));
@@ -449,7 +449,7 @@
         wks.forEach(function (w) {
           var v = cell[w + "|" + c] || 0; totals[c] = (totals[c] || 0) + v;
           var t = c + " · week of " + fmtWeek(w) + ": " + (v ? v + " set" + (v === 1 ? "" : "s") : "none") + (w === cur ? " (week in progress)" : "");
-          var e = v ? h("i", {class: "hmw-c", title: t, style: "background:" + catColor(c) + ";--o:" + (0.22 + 0.78 * v / mx).toFixed(2)}, h("b", null, String(v)))
+          var e = v ? h("i", {class: "hmw-c", title: t, style: "background:color-mix(in srgb," + catColor(c) + " " + Math.round(28 + 72 * v / mx) + "%,transparent)"}, h("b", null, String(v)))
             : h("i", {class: "hmw-c rest", title: t});
           if (w === cur) e.classList.add("cur");
           grid.appendChild(e);
@@ -496,7 +496,7 @@
       });
       var groups = GROUPS.filter(function (c) { return seen[c]; }).concat(Object.keys(seen).filter(function (c) { return GROUPS.indexOf(c) < 0; }).sort());
       if (!groups.length) { body.appendChild(h("div", {class: "hc-empty"}, "No sets in the last " + NW + " weeks.")); return; }
-      var grid = h("div", {class: "hmw-grid", style: "grid-template-columns:76px repeat(7,minmax(0,1fr));grid-template-rows:14px repeat(" + (groups.length + 1) + ",15px)"});
+      var grid = h("div", {class: "hmw-grid", style: "grid-template-columns:76px repeat(7,minmax(0,1fr));grid-template-rows:14px repeat(" + (groups.length + 1) + ",14px)"});
       grid.appendChild(h("span"));
       DN.forEach(function (d) { grid.appendChild(h("span", {class: "hmx-mon hmw-wk"}, d)); });
       groups.forEach(function (c) {
@@ -504,7 +504,7 @@
         grid.appendChild(h("span", {class: "hmw-lab"}, h("i", {style: "background:" + catColor(c)}), c));
         for (var d2 = 0; d2 < 7; d2++) {
           var v = cell[d2 + "|" + c] || 0, t = c + " on " + DN[d2] + "s, last " + NW + " weeks: " + (v ? v + " sets" : "none");
-          grid.appendChild(v ? h("i", {class: "hmw-c", title: t, style: "background:" + catColor(c) + ";--o:" + (0.22 + 0.78 * v / mx).toFixed(2)}, h("b", null, String(v)))
+          grid.appendChild(v ? h("i", {class: "hmw-c", title: t, style: "background:color-mix(in srgb," + catColor(c) + " " + Math.round(28 + 72 * v / mx) + "%,transparent)"}, h("b", null, String(v)))
             : h("i", {class: "hmw-c rest", title: t}));
         }
       });
@@ -687,7 +687,7 @@
       chartBox.innerHTML = "";
       var n = m.vals.length + 3, W = Math.max(200, chartBox.clientWidth || 600), Hh = Math.max(60, chartBox.clientHeight || 120), PL = 34, PB = 16, PT = 6;
       var mx = Math.max.apply(null, m.vals.concat(m.proj, m.avg4, [cfg.target || 0, 1])) * 1.08;
-      if (cfg.max) mx = Math.min(mx, cfg.max * 1.04);
+      if (cfg.max) mx = cfg.max;
       var bw = (W - PL) / n;
       function y(v) { return PT + (Hh - PT - PB) * (1 - v / mx); }
       var kids = [];
